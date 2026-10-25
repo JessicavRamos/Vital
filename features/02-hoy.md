@@ -155,3 +155,73 @@ Característica: Descartar de "A quién buscar"
     Cuando presiono "📲 Avisar"
     Entonces se abre la ventana "✔ Servicio terminado" con el botón "📲 Avisar por WhatsApp"
 ```
+
+## Novedades v4
+
+1. Botones más pequeños y ordenados. En "Citas de hoy" hay una acción principal (Terminar o 📲 Avisar) y el menú **⋯** con Editar, Corregir y **Cancelar** (con motivo y registro; ver Feature 04).
+2. En "A quién buscar", **Descartar** es el botón pequeño **✕** (al pasar el mouse dice "Descartar").
+3. Una cita cancelada desde Hoy desaparece de "Citas de hoy" y queda en la Agenda con su registro.
+
+```gherkin
+# language: es
+Característica: Hoy v4
+
+  Escenario: Cancelar desde Hoy
+    Dado una cita pendiente de hoy
+    Cuando abro ⋯, elijo "✖ Cancelar cita" y doy un motivo
+    Entonces la cita sale de "Citas de hoy"
+    Y en la Agenda aparece cancelada con quién y por qué
+
+  Escenario: Descartar con el botón ✕
+    Cuando presiono ✕ en "Simba"
+    Entonces "Simba" sale de "A quién buscar" y aparece "Deshacer"
+```
+
+## Novedades v5: mensajes de WhatsApp sin emojis
+
+1. El recordatorio de "A quién buscar" ya no lleva emojis (mismo texto, sin íconos).
+2. El aviso de servicio terminado dice exactamente: **"¡Hola, {cliente}! Ya puedes venir por {mascota} en Pet Garden. ¡Te esperamos!"** El nombre del negocio sale de `NOMBRE_NEGOCIO`.
+3. La ventana "Servicio terminado" muestra el mensaje antes de enviarlo.
+
+```gherkin
+# language: es
+Característica: Mensaje de recogida
+
+  Escenario: Texto del mensaje
+    Dado que terminé la cita de "Luna" (dueña Ana)
+    Cuando presiono "Avisar por WhatsApp"
+    Entonces WhatsApp se abre con el texto "¡Hola, Ana! Ya puedes venir por Luna en Pet Garden. ¡Te esperamos!"
+    Y el mensaje no tiene emojis
+
+  Escenario: Recordatorio sin emojis
+    Cuando presiono "WhatsApp" en "A quién buscar"
+    Entonces el mensaje no tiene emojis
+```
+
+## Nota sobre "A quién buscar" (v7)
+
+La vista `pendientes` calcula, para cada mascota de un cliente activo y cada grupo de recordatorio, **último servicio terminado + días del grupo**. Si esa fecha ya pasó, la mascota aparece.
+
+- Una mascota **sin servicios terminados** nunca aparece.
+- Antes de la v7 el servicio guardaba el día en que se presionó "Terminar". Por eso las visitas viejas parecían recientes y casi nadie aparecía. Desde la v7 se guarda el día de la cita.
+
+```gherkin
+# language: es
+Característica: Quién aparece en "A quién buscar"
+
+  Esquema del escenario: Aparece o no según su último servicio
+    Dado que hoy es 18/10/2026 y el grupo Spa es de 30 días
+    Y el último servicio terminado de la mascota fue el <ultimo>
+    Entonces la mascota <aparece> en "A quién buscar"
+
+    Ejemplos:
+      | ultimo     | aparece                         |
+      | 30/06/2026 | aparece con 81 días de retraso  |
+      | 18/09/2026 | aparece con "Toca hoy"          |
+      | 10/10/2026 | no aparece                      |
+      | (ninguno)  | no aparece                      |
+
+  Escenario: Cliente inactivo
+    Dado que el cliente está marcado como inactivo
+    Entonces sus mascotas no aparecen aunque ya les toque
+```

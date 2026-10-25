@@ -7,3 +7,8 @@ dist/
 build/
 coverage/
 .next/
+
+# Pruebas automáticas
+test-results/
+pruebas/reporte/
+playwright-report/

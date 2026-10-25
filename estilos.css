@@ -275,3 +275,256 @@ tfoot th{color:var(--tinta);font-size:.9rem;text-transform:none;letter-spacing:0
 @media (prefers-reduced-motion:reduce){.tira{scroll-behavior:auto}.interruptor .perilla,.interruptor .perilla::after{transition:none}}
 /* Las columnas no se estiran por una tabla ancha: la tabla se desplaza por dentro */
 .columnas>*{min-width:0}
+
+/* ===== Versión 4: botones compactos, menú ⋯, cancelaciones y diseño para celular ===== */
+
+/* Botones pequeños y ordenados en tablas y listas */
+.btn.chico{padding:5px 11px;font-size:.84rem;border-radius:8px;border-width:1.5px;line-height:1.2;white-space:nowrap}
+.btn.solo-icono{padding:5px 9px;min-width:32px;text-align:center;font-size:1rem;line-height:1}
+.btn.peligro-lleno{background:var(--alerta);border-color:var(--alerta);color:#fff}
+.acciones-tabla{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:nowrap}
+td .acciones-tabla{justify-content:flex-start}
+.sin-salto{white-space:nowrap}
+
+/* Menú flotante de acciones */
+.menu-flotante{position:fixed;z-index:1000;min-width:210px;background:var(--tarjeta);color:var(--tinta);border:1px solid var(--linea);border-radius:12px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.22);display:flex;flex-direction:column}
+.menu-flotante button{background:none;border:0;text-align:left;padding:10px 12px;border-radius:8px;font:600 .92rem Nunito,sans-serif;color:inherit;cursor:pointer}
+.menu-flotante button:hover,.menu-flotante button:focus-visible{background:var(--realce)}
+.menu-flotante button.peligro{color:var(--alerta)}
+
+/* Cancelaciones: quién, cuándo y por qué */
+.auditoria{font-size:.78rem;color:var(--suave);margin-top:4px;line-height:1.35;max-width:260px}
+.auditoria strong{color:var(--tinta)}
+tr.cancelada td{color:var(--suave)}
+tr.cancelada td .enlace{color:var(--suave)}
+.item.anulado{opacity:.85}
+.item.anulado>div>strong:first-child{text-decoration:line-through;text-decoration-color:var(--alerta)}
+.hist-barra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.chips-motivo{margin:4px 0 8px}
+.chips-motivo .chip{font-size:.82rem;padding:5px 10px}
+.chips-motivo .chip[aria-pressed="true"]{background:var(--marca);color:var(--sobre-marca);border-color:var(--marca)}
+dialog .aviso-fijo{font-size:.9rem}
+
+/* Listas de Hoy: acciones a la derecha sin desordenarse */
+.item>.acciones-tabla{flex:0 0 auto}
+
+/* Menú para celular (oculto en computador) */
+.cabeza-lateral{display:contents}
+.menu-movil{display:none}
+
+/* ---------- Celular y tablet ---------- */
+@media (max-width:860px){
+  body{font-size:15px}
+  .app{display:block}
+  .lateral{position:sticky;top:0;z-index:50;height:auto;padding:8px 12px;display:block;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .cabeza-lateral{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .lateral .marca-lateral{padding:0;width:auto;font-size:1rem}
+  .logo-menu{width:36px;height:36px}
+  .menu-movil{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);border:0;color:inherit;border-radius:10px;padding:8px 12px;font:700 .95rem Nunito,sans-serif;cursor:pointer}
+  .menu-movil .actual{opacity:.9}
+  .lateral nav,.lateral .pie{display:none}
+  .lateral.abierta nav{display:block;margin-top:8px}
+  .lateral.abierta .pie{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0 4px;border-top:1px solid rgba(255,255,255,.2);margin-top:6px}
+  .lateral.abierta .pie .usuario{width:auto;margin:0}
+  .principal{padding:12px 12px 32px}
+  .barra{margin-bottom:10px}
+  .barra input{max-width:none}
+  .barra .suave{display:none}
+  h1{font-size:1.3rem}
+  .tarjeta{padding:12px;border-radius:12px}
+  .stats{grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .stats.stats-4{grid-template-columns:1fr 1fr}
+  .stat{padding:10px;font-size:.82rem}
+  .stat b{font-size:1.4rem}
+  .stats.stats-4 .stat b{font-size:1.15rem}
+  input,select{font-size:16px} /* evita que el iPhone haga zoom al escribir */
+  .item{flex-wrap:wrap;gap:8px}
+  .item>.acciones-tabla{width:100%;justify-content:flex-end;flex-wrap:wrap}
+  .acciones{justify-content:stretch}
+  .acciones .btn{flex:1}
+  .acciones.separadas{flex-direction:column-reverse;align-items:stretch}
+  .acciones.separadas .acciones-fila .btn{flex:1}
+  dialog{padding:16px;width:94vw;max-height:92vh;overflow:auto}
+  .fila-nueva>div{flex:1 1 100%}
+  .filtros{gap:6px}
+  .chip{padding:6px 11px;font-size:.85rem}
+  .grandes button{padding:28px 10px;font-size:1.4rem}
+  .mini{flex-basis:140px}
+  .mini-img{height:90px}
+  .hist-lista li{grid-template-columns:1fr auto}
+  .hist-detalle{grid-column:1/-1;grid-row:2;white-space:normal}
+
+  /* Tablas interactivas como tarjetas */
+  table.interactiva,table.interactiva tbody,table.interactiva tr,table.interactiva td{display:block;width:100%}
+  table.interactiva thead{display:block}
+  table.interactiva thead tr:first-child{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  table.interactiva thead tr:first-child th{border:0;padding:0}
+  table.interactiva thead tr:first-child th:not([aria-sort]){display:none}
+  table.interactiva th .orden{border:1.5px solid var(--linea);border-radius:99px;padding:5px 10px;background:var(--tarjeta);font-size:.75rem}
+  table.interactiva th[aria-sort="ascending"] .orden,table.interactiva th[aria-sort="descending"] .orden{border-color:var(--marca)}
+  table.interactiva thead tr.fila-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+  table.interactiva .fila-filtros th{display:block;border:0;padding:0;font-size:.72rem;min-width:0}
+  .fila-filtros th:empty{display:none}
+  .fila-filtros th::before{content:attr(data-label);display:block;margin-bottom:2px}
+  .fila-filtros input,.fila-filtros select{width:100%;font-size:16px;padding:7px 8px}
+  table.interactiva tbody tr{background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;padding:8px 12px;margin:8px 0}
+  table.interactiva tbody tr.activa{border-color:var(--marca);background:var(--realce)}
+  table.interactiva td{border:0;padding:4px 0;display:grid;grid-template-columns:38% 1fr;gap:8px;align-items:start;text-align:left}
+  table.interactiva td>.celda{min-width:0;overflow-wrap:anywhere}
+  table.interactiva td::before{content:attr(data-label);color:var(--suave);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding-top:2px}
+  table.interactiva td:not([data-label])::before,table.interactiva td[data-label=""]::before{display:none}
+  table.interactiva td:not([data-label]),table.interactiva td[data-label=""]{grid-template-columns:1fr}
+  table.interactiva td.num{text-align:left}
+  table.interactiva td .acciones-tabla{justify-content:flex-end;flex-wrap:wrap}
+  table.interactiva td:last-child:not([data-label]),table.interactiva td:last-child[data-label=""]{padding-top:8px;border-top:1px dashed var(--linea);margin-top:4px}
+  table.interactiva td:last-child:has(.acciones-tabla:empty){display:none}
+  table.interactiva tr.vacia{border:0;background:none;padding:0}
+  .tabla-scroll{overflow:visible}
+  /* Las tablas de Catálogos y Reportes (no interactivas) se desplazan de lado */
+  .tarjeta>.tabla-scroll,.tarjeta .tabla-scroll:not(:has(table.interactiva)){overflow-x:auto}
+  td input,td select{min-width:70px}
+}
+@media (max-width:420px){
+  .stats{grid-template-columns:1fr 1fr}
+  .stats .stat:last-child:nth-child(odd){grid-column:1/-1}
+}
+
+/* ===== Versión 5: Agenda reorganizada, limpiar filtros y mensaje de WhatsApp ===== */
+
+/* Pie de las tablas: conteo + Limpiar filtros */
+.pie-tabla{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}
+.pie-tabla .conteo{margin:0}
+
+/* Vista previa del mensaje de WhatsApp */
+.vista-mensaje{background:var(--realce);border-radius:10px;padding:10px 12px;margin:6px 0 0;white-space:pre-line}
+
+/* Encabezado de la Agenda con selector de vista */
+.agenda-cabecera{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.agenda-cabecera h1{margin:0}
+.segmentado{display:inline-flex;background:var(--tarjeta);border:1.5px solid var(--linea);border-radius:12px;padding:3px;gap:2px}
+.segmentado button{border:0;background:none;color:var(--tinta);font:700 .9rem Nunito,sans-serif;padding:7px 16px;border-radius:9px;cursor:pointer}
+.segmentado button[aria-selected="true"]{background:var(--marca);color:var(--sobre-marca)}
+
+/* Navegador de fechas: ‹ Hoy ›  ·  título  ·  calendario */
+.navegador-fecha{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin-bottom:10px}
+.nav-flechas{display:flex;gap:6px}
+.titulo-fecha{margin:0;font-size:1.15rem;text-align:center}
+.navegador-fecha input[type=date]{width:auto;padding:6px 8px}
+.estados-agenda{margin-bottom:6px}
+
+/* Resumen del día o la semana */
+.resumen-agenda{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;margin:6px 0 10px;background:var(--realce);border-radius:10px;font-size:.92rem}
+.resumen-agenda b{font-family:Fredoka,sans-serif;font-size:1.05rem;color:var(--marca)}
+
+/* Cada cita como renglón ordenado */
+.lista-citas{display:flex;flex-direction:column;gap:8px}
+.cita{display:grid;grid-template-columns:70px minmax(140px,1.3fr) minmax(120px,1fr) 95px minmax(110px,.9fr) auto;align-items:center;gap:12px;
+  background:var(--tarjeta);border:1px solid var(--linea);border-left:5px solid var(--sol);border-radius:12px;padding:10px 12px}
+.cita.estado-realizada{border-left-color:var(--ok)}
+.cita.estado-cancelada{border-left-color:var(--linea);opacity:.75}
+.cita-hora{display:flex;flex-direction:column;line-height:1.1}
+.cita-hora strong{font:600 1.25rem Fredoka,sans-serif;color:var(--marca)}
+.cita-hora small{color:var(--suave);font-size:.75rem}
+.cita-quien .enlace{font-size:1.02rem}
+.cita-precio{font-weight:700;text-align:right;white-space:nowrap}
+.cita .acciones-tabla{justify-content:flex-end}
+.cita .auditoria{max-width:none}
+.canceladas-dia{margin-top:2px}
+.canceladas-dia summary{cursor:pointer;color:var(--suave);font-weight:700;font-size:.88rem;padding:4px 2px}
+.canceladas-dia[open] summary{margin-bottom:8px}
+.canceladas-dia .cita{margin-bottom:8px}
+.vacio-dia{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px;border:2px dashed var(--linea);border-radius:12px}
+.vacio-dia p{margin:0}
+
+/* Vista semana */
+.dia-semana{padding:10px 0;border-top:1px solid var(--linea)}
+.dia-semana:first-of-type{border-top:0}
+.dia-semana h3{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}
+.dia-semana.es-hoy h3 .enlace-dia{color:var(--marca)}
+.dia-semana.es-hoy h3::after{content:"hoy";font:700 .7rem Nunito,sans-serif;background:var(--sol);color:var(--sobre-sol);border-radius:99px;padding:2px 8px}
+.enlace-dia{background:none;border:0;padding:0;font:600 1rem Fredoka,sans-serif;color:var(--tinta);cursor:pointer;text-align:left}
+.enlace-dia:hover{color:var(--marca);text-decoration:underline}
+
+@media (max-width:1100px){
+  .cita{grid-template-columns:64px 1fr 1fr auto;grid-template-areas:"hora quien servicio precio" "hora estado estado acciones"}
+  .cita-hora{grid-area:hora}.cita-quien{grid-area:quien}.cita-servicio{grid-area:servicio}.cita-precio{grid-area:precio}
+  .cita-estado{grid-area:estado}.cita .acciones-tabla{grid-area:acciones}
+}
+@media (max-width:860px){
+  .agenda-cabecera{margin-bottom:4px}
+  .segmentado{width:100%}
+  .segmentado button{flex:1;padding:8px 6px}
+  .navegador-fecha{grid-template-columns:1fr auto;grid-template-areas:"titulo titulo" "flechas fecha";gap:8px}
+  .titulo-fecha{grid-area:titulo;text-align:left;font-size:1.05rem}
+  .nav-flechas{grid-area:flechas}
+  .navegador-fecha input[type=date]{grid-area:fecha;font-size:16px}
+  .cita{grid-template-columns:56px 1fr auto;grid-template-areas:"hora quien precio" "hora servicio servicio" "estado estado estado" "acciones acciones acciones";gap:4px 10px;padding:10px}
+  .cita .acciones-tabla{justify-content:flex-end;border-top:1px dashed var(--linea);padding-top:8px;margin-top:4px}
+  .resumen-agenda{gap:4px 12px;font-size:.85rem}
+}
+
+/* ===== Versión 6: calendario propio, botón del día y ajustes ===== */
+
+/* El campo de fecha original queda oculto (sigue guardando el valor) */
+.fecha-oculta{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden;clip:rect(0 0 0 0);border:0!important;padding:0!important}
+
+/* Botón que se ve en lugar del campo de fecha */
+.campo-fecha{display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border:2px solid var(--linea);border-radius:10px;background:var(--tarjeta);color:var(--tinta);font:400 1rem Nunito,sans-serif;cursor:pointer;text-align:left;min-height:42px}
+.campo-fecha:hover{border-color:var(--marca)}
+.campo-fecha[data-cal-abierto]{border-color:var(--marca);box-shadow:0 0 0 3px var(--realce)}
+.campo-fecha .cf-texto{font-weight:700}
+.campo-fecha .cf-vacio{font-weight:400;color:var(--suave)}
+.campo-fecha .cf-dia{color:var(--suave);font-size:.85rem;text-transform:capitalize}
+.campo-fecha .cf-icono{margin-left:auto;font-size:.95rem;opacity:.8}
+.fila-filtros .campo-fecha{padding:5px 8px;min-height:0;font-size:.85rem;border-width:1px;min-width:130px}
+.fila-filtros .campo-fecha .cf-dia{display:none}
+.navegador-fecha .campo-fecha{width:auto;min-width:170px}
+
+/* Calendario flotante */
+.calendario{position:fixed;z-index:1001;width:286px;background:var(--tarjeta);color:var(--tinta);border:1px solid var(--linea);border-radius:14px;padding:12px;box-shadow:0 16px 40px rgba(0,0,0,.25)}
+.cal-cabeza{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-cabeza strong{font:600 1.05rem Fredoka,sans-serif}
+.cal-cabeza button{width:34px;height:34px;border-radius:50%;border:0;background:var(--realce);color:var(--tinta);font-size:1.3rem;line-height:1;cursor:pointer}
+.cal-cabeza button:hover{background:var(--marca);color:var(--sobre-marca)}
+.cal-semana,.cal-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.cal-semana span{font-size:.72rem;font-weight:700;color:var(--suave);text-transform:uppercase;padding:2px 0}
+.cal-dias button{aspect-ratio:1;border:0;border-radius:9px;background:none;color:var(--tinta);font:600 .92rem Nunito,sans-serif;cursor:pointer}
+.cal-dias button:hover{background:var(--realce)}
+.cal-dias button.es-hoy{box-shadow:inset 0 0 0 2px var(--sol)}
+.cal-dias button.elegido{background:var(--marca);color:var(--sobre-marca)}
+.cal-pie{display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--linea);padding-top:8px}
+.cal-pie button{background:none;border:0;color:var(--marca);font:700 .9rem Nunito,sans-serif;cursor:pointer;padding:4px 6px;border-radius:8px}
+.cal-pie button:hover{background:var(--realce)}
+
+/* Agenda: el centro dice qué día se ve */
+.dia-actual{min-width:92px;text-align:center;font:600 1rem Fredoka,sans-serif;color:var(--marca);padding:0 4px;text-transform:capitalize}
+.nav-flechas{align-items:center}
+
+@media (max-width:860px){
+  .navegador-fecha .campo-fecha{grid-area:fecha;min-width:0}
+  .nav-flechas{flex-wrap:wrap}
+  .calendario{width:min(320px,calc(100vw - 16px))}
+  .cal-dias button{font-size:1rem}
+}
+@media (max-width:860px){
+  .navegador-fecha{grid-template-columns:1fr;grid-template-areas:"titulo" "flechas" "fecha"}
+  .nav-flechas{flex-wrap:nowrap;justify-content:space-between}
+  .nav-flechas .dia-actual{flex:1}
+  .navegador-fecha .campo-fecha{width:100%}
+}
+
+/* ===== Versión 10: roles y Usuarios ===== */
+.lateral .usuario .rol-usuario{display:block;font:600 .75rem Nunito,sans-serif;opacity:.8;margin-top:2px;padding-left:24px}
+.tabla-permisos{font-size:.88rem}
+.tabla-permisos td:not(:first-child),.tabla-permisos th:not(:first-child){text-align:center;width:72px}
+.pasos{padding-left:20px;margin:6px 0 10px}
+.pasos li{margin-bottom:6px}
+@media (max-width:860px){ .lateral .usuario .rol-usuario{display:inline;padding-left:6px} }
+td select[data-rol]{min-width:150px}
+
+/* ===== v13: visita anterior, confirmaciones ===== */
+.hist-cabeza{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.hist-cabeza h3{margin:0}
+#dialogo-confirmar{max-width:440px}
+#dialogo-confirmar h2{margin-top:0}
+.calendario button[data-fecha]:focus-visible{outline:2px solid var(--marca);outline-offset:1px}

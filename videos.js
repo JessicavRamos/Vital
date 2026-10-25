@@ -272,7 +272,7 @@ function pintarAdminVideos() {
   caja.innerHTML = `<div class="tarjeta">
     <h2>Administrar videos</h2>
     <p class="suave">Sube tus videos en formato MP4 o WEBM (máximo 50 MB cada uno). Se reproducen solos en el carrusel.
-    Si un producto se agota, <strong>desactiva</strong> su video: deja de verse para los clientes, pero no se borra.</p>
+    Si un producto se agota, <strong>desactiva</strong> su video: deja de verse para los clientes, pero no se borra.${esAdmin() ? "" : " Solo el administrador puede borrar videos."}</p>
     <form id="form-video">
       <div class="dos">
         <div><label for="v-especie">Especie</label><select id="v-especie">
@@ -285,8 +285,8 @@ function pintarAdminVideos() {
       <label for="v-titulo">Título</label><input id="v-titulo" value="${esc(e ? e.titulo : "")}" required>
       <label for="v-archivo">Video (MP4 o WEBM)${e ? " — déjalo vacío para conservar el actual" : ""}</label>
       <input id="v-archivo" type="file" accept="video/mp4,video/webm">
-      <label for="v-url">O enlace de YouTube (opcional)</label>
-      <input id="v-url" value="${esc(e && e.youtube_url ? e.youtube_url : "")}" placeholder="https://www.youtube.com/watch?v=...">
+      ${e && e.youtube_url ? `<label for="v-url">Enlace de YouTube (videos antiguos; para cambiarlo, sube un archivo)</label>
+      <input id="v-url" value="${esc(e.youtube_url)}" placeholder="https://www.youtube.com/watch?v=...">` : ""}
       <label class="casilla"><input type="checkbox" id="v-activo"${!e || estaActivo(e) ? " checked" : ""}> Activo (los clientes lo ven)</label>
       <p id="v-error" class="error" role="alert"></p>
       <div class="acciones">
@@ -315,8 +315,8 @@ function pintarAdminVideos() {
         <span class="perilla" aria-hidden="true"></span>${estaActivo(v) ? "Activo" : "Inactivo"}</button></td>
       <td>${esc(v.especie)}</td><td>${esc(v.categoria)}</td><td>${esc(v.titulo)}</td>
       <td>${v.archivo ? "Archivo" : "YouTube"}</td>
-      <td class="acciones-fila"><button class="btn alt" data-editar="${v.id}">Editar</button>
-      <button class="btn alt" data-borrar="${v.id}">Borrar</button></td></tr>`,
+      <td><div class="acciones-tabla"><button class="btn chico alt" data-editar="${v.id}">Editar</button>
+      ${esAdmin() ? `<button class="btn chico peligro" data-borrar="${v.id}">Borrar</button>` : ""}</div></td></tr>`,
     alPintar: (tbody) => {
       $$("[data-activar]", tbody).forEach((b) => b.addEventListener("click", () => cambiarActivoVideo(Number(b.dataset.activar))));
       $$("[data-editar]", tbody).forEach((b) => b.addEventListener("click", () => {
@@ -326,9 +326,11 @@ function pintarAdminVideos() {
       }));
       $$("[data-borrar]", tbody).forEach((b) => b.addEventListener("click", async () => {
         const video = V.todos.find((v) => v.id === Number(b.dataset.borrar));
-        if (!video || !window.confirm(`¿Borrar el video "${video.titulo}"?\n\nSi solo se agotó el producto, mejor desactívalo.`)) return;
+        if (!video || !(await confirmar({ titulo: `¿Borrar el video "${video.titulo}"?`,
+          texto: "Si solo se agotó el producto, mejor desactívalo. Borrar no se puede deshacer.", boton: "Sí, borrar", peligro: true }))) return;
         try {
-          await q(db.from("videos").delete().eq("id", video.id));
+          const filas = await q(db.from("videos").delete().eq("id", video.id).select("id"));
+          if (!filas.length) throw new Error("permission denied");
           if (video.archivo) await db.storage.from(CARPETA_VIDEOS).remove([video.archivo]);
           aviso("Video borrado.");
           await recargarVideos();
@@ -361,8 +363,10 @@ async function guardarVideo(evento) {
   error.textContent = "";
   const e = V.editando;
   const archivo = $("#v-archivo").files[0] || null;
-  const url = $("#v-url").value.trim();
-  if (!archivo && !url && !(e && e.archivo)) { error.textContent = "Sube un video o pega un enlace de YouTube."; return; }
+  // Los videos nuevos solo se suben como archivo. El enlace de YouTube queda solo para los antiguos.
+  const campoUrl = $("#v-url");
+  const url = campoUrl ? campoUrl.value.trim() : "";
+  if (!archivo && !url && !(e && e.archivo)) { error.textContent = "Elige el video (MP4 o WEBM)."; return; }
   if (url && !idYouTube(url)) { error.textContent = "Ese enlace no parece ser de YouTube."; return; }
   let extension = null;
   if (archivo) {
@@ -378,7 +382,6 @@ async function guardarVideo(evento) {
       especie: $("#v-especie").value,
       categoria: $("#v-cat").value.trim(),
       titulo: $("#v-titulo").value.trim(),
-      youtube_url: url || null,
       activo: $("#v-activo").checked,
     };
     let nuevoArchivo = null;
@@ -388,10 +391,15 @@ async function guardarVideo(evento) {
         .upload(nuevoArchivo, archivo, { contentType: archivo.type, cacheControl: "31536000" });
       if (fallo) throw fallo;
       datos.archivo = nuevoArchivo;
+      datos.youtube_url = null; // con archivo propio ya no se usa el enlace viejo
+    } else if (campoUrl) {
+      datos.youtube_url = url || null;
     }
     if (e) {
-      await q(db.from("videos").update(datos).eq("id", e.id));
-      if (nuevoArchivo && e.archivo) await db.storage.from(CARPETA_VIDEOS).remove([e.archivo]);
+      const filas = await q(db.from("videos").update(datos).eq("id", e.id).select("id"));
+      if (!filas.length) throw new Error("permission denied");
+      // El archivo anterior solo lo puede borrar el administrador (al empleado se le conserva).
+      if (nuevoArchivo && e.archivo && esAdmin()) await db.storage.from(CARPETA_VIDEOS).remove([e.archivo]);
     } else {
       await q(db.from("videos").insert(datos));
     }

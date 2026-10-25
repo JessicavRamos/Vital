@@ -18,10 +18,14 @@ async function listarClientes() {
   if (!lista) return;
   const t = terminoSeguro($("#c-buscar").value);
   try {
-    let consulta = db.from("mascotas_resumen").select("*").order("mascota").limit(1000);
-    if (!$("#c-inactivos").checked) consulta = consulta.eq("activo", true);
-    if (t) consulta = consulta.or(filtroBusqueda(t));
-    const filas = await q(consulta);
+    const soloActivos = !$("#c-inactivos").checked;
+    // Trae todas las mascotas (de a 1.000 por vez), sin límite fijo.
+    const filas = await traerTodo(() => {
+      let consulta = db.from("mascotas_resumen").select("*").order("mascota").order("mascota_id");
+      if (soloActivos) consulta = consulta.eq("activo", true);
+      if (t) consulta = consulta.or(filtroBusqueda(t));
+      return consulta;
+    });
     if (!$("#c-lista")) return;
     if (!filas.length) {
       lista.innerHTML = '<p class="suave">No encontré coincidencias.</p>';
@@ -37,14 +41,14 @@ async function listarClientes() {
         { titulo: "Raza", valor: (f) => f.raza ?? "", filtro: "lista" },
         { titulo: "Dueño", valor: (f) => f.cliente, filtro: "texto" },
         { titulo: "Teléfonos", valor: (f) => f.telefono, texto: (f) => [f.telefono, f.telefono2].join(" "), filtro: "texto" },
-        { titulo: "Visitas", valor: (f) => Number(f.visitas) || 0, filtro: false },
-        { titulo: "Última visita", valor: (f) => f.ultima_visita ?? "", filtro: false },
+        { titulo: "Visitas", valor: (f) => Number(f.visitas) || 0, filtro: false, clase: "num" },
+        { titulo: "Última visita", valor: (f) => f.ultima_visita ?? "", filtro: "fecha" },
       ],
       fila: (f) => `<tr${C.sel && C.sel.m.mascota_id === f.mascota_id ? ' class="activa"' : ""}>
         <td><button class="enlace" data-id="${f.mascota_id}">${esc(f.mascota)}</button>${f.activo ? "" : ' <span class="suave">· inactivo</span>'}</td>
         <td>${esc(f.especie)}</td><td>${esc(f.raza ?? "—")}</td>
         <td>${esc(f.cliente)}</td><td>${esc([f.telefono, f.telefono2].filter(Boolean).join(" / "))}</td>
-        <td>${f.visitas}</td><td>${esc(fechaTexto(f.ultima_visita))}</td></tr>`,
+        <td class="num">${f.visitas}</td><td>${esc(fechaCorta(f.ultima_visita))}</td></tr>`,
       alPintar: (tbody) => $$("button[data-id]", tbody).forEach((b) =>
         b.addEventListener("click", () => abrirFicha(Number(b.dataset.id)))),
     });
@@ -65,6 +69,8 @@ async function abrirFicha(mascotaId) {
       .select("id,nombre,telefono,telefono2,notas,activo").eq("id", m.cliente_id).single());
     C.sel = { m, cliente };
     pintarFichaCliente();
+    // En el celular la ficha queda debajo de la lista: se baja hasta ella.
+    if (!enDialogo() && window.matchMedia("(max-width: 860px)").matches) ficha.scrollIntoView({ behavior: "smooth", block: "start" });
     await cargarHistorialCliente();
     listarClientes(); // resalta la fila elegida (si la lista está en pantalla)
   } catch (error) {
@@ -75,7 +81,7 @@ async function abrirFicha(mascotaId) {
 // Ficha en una ventana emergente (para Hoy y Agenda).
 async function abrirFichaEnDialogo(mascotaId, alCerrar) {
   try {
-    C = { sel: null, razas: await q(db.from("razas").select("id,nombre,especie").order("nombre")), todas: false, unica: null };
+    C = { sel: null, razas: await q(db.from("razas").select("id,nombre,especie").order("nombre")), todas: false, verAnulados: true, unica: null };
   } catch (error) {
     aviso(mensajeError(error), true);
     return;
@@ -123,13 +129,15 @@ function pintarFichaCliente() {
         <button type="submit" class="btn">Guardar cambios</button>
       </div>
     </form>
-    <h3>Historial</h3>
+    <div class="hist-cabeza"><h3>Historial</h3>
+      <button type="button" class="btn chico alt" id="f-visita" title="Para servicios que se hicieron antes de usar el sistema">Registrar visita anterior</button></div>
     <label class="casilla"><input type="checkbox" id="f-todas"${C.todas ? " checked" : ""}> Incluir las demás mascotas del cliente</label>
     <div id="f-historial"><p class="suave">Cargando…</p></div>`;
 
   $("#f-especie").addEventListener("change", (e) => { $("#f-raza").innerHTML = opcionesRaza(e.target.value, null); });
   $("#f-form").addEventListener("submit", guardarFicha);
   $("#f-activo").addEventListener("click", cambiarActivo);
+  $("#f-visita").addEventListener("click", abrirVisitaAnterior);
   $("#f-todas").addEventListener("change", (e) => { C.todas = e.target.checked; cargarHistorialCliente(); });
 }
 
@@ -146,7 +154,7 @@ async function guardarFicha(evento) {
       telefono,
       telefono2: limpiarTelefono($("#f-tel2").value) || null,
       notas: $("#f-notas").value.trim() || null,
-    }).eq("id", cliente.id));
+    }).eq("id", cliente.id).select("id")).then((f) => { if (!f.length) throw new Error("permission denied"); });
     await q(db.from("mascotas").update({
       nombre: $("#f-mascota").value.trim(),
       especie: $("#f-especie").value,
@@ -167,10 +175,12 @@ async function cambiarActivo() {
   const pregunta = desactivar
     ? `¿Marcar a ${cliente.nombre} como inactivo? Dejará de salir en "a quién buscar", pero su historial se conserva.`
     : `¿Reactivar a ${cliente.nombre}?`;
-  if (!window.confirm(pregunta)) return;
+  if (!(await confirmar({ titulo: desactivar ? "Marcar como inactivo" : "Reactivar cliente", texto: pregunta,
+    boton: desactivar ? "Sí, marcar inactivo" : "Sí, reactivar", peligro: desactivar }))) return;
   try {
-    await q(db.from("clientes").update({ activo: !desactivar }).eq("id", cliente.id));
-        aviso(desactivar ? "Cliente marcado como inactivo." : "Cliente reactivado.");
+    const filas = await q(db.from("clientes").update({ activo: !desactivar }).eq("id", cliente.id).select("id"));
+    if (!filas.length) throw new Error("permission denied");
+    aviso(desactivar ? "Cliente marcado como inactivo." : "Cliente reactivado.");
     if (enDialogo()) { cerrarDialogo("dialogo-ficha"); return; }
     await abrirFicha(m.mascota_id);
   } catch (error) {
@@ -178,24 +188,136 @@ async function cambiarActivo() {
   }
 }
 
+// Registrar un servicio que se hizo antes de usar el sistema (o que se olvidó registrar).
+// Crea la cita ya realizada en esa fecha; la base crea el servicio con esa misma fecha.
+async function abrirVisitaAnterior() {
+  const { m } = C.sel;
+  let tipos, guias, raza = null;
+  try {
+    [tipos, guias] = await Promise.all([
+      q(db.from("tipos_servicio").select("id,nombre").order("id")),
+      q(db.from("guias").select("id,nombre").order("nombre")),
+    ]);
+    if (m.raza_id) raza = (await q(db.from("razas").select("*").eq("id", m.raza_id)))[0] || null;
+  } catch (error) {
+    aviso(mensajeError(error), true);
+    return;
+  }
+  abrirDialogo(`<form id="form-visita" novalidate>
+    <h2>Registrar visita anterior</h2>
+    <p class="suave">Para <strong>${esc(m.mascota)}</strong>. Úsalo para servicios que se hicieron antes de usar el sistema:
+    quedan en el historial con su fecha real y cuentan para "A quién buscar".</p>
+    <div class="dos">
+      <div><label for="va-dia">Fecha de la visita *</label><input id="va-dia" type="date" required max="${hoyISO()}"></div>
+      <div><label for="va-hora">Hora</label><select id="va-hora">${opcionesHora("10:00")}</select></div>
+      <div><label for="va-servicio">Servicio *</label><select id="va-servicio">${tipos.map((t) =>
+        `<option value="${t.id}">${esc(t.nombre)}</option>`).join("")}</select></div>
+      <div><label for="va-precio">Precio cobrado</label><input id="va-precio" type="number" min="0" step="any"></div>
+      <div><label for="va-guia">Guía usada</label><select id="va-guia"><option value="">(sin guía)</option>${guias.map((g) =>
+        `<option value="${g.id}">${esc(g.nombre)}</option>`).join("")}</select></div>
+      <div><label for="va-notas">Notas</label><input id="va-notas" maxlength="300"></div>
+    </div>
+    ${htmlMedicado("va")}
+    <p id="va-error" class="error" role="alert"></p>
+    <div class="acciones">
+      <button type="button" class="btn alt" id="va-volver">Volver</button>
+      <button type="submit" class="btn">Guardar visita</button>
+    </div></form>`, "dialogo-visita");
+
+  const servicio = () => tipos.find((t) => t.id === Number($("#va-servicio").value));
+  const sugerir = () => {
+    const nombre = servicio() ? servicio().nombre : "";
+    const precio = precioRaza(raza, nombre);
+    $("#va-precio").value = precio ?? "";
+    const conBano = SERVICIOS_CON_BANO.includes(nombre);
+    $("#va-bloque").hidden = !conBano;
+    if (!conBano) { $("#va-medicado").checked = false; $("#va-recargo-caja").hidden = true; }
+    medicado.fijar(0);
+  };
+  const medicado = conectarMedicado("va", "#va-precio");
+  $("#va-servicio").addEventListener("change", sugerir);
+  sugerir();
+  $("#va-volver").addEventListener("click", () => cerrarDialogo("dialogo-visita"));
+  $("#form-visita").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const error = $("#va-error");
+    error.textContent = "";
+    const dia = $("#va-dia").value;
+    if (!dia) { error.textContent = "Elige la fecha de la visita."; return; }
+    if (dia > hoyISO()) { error.textContent = "La fecha no puede ser futura. Para eso usa Agendar."; return; }
+    const boton = $("button[type=submit]", evento.target);
+    boton.disabled = true;
+    const esMedicado = !$("#va-bloque").hidden && $("#va-medicado").checked;
+    try {
+      await q(db.rpc("registrar_visita_anterior", {
+        p_mascota_id: m.mascota_id,
+        p_tipo_id: Number($("#va-servicio").value),
+        p_fecha: dia,
+        p_hora: $("#va-hora").value,
+        p_precio: $("#va-precio").value === "" ? null : Number($("#va-precio").value),
+        p_guia_id: $("#va-guia").value ? Number($("#va-guia").value) : null,
+        p_notas: $("#va-notas").value.trim() || null,
+        p_medicado: esMedicado,
+        p_recargo: esMedicado && $("#va-recargo").value !== "" ? Number($("#va-recargo").value) : null,
+      }));
+      cerrarDialogo("dialogo-visita");
+      aviso(`Visita del ${fechaCorta(dia)} guardada en el historial de ${m.mascota}.`);
+      await cargarHistorialCliente();
+    } catch (fallo) {
+      const texto = mensajeError(fallo);
+      error.textContent = /registrar_visita_anterior|function|PGRST202/i.test(String(fallo && (fallo.message || fallo.code)))
+        ? "Falta ejecutar en Supabase el SQL v10 para poder registrar visitas anteriores."
+        : texto;
+      boton.disabled = false;
+    }
+  });
+}
+
+// Historial de la ficha: servicios realizados y, si se quiere, los cancelados (tachados, sin sumar).
 async function cargarHistorialCliente() {
   const caja = $("#f-historial");
   if (!caja || !C.sel) return;
   const { m } = C.sel;
   try {
-    let consulta = db.from("historial").select("*").order("fecha", { ascending: false }).limit(60);
-    consulta = C.todas ? consulta.eq("cliente_id", m.cliente_id) : consulta.eq("mascota_id", m.mascota_id);
-    const filas = await q(consulta);
+    // Todo el historial (antes solo los últimos 60, y el total salía incompleto).
+    const filas = await traerTodo(() => {
+      const consulta = db.from("historial").select("*").order("fecha", { ascending: false }).order("id");
+      return C.todas ? consulta.eq("cliente_id", m.cliente_id) : consulta.eq("mascota_id", m.mascota_id);
+    });
+    // Servicios cancelados (bitácora). Si la tabla aún no existe, simplemente no se muestran.
+    let anulados = [];
+    try {
+      let ids = [m.mascota_id];
+      if (C.todas) ids = (await q(db.from("mascotas_resumen").select("mascota_id").eq("cliente_id", m.cliente_id))).map((x) => x.mascota_id);
+      anulados = await q(db.from("servicios_anulados").select("*").in("mascota_id", ids).order("fecha", { ascending: false }));
+      const nombre = new Map((C.todas ? await q(db.from("mascotas_resumen").select("mascota_id,mascota").eq("cliente_id", m.cliente_id)) : [m])
+        .map((x) => [x.mascota_id, x.mascota]));
+      anulados.forEach((a) => { a.mascota = nombre.get(a.mascota_id) ?? ""; a.anulado = true; });
+    } catch (error) { anulados = []; }
     if (!$("#f-historial")) return;
+
     const total = filas.reduce((suma, f) => suma + (Number(f.precio_cobrado) || 0), 0);
-    caja.innerHTML = filas.length ? `<p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"} · Total ${dinero(total)}</p>` + filas.map((f) => `<div class="item">
-      <div><strong>${esc(f.servicio)}</strong>${f.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${C.todas ? ` · ${esc(f.mascota)}` : ""}
-        <div class="suave">${esc(fechaTexto(f.fecha))}${f.guia ? " · guía " + esc(f.guia) : ""}${f.notas ? " · " + esc(f.notas) : ""}</div></div>
-      <div class="acciones-fila"><strong>${dinero(f.precio_cobrado)}</strong>
-        <button class="btn alt" data-corregir="${f.id}">Editar</button></div></div>`).join("")
+    const lista = (C.verAnulados ? filas.concat(anulados) : filas).slice()
+      .sort((a, b) => comparar(b.fecha ?? "", a.fecha ?? ""));
+    let h = `<div class="hist-barra"><p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"} · Total ${dinero(total)}</p>
+      ${anulados.length ? `<label class="casilla pequena"><input type="checkbox" id="f-anulados"${C.verAnulados ? " checked" : ""}> Ver cancelados (${anulados.length})</label>` : ""}</div>`;
+    h += lista.length ? lista.map((f) => f.anulado
+      ? `<div class="item anulado">
+          <div><strong>${esc(f.servicio ?? "Servicio")}</strong> <span class="etiqueta gris">cancelado</span>${C.todas ? ` · ${esc(f.mascota)}` : ""}
+            <div class="suave">${esc(fechaCorta(f.fecha))}</div>
+            ${htmlAuditoria(f.anulado_por, f.anulado_en, f.motivo)}</div>
+          <div class="acciones-tabla"><s>${dinero(f.precio_cobrado)}</s></div></div>`
+      : `<div class="item">
+          <div><strong>${esc(f.servicio)}</strong>${f.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${C.todas ? ` · ${esc(f.mascota)}` : ""}
+            <div class="suave">${esc(fechaCorta(f.fecha))}${f.guia ? " · guía " + esc(f.guia) : ""}${f.notas ? " · " + esc(f.notas) : ""}</div></div>
+          <div class="acciones-tabla"><strong>${dinero(f.precio_cobrado)}</strong>
+            <button class="btn chico alt" data-corregir="${f.id}">Editar</button></div></div>`).join("")
       : '<p class="suave">Todavía no tiene servicios registrados.</p>';
+    caja.innerHTML = h;
     $$("[data-corregir]", caja).forEach((b) => b.addEventListener("click", () =>
       editarServicio(Number(b.dataset.corregir), cargarHistorialCliente)));
+    const casilla = $("#f-anulados");
+    if (casilla) casilla.addEventListener("change", (e) => { C.verAnulados = e.target.checked; cargarHistorialCliente(); });
   } catch (error) {
     mostrarError(caja, error);
   }
@@ -233,7 +355,7 @@ async function editarServicio(id, alGuardar) {
     <label for="s-notas">Notas</label><input id="s-notas" value="${esc(servicio.notas ?? "")}" maxlength="300">
     <p id="s-error" class="error" role="alert"></p>
     <div class="acciones separadas">
-      <button type="button" class="btn peligro" id="s-eliminar">Eliminar servicio</button>
+      <button type="button" class="btn peligro" id="s-anular">Cancelar servicio</button>
       <span class="acciones-fila">
         <button type="button" class="btn alt" id="s-volver">Volver</button>
         <button type="submit" class="btn">Guardar</button>
@@ -251,19 +373,21 @@ async function editarServicio(id, alGuardar) {
     }
   });
   $("#s-volver").addEventListener("click", () => cerrarDialogo());
-  // Eliminar: deja de contar como servicio realizado (historial, reportes y recordatorios).
-  // Si nació de una cita, la cita también se borra para que no quede como "realizada".
-  $("#s-eliminar").addEventListener("click", async () => {
-    const pregunta = servicio.cita_id
-      ? "¿Eliminar este servicio?\n\nDejará de contar como servicio realizado y también se borrará la cita de la que salió. Esto no se puede deshacer."
-      : "¿Eliminar este servicio?\n\nDejará de contar como servicio realizado. Esto no se puede deshacer.";
-    if (!window.confirm(pregunta)) return;
+  // Cancelar: nada se borra. El servicio pasa a "cancelados" con quién, cuándo y por qué,
+  // y deja de contar (visitas, dinero, reportes y recordatorios). Si nació de una cita, la cita queda "cancelada".
+  $("#s-anular").addEventListener("click", async () => {
+    const tipo = tipos.find((t) => t.id === servicio.tipo_id);
+    const motivo = await pedirMotivo({
+      titulo: "Cancelar servicio",
+      texto: `${esc(tipo ? tipo.nombre : "Servicio")} · ${esc(fechaCorta(servicio.fecha))} · ${dinero(servicio.precio_cobrado)}`,
+      aviso: "Dejará de contar en visitas, dinero, reportes y recordatorios, pero quedará guardado como cancelado.",
+      boton: "Sí, cancelar servicio",
+    });
+    if (!motivo) return;
     try {
-      const borrados = await q(db.from("servicios").delete().eq("id", id).select("id"));
-      if (!borrados.length) throw new Error("permission denied");
-      if (servicio.cita_id) await q(db.from("citas").delete().eq("id", servicio.cita_id));
+      await q(db.rpc("anular_servicio", { p_servicio_id: id, p_motivo: motivo }));
       cerrarDialogo();
-      aviso("Servicio eliminado.");
+      aviso("Servicio cancelado. Quedó registrado quién lo canceló.");
       if (alGuardar) alGuardar();
     } catch (error) {
       $("#s-error").textContent = mensajeError(error);
@@ -304,7 +428,7 @@ PANTALLAS.clientes = {
       <div id="c-ficha" class="ficha"><span class="suave">Elige una mascota de la lista para ver su ficha.</span></div>
     </div>`,
   despues: async () => {
-    C = { sel: null, razas: [], todas: false, unica: null };
+    C = { sel: null, razas: [], todas: false, verAnulados: true, unica: null };
     C.razas = await q(db.from("razas").select("id,nombre,especie").order("nombre"));
     const buscar = $("#c-buscar");
     buscar.value = estado.busqueda;

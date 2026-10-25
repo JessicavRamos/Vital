@@ -218,3 +218,9 @@ Característica: Videos v3
       | vertical 9:16 (TikTok)     |
       | horizontal 16:9 (YouTube)  |
 ```
+
+## Novedades v13
+
+1. Los videos **nuevos** se suben solo como archivo (MP4 o WEBM). Ya no aparece el campo "enlace de YouTube".
+2. Los videos antiguos con enlace siguen funcionando; al editarlos se ve su enlace, y si se les sube un archivo el enlace se quita.
+3. "Borrar" se confirma en una ventana propia y avisa si la base no dejó borrar.

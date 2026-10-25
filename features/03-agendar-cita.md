@@ -33,7 +33,7 @@
 
 ### Baño medicado
 18. La casilla **Baño medicado** solo aparece para **Baño** y **Corte y baño**. Si cambio a "Corte", se desmarca y se resta el recargo.
-19. Al marcarla se propone el recargo de la raza (o el último de la mascota). Botones rápidos **+$8.000** y **+$16.000**.
+19. Al marcarla se propone el último recargo que pagó esa mascota, si ya tuvo baño medicado; si no, se elige con los botones rápidos **+$8.000** y **+$16.000** (desde v6 la raza ya no tiene recargo).
 20. El recargo se **suma** al precio al marcar y se **resta** al desmarcar.
 21. Si la última visita fue medicada, se muestra el aviso amarillo **"⚠ La última vez fue con baño medicado"** (solo el texto, sin fecha ni botón).
 
@@ -133,11 +133,17 @@ Característica: Agendar cita
       | Corte y baño | visible   |
       | Corte        | oculta    |
 
-  Escenario: Marcar baño medicado suma el recargo
-    Dado servicio "Baño" con precio $30.000
+  Escenario: Marcar baño medicado y elegir el recargo
+    Dado servicio "Baño" con precio $30.000 para una mascota sin baños medicados anteriores
     Cuando marco "Baño medicado"
-    Entonces el recargo propuesto es $8.000
-    Y el precio pasa a $38.000
+    Entonces el recargo queda vacío para elegirlo
+    Cuando presiono "+$8.000"
+    Entonces el precio pasa a $38.000
+
+  Escenario: Recargo de la última vez
+    Dado que la última vez a "Luna" se le cobró un recargo medicado de $16.000
+    Cuando la elijo y marco "Baño medicado"
+    Entonces el recargo propuesto es $16.000
 
   Escenario: Botón rápido de recargo
     Dado servicio "Baño" con precio $30.000
@@ -219,3 +225,19 @@ Característica: Historial en la pantalla Agendar
     Cuando elijo a "Rocky", que nunca ha terminado un servicio
     Entonces veo "Todavía no tiene servicios terminados."
 ```
+
+## Novedades v6
+
+1. El campo **Día** usa el calendario propio: se ve como "19/10/2026 · Lun", en español, con la semana empezando el lunes.
+2. Los botones Hoy / Mañana / Pasado mañana actualizan el campo de fecha que se ve.
+3. El servicio **Uñas** aparece en la lista (ver Feature 06).
+
+## Novedades v7
+
+1. Al registrar visitas viejas hay que cambiar la **fecha y la hora** antes de "Agendar cita". Al terminarla, el servicio queda con esa fecha (ver Feature 04, v7).
+
+## Novedades v13
+
+1. El historial del panel trae todos los servicios (antes máximo 500).
+2. Si al agendar no se pudo guardar la raza nueva de la mascota, se avisa: "La cita quedó agendada, pero no se pudo guardar la raza de la mascota."
+3. Calendario con teclado: ← → un día, ↑ ↓ una semana, RePág/AvPág un mes, Inicio/Fin primer y último día, Enter elige, Esc cierra.

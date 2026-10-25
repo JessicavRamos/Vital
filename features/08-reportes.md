@@ -84,3 +84,49 @@ Característica: Reportes
     Cuando recalculo el reporte
     Entonces los ingresos bajan $40.000
 ```
+
+## Novedades v4
+
+1. Si en el período se cancelaron servicios realizados, aparece un aviso amarillo con cuántos fueron y cuánto dinero dejó de contar.
+2. Nueva tabla **"Servicios cancelados"**: cancelado el, por, mascota, servicio, fecha del servicio, valor tachado y motivo. El período se mide por la **fecha en que se canceló**.
+3. Excel: nueva hoja **"Cancelados"**. La hoja "Citas" agrega **Cancelada por**, **Cancelada el** y **Motivo de cancelación**. "Resumen" agrega la cantidad y el dinero de servicios cancelados.
+4. Los cancelados **no suman** en ingresos ni en ninguna otra hoja.
+
+```gherkin
+# language: es
+Característica: Control de cancelaciones en Reportes
+
+  Escenario: Ver quién canceló
+    Dado que Jessica canceló un servicio de $35.000 este mes
+    Cuando abro Reportes con "Este mes"
+    Entonces veo "⚠ 1 servicio realizado fue cancelado en este período ($35.000 que ya no cuentan)"
+    Y en "Servicios cancelados" veo a Jessica, la fecha, el servicio y el motivo
+
+  Escenario: Excel con cancelados
+    Cuando descargo el Excel
+    Entonces tiene la hoja "Cancelados" con su total
+    Y en "Citas" cada cita cancelada dice quién, cuándo y por qué
+
+  Escenario: Los ingresos no incluyen cancelados
+    Entonces "Ingresos por servicios" no incluye los $35.000 cancelados
+```
+
+## Novedades v13: respaldo completo
+
+### Reglas
+1. Tarjeta **Respaldo de la base de datos** con el botón **⬇ Descargar respaldo completo** (solo administrador, porque está en Reportes).
+2. Descarga `Respaldo_PetGarden_AAAA-MM-DD.xlsx` con una hoja **Contenido** (tabla y número de filas) y **una hoja por tabla**: clientes, mascotas, citas, servicios, servicios_anulados, razas, tipos_servicio, grupos_recordatorio, guias, videos, pendientes_descartados, perfiles. Trae todas las filas, sin límite.
+3. Muestra la fecha del último respaldo hecho desde ese navegador y avisa si pasó más de un mes.
+
+```gherkin
+# language: es
+Característica: Respaldo
+
+  Escenario: Descargar respaldo
+    Dado que inicié sesión como administrador y estoy en "Reportes"
+    Cuando presiono "Descargar respaldo completo"
+    Entonces se descarga "Respaldo_PetGarden_<fecha>.xlsx"
+    Y la primera hoja es "Contenido"
+    Y hay una hoja por cada tabla
+    Y veo "Respaldo descargado. Guárdalo en un lugar seguro (por ejemplo, Google Drive)."
+```

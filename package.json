@@ -1,0 +1,13 @@
+{
+  "name": "pet-garden-agenda",
+  "private": true,
+  "description": "Sistema de agenda de Pet Garden (sitio estático + Supabase).",
+  "scripts": {
+    "test": "playwright test",
+    "test:ver": "playwright test --headed",
+    "test:reporte": "playwright show-report pruebas/reporte"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0"
+  }
+}

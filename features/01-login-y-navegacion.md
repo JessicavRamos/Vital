@@ -193,3 +193,28 @@ Característica: Color de las listas desplegables
     Entonces su fondo y su texto son iguales a los de los campos de texto
     Y en modo oscuro también se ven con los colores del tema oscuro
 ```
+
+## Novedades v6
+
+### Reglas
+1. Si el sitio se abre como archivo del computador (`file://`), "¿Olvidaste tu contraseña?" avisa que el enlace del correo solo funciona con el sitio publicado en internet, y no envía nada.
+2. Los errores del enlace se leen tanto de la parte `#…` como de la parte `?…` de la dirección.
+3. Requisitos en Supabase para que funcione:
+   - Authentication → URL Configuration: la dirección del sitio en **Site URL** y en **Redirect URLs**.
+   - El correo gratuito de Supabase solo envía a los miembros del equipo del proyecto, y pocas veces por hora. Para los empleados hay que configurar un SMTP propio.
+
+```gherkin
+# language: es
+Característica: Recuperar contraseña v6
+
+  Escenario: Sitio abierto como archivo
+    Dado que abrí index.html con doble clic (file://)
+    Cuando pido el enlace de recuperación
+    Entonces veo que el enlace solo funciona con el sitio publicado en internet
+    Y no se envía ningún correo
+
+  Escenario: Enlace con error en la dirección
+    Dado que el enlace llega con "?error_code=otp_expired"
+    Cuando se abre el sitio
+    Entonces el login muestra "El enlace para cambiar la contraseña venció o ya se usó. Pide uno nuevo."
+```

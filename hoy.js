@@ -69,16 +69,21 @@ async function cargarHoy() {
         <button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
         <span class="suave">${esc(c.cliente)}</span>
         <div class="suave">${esc(c.servicio ?? "sin servicio")}${c.medicado ? " (medicado)" : ""} · ${dinero(c.estado === "realizada" ? c.precio_cobrado : (c.precio_acordado ?? c.precio))}</div></div>
-      <div class="acciones-fila">${c.estado === "pendiente"
-        ? `<button class="btn" data-terminar="${c.id}">Terminar</button>`
+      <div class="acciones-tabla">${c.estado === "pendiente"
+        ? `<button class="btn chico" data-terminar="${c.id}">Terminar</button>
+           <button class="btn chico alt" data-recordar="${c.id}" title="Enviar recordatorio de la cita por WhatsApp">Recordar</button>${botonMenu(c.id)}`
         : `<span class="etiqueta ok">${esc(c.estado)}</span>
-           <button class="btn alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">📲 Avisar</button>`}</div>
+           <button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`}</div>
     </div>`).join("") : '<p class="suave">No tienes citas para hoy.</p>';
 
   $$("[data-terminar]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirTerminarCita(citas.find((c) => c.id === Number(b.dataset.terminar)), cargarHoy)));
   $$("[data-recoger]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirAvisoRecoger(citas.find((c) => c.id === Number(b.dataset.recoger)))));
+  $$("[data-recordar]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
+    abrirRecordatorioCita(citas.find((c) => c.id === Number(b.dataset.recordar)))));
+  $$("[data-menu]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
+    abrirMenu(b, opcionesCita(citas.find((c) => c.id === Number(b.dataset.menu)), cargarHoy))));
 
   $("#h-pendientes").innerHTML = pendientes.length ? pendientes.map((p, i) => {
     const retraso = p.dias_de_retraso;
@@ -86,11 +91,11 @@ async function cargarHoy() {
       <div><button class="enlace" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button>
         <span class="suave">${esc(p.cliente)}</span>
         <div class="suave">${esc(p.grupo)} · último: ${esc(fechaTexto(p.ultima_fecha))}</div></div>
-      <div class="acciones-fila">
+      <div class="acciones-tabla">
         <span class="etiqueta ${retraso > 0 ? "atrasada" : ""}">${retraso <= 0 ? "Toca hoy" : `Hace ${retraso} ${retraso === 1 ? "día" : "días"}`}</span>
-        <button class="btn" data-whatsapp="${i}">WhatsApp</button>
-        <button class="btn alt" data-agendar="${i}">Agendar</button>
-        <button class="btn alt" data-descartar="${i}" title="Quitar de esta lista hasta su próximo servicio">Descartar</button>
+        <button class="btn chico" data-whatsapp="${i}">WhatsApp</button>
+        <button class="btn chico alt" data-agendar="${i}">Agendar</button>
+        <button class="btn chico alt solo-icono" data-descartar="${i}" title="Descartar: quitar de esta lista hasta su próximo servicio" aria-label="Descartar ${esc(p.mascota)}">✕</button>
       </div></div>`;
   }).join("") : '<p class="suave">Nadie por buscar por ahora.</p>';
 
@@ -101,7 +106,7 @@ async function cargarHoy() {
     ${verDescartados ? descartados.map((p) => `<div class="item descartado">
       <div><button class="enlace" data-ficha="${p.mascota_id}">${esc(p.mascota)}</button>
         <span class="suave">${esc(p.cliente)} · último: ${esc(fechaTexto(p.ultima_fecha))}</span></div>
-      <button class="btn alt" data-restaurar="${idDescarte.get(claveDescarte(p))}">Volver a la lista</button></div>`).join("") : ""}` : "";
+      <button class="btn chico alt" data-restaurar="${idDescarte.get(claveDescarte(p))}">Volver a la lista</button></div>`).join("") : ""}` : "";
   const casillaDescartados = $("#h-ver-descartados");
   if (casillaDescartados) casillaDescartados.addEventListener("change", (e) => { verDescartados = e.target.checked; cargarHoy(); });
   $$("[data-restaurar]", $("#h-descartados")).forEach((b) => b.addEventListener("click", () =>
@@ -114,17 +119,17 @@ async function cargarHoy() {
 
   $$("[data-whatsapp]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () => {
     const p = pendientes[Number(b.dataset.whatsapp)];
-    const mensaje = `¡Hola, ${p.cliente}! 💚
+    const mensaje = `¡Hola, ${primerNombre(p.cliente)}!
 
-Recibe un cordial saludo de parte de ${NOMBRE_NEGOCIO} 🐾
+Recibe un cordial saludo de parte de ${NOMBRE_NEGOCIO}.
 
-Queremos agradecerte por permitirnos cuidar y consentir a ${p.mascota} en su última visita el ${fechaTexto(p.ultima_fecha)}. ¡Fue un placer atenderlos! ✨
+Queremos agradecerte por permitirnos cuidar y consentir a ${p.mascota} en su última visita el ${fechaMensaje(p.ultima_fecha)}. ¡Fue un placer atenderlos!
 
-Nos encantaría volver a recibir a tu peludito para su próximo servicio de ${p.grupo.toLowerCase()} 🛁🌿.
+Nos encantaría volver a recibir a tu peludito para su próximo servicio de ${p.grupo.toLowerCase()}.
 
-Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustedes 🐶😸
+Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustedes.
 
-¿Te gustaría agendar una cita para esta semana? 💚`;
+¿Te gustaría agendar una cita para esta semana?`;
     window.open(enlaceWhatsApp(p.telefono, mensaje), "_blank", "noopener");
   }));
 

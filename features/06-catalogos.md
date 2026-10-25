@@ -13,7 +13,7 @@
 3. Un campo de texto obligatorio no puede quedar vacío → "Este campo no puede quedar vacío." y se recarga el valor anterior.
 
 ### Razas y precios
-4. Campos: Raza (obligatorio), Especie, Baño, Corte, Corte y baño, Recargo medicado.
+4. Campos: Raza (obligatorio), Especie, Baño, Corte, Corte y baño, **Uñas** (v6). La columna "Recargo medicado" se quitó en v6 (los datos siguen guardados, pero ya no se muestran ni se usan).
 5. La especie de una raza existente no se edita en la tabla.
 6. Quitar una raza pide confirmación: "las mascotas que la tengan quedarán sin raza".
 7. Raza repetida → mensaje de registro duplicado.
@@ -23,7 +23,7 @@
 9. Quitar una guía pide confirmación: "los servicios que la usaron quedarán sin guía".
 
 ### Servicios y recordatorios
-10. **No se pueden renombrar** "Baño", "Corte" ni "Corte y baño" (campo deshabilitado): el precio sugerido depende de esos nombres.
+10. **No se pueden renombrar** "Baño", "Corte", "Corte y baño" ni "Uñas" (campo deshabilitado): el precio sugerido depende de esos nombres.
 11. Grupos de recordatorio: nombre y **días para volver** (número **mayor que 0**). Ej. *Spa* = 30 días.
 12. Cada servicio pertenece a un grupo; los servicios de un mismo grupo cuentan igual para el recordatorio.
 
@@ -47,7 +47,7 @@ Característica: Catálogos
 
   # ---------- Razas ----------
   Escenario: Agregar una raza
-    Cuando escribo raza "Schnauzer", especie "Perro", baño 35000, corte 40000, corte y baño 60000, recargo 8000
+    Cuando escribo raza "Schnauzer", especie "Perro", baño 35000, corte 40000, corte y baño 60000, uñas 10000
     Y presiono "Agregar raza"
     Entonces veo "Agregado." y "Schnauzer" aparece en la tabla
 
@@ -132,4 +132,68 @@ Característica: Catálogos
   Escenario: Sin logo subido
     Dado que nunca he subido un logo
     Entonces veo "Todavía no has subido un logo."
+```
+
+## Novedades v6: servicio Uñas
+
+### Reglas
+1. Existe el servicio **Uñas** (lo crea el SQL v6) con su propio grupo de recordatorio **"Uñas"** (30 días, editable). Así cortar uñas no reinicia el recordatorio del baño (grupo *Spa*).
+2. En **Razas y precios** hay una columna **Uñas** con el precio por raza (`razas.precio_unas`).
+3. En **Agendar**, "Uñas" aparece en la lista de servicios y sugiere el precio de uñas de la raza. Si la mascota ya pagó uñas antes, se sugiere su último precio.
+4. "Uñas" no muestra la casilla de baño medicado.
+
+```gherkin
+# language: es
+Característica: Servicio Uñas
+
+  Escenario: Precio de uñas por raza
+    Dado que en "Razas y precios" escribo 10000 en la columna "Uñas" de "Criollo"
+    Cuando en Agendar elijo una mascota Criollo y el servicio "Uñas"
+    Entonces el precio sugerido es $10.000
+    Y no aparece la casilla "Baño medicado"
+
+  Escenario: Columnas de razas
+    Cuando abro "Razas y precios"
+    Entonces veo las columnas Raza, Especie, Baño, Corte, Corte y baño y Uñas
+    Y no veo "Recargo medicado"
+
+  Escenario: Recordatorio separado
+    Dado que "Luna" tuvo baño el 01/09 y uñas el 15/10
+    Entonces el recordatorio de Spa se calcula desde el 01/09
+    Y el de Uñas desde el 15/10
+```
+
+## Novedades v11
+
+1. La pestaña **Razas y precios** solo la puede editar el **administrador**. El empleado ve la lista de precios en modo lectura (ver Feature 09).
+2. Guías, Servicios y recordatorios, y Logo siguen disponibles para los dos roles.
+
+## Novedades v13
+
+1. **Servicios y recordatorios** y **Logo del negocio** solo los cambia el **administrador** (el colaborador ve los servicios y los días en modo lectura, y el logo actual). Lo protege también la base (SQL v10).
+2. **Guías** siguen disponibles para los dos roles.
+3. "Quitar" una raza o una guía se confirma en una **ventana propia** (botones Volver / Sí, quitar) en vez de la del navegador.
+4. Si se renombra un grupo (ej. "Spa"), las mascotas descartadas en "A quién buscar" siguen descartadas.
+
+```gherkin
+# language: es
+Característica: Catálogos por rol (v13)
+
+  Escenario: Colaborador en Servicios y recordatorios
+    Dado que inicié sesión como colaborador
+    Cuando abro "Servicios y recordatorios"
+    Entonces veo "Solo el administrador puede cambiar los servicios y los recordatorios."
+    Y no hay campos para editar
+
+  Escenario: Colaborador en Logo
+    Dado que inicié sesión como colaborador
+    Cuando abro "Logo del negocio"
+    Entonces veo el logo actual y "Solo el administrador puede cambiar el logo."
+    Y no veo el botón "Subir logo"
+
+  Escenario: Confirmación propia
+    Cuando presiono "Quitar" en una guía
+    Entonces se abre una ventana con "Volver" y "Sí, quitar"
+    Cuando presiono "Volver"
+    Entonces la guía sigue en la tabla
 ```

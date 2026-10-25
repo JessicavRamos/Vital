@@ -53,10 +53,12 @@ const horaDe = (f) =>
   new Date(f).toLocaleTimeString("en-GB", { timeZone: ZONA, hour: "2-digit", minute: "2-digit" });
 const diaTexto = (fechaISO) =>
   new Date(fechaISO + "T12:00:00").toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" });
-const fechaTexto = (f) =>
-  f ? new Date(f + "T12:00:00").toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" }) : "—";
-const fechaHoraTexto = (f) =>
-  new Date(f).toLocaleString("es-CO", { timeZone: ZONA, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+// En pantalla todas las fechas se ven igual: dd/mm/aaaa (ver fechaCorta más abajo).
+const fechaTexto = (f) => fechaCorta(f);
+const fechaHoraTexto = (f) => `${fechaCorta(diaDe(f))} · ${horaTexto(f)}`;
+// Para mensajes de WhatsApp: "18 de octubre".
+const fechaMensaje = (f) =>
+  f ? new Date(String(f).slice(0, 10) + "T12:00:00").toLocaleDateString("es-CO", { day: "numeric", month: "long" }) : "";
 const horaTexto = (f) =>
   new Date(f).toLocaleTimeString("es-CO", { timeZone: ZONA, hour: "numeric", minute: "2-digit" });
 const fechaLarga = () =>
@@ -83,7 +85,7 @@ function opcionesHora(seleccionada = "10:00") {
 
 /* ---------- Precios, baño medicado y WhatsApp ---------- */
 // El precio sugerido depende de estos tres nombres de servicio. No los renombres.
-const COLUMNA_PRECIO = { "Baño": "precio_bano", "Corte": "precio_corte", "Corte y baño": "precio_corte_bano" };
+const COLUMNA_PRECIO = { "Baño": "precio_bano", "Corte": "precio_corte", "Corte y baño": "precio_corte_bano", "Uñas": "precio_unas" };
 const SERVICIOS_CON_BANO = ["Baño", "Corte y baño"]; // los únicos que pueden ser medicados
 function precioRaza(raza, servicio) {
   const columna = COLUMNA_PRECIO[servicio];
@@ -154,6 +156,8 @@ function aviso(mensaje, esError = false, accion = null) {
 function mensajeError(error) {
   const texto = (error && error.message) || String(error);
   if (/invalid login credentials/i.test(texto)) return "Correo o contraseña incorrectos.";
+  if (/could not find the function|function .* does not exist/i.test(texto))
+    return "Falta actualizar la base de datos: ejecuta en Supabase el SQL de esta versión.";
   if (/rate limit|too many requests|security purposes/i.test(texto))
     return "Se enviaron demasiados correos seguidos. Espera unos minutos e intenta de nuevo.";
   if (/should be different from the old password/i.test(texto))
@@ -171,7 +175,9 @@ function mensajeError(error) {
   if (/duplicate key|unique constraint/i.test(texto))
     return "Ya existe un registro con ese dato (por ejemplo, otro cliente con ese teléfono o una raza repetida).";
   if (/foreign key/i.test(texto)) return "No se puede completar: este dato está en uso en otro lugar.";
-  return texto;
+  // Mensajes que escribimos nosotros en la base (en español) se muestran tal cual.
+  if (/^(Debes iniciar sesión|Escribe el motivo|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio de la cita|Debe quedar al menos un administrador)/.test(texto)) return texto;
+  return `No se pudo completar. Detalle técnico: ${texto}`;
 }
 
 function mostrarError(caja, error) {
@@ -186,7 +192,7 @@ const configurado =
 // ¿Se abrió la página desde el enlace del correo "recuperar contraseña"?
 // Se revisa ANTES de crear el cliente de Supabase, que es quien lee y limpia ese enlace.
 const RECUPERACION = (() => {
-  const h = location.hash;
+  const h = location.hash + "&" + location.search;
   if (/type=recovery/.test(h)) return { modo: "nueva" };
   if (/error_code=|error_description=/.test(h)) {
     return {
@@ -234,20 +240,24 @@ function tablaInteractiva(caja, { id, columnas, filas, fila, alPintar, vacio = "
     <thead><tr>${columnas.map((c, i) => `<th${c.clase ? ` class="${c.clase}"` : ""}>${c.ordenable === false
       ? esc(c.titulo)
       : `<button type="button" class="orden" data-col="${i}" title="Ordenar por ${esc(c.titulo)}">${esc(c.titulo)} <span class="flecha-orden" aria-hidden="true"></span></button>`}</th>`).join("")}</tr>
-    <tr class="fila-filtros">${columnas.map((c, i) => `<th>${c.filtro === "lista"
+    <tr class="fila-filtros">${columnas.map((c, i) => `<th${c.filtro ? ` data-label="${esc(c.titulo)}"` : ""}>${c.filtro === "lista"
       ? `<select data-filtro-col="${i}" aria-label="Filtrar ${esc(c.titulo)}"><option value="">Todos</option>${opciones(c).map(([clave, original]) =>
           `<option value="${esc(clave)}"${st.filtros[i] === clave ? " selected" : ""}>${esc(original)}</option>`).join("")}</select>`
       : c.filtro === "texto"
         ? `<input type="search" data-filtro-col="${i}" value="${esc(st.filtros[i] ?? "")}" placeholder="Filtrar…" aria-label="Filtrar ${esc(c.titulo)}">`
-        : ""}</th>`).join("")}</tr></thead>
+        : c.filtro === "fecha"
+          ? `<input type="date" data-filtro-col="${i}" value="${esc(st.filtros[i] ?? "")}" data-vacio="Cualquier día" aria-label="Filtrar ${esc(c.titulo)} por día">`
+          : ""}</th>`).join("")}</tr></thead>
     <tbody></tbody></table></div>
-    <p class="suave conteo" aria-live="polite"></p>`;
+    <div class="pie-tabla"><p class="suave conteo" aria-live="polite"></p>
+      <button type="button" class="btn chico alt limpiar-filtros" hidden>✕ Limpiar filtros</button></div>`;
 
   const tbody = $("tbody", caja), conteo = $(".conteo", caja);
   function pintarCuerpo() {
     let lista = filas.filter((r) => columnas.every((c, i) => {
       const f = st.filtros[i];
       if (!f) return true;
+      if (c.filtro === "fecha") return String(c.dia ? c.dia(r) : c.valor(r) ?? "").slice(0, 10) === f;
       return c.filtro === "lista" ? textoDe(c, r) === f : textoDe(c, r).includes(sinTildes(f));
     }));
     if (st.orden !== null && columnas[st.orden]) {
@@ -255,7 +265,12 @@ function tablaInteractiva(caja, { id, columnas, filas, fila, alPintar, vacio = "
       lista = lista.slice().sort((a, b) => comparar(c.valor(a), c.valor(b)) * st.dir);
     }
     tbody.innerHTML = lista.length ? lista.map(fila).join("")
-      : `<tr><td colspan="${columnas.length}" class="suave">${esc(vacio)}</td></tr>`;
+      : `<tr class="vacia"><td colspan="${columnas.length}" class="suave">${esc(vacio)}</td></tr>`;
+    // En el celular cada fila se ve como tarjeta: cada dato lleva el nombre de su columna.
+    if (lista.length) $$("tr", tbody).forEach((tr) => Array.from(tr.children).forEach((td, i) => {
+      if (columnas[i] && columnas[i].titulo) td.dataset.label = columnas[i].titulo;
+      td.innerHTML = `<div class="celda">${td.innerHTML}</div>`;
+    }));
     conteo.textContent = lista.length === filas.length
       ? `${filas.length} ${filas.length === 1 ? "registro" : "registros"}`
       : `Mostrando ${lista.length} de ${filas.length} registros`;
@@ -264,8 +279,17 @@ function tablaInteractiva(caja, { id, columnas, filas, fila, alPintar, vacio = "
       b.closest("th").setAttribute("aria-sort", activa ? (st.dir === 1 ? "ascending" : "descending") : "none");
       $(".flecha-orden", b).textContent = activa ? (st.dir === 1 ? "▲" : "▼") : "↕";
     });
+    // "Limpiar filtros" solo aparece si hay algún filtro u orden puesto.
+    const hayFiltros = Object.values(st.filtros).some(Boolean) || st.orden !== null;
+    $(".limpiar-filtros", caja).hidden = !hayFiltros;
     if (alPintar) alPintar(tbody, lista);
   }
+  $(".limpiar-filtros", caja).addEventListener("click", () => {
+    st.filtros = {};
+    st.orden = null;
+    st.dir = 1;
+    tablaInteractiva(caja, { id, columnas, filas, fila, alPintar, vacio }); // se vuelve a dibujar con todo vacío
+  });
   $$("button.orden", caja).forEach((b) => b.addEventListener("click", () => {
     const col = Number(b.dataset.col);
     if (st.orden !== col) { st.orden = col; st.dir = 1; }
@@ -307,32 +331,368 @@ function cargarScript(url) {
   return scriptsCargados[url];
 }
 
+/* ---------- Fechas cortas (dd/mm/aaaa) ---------- */
+const fechaCorta = (f) => {
+  if (!f) return "—";
+  const [a, m, d] = String(f).slice(0, 10).split("-");
+  return `${d}/${m}/${a}`;
+};
+const diaSemanaCorto = (fechaISO) =>
+  new Date(fechaISO + "T12:00:00").toLocaleDateString("es-CO", { weekday: "short" }).replace(".", "");
+// Celda de fecha y hora de una cita: "18/10/2026" y debajo "dom · 1:00 p. m."
+const htmlFechaHora = (fh) => {
+  const d = diaDe(fh);
+  return `<strong class="sin-salto">${fechaCorta(d)}</strong><div class="suave sin-salto">${esc(diaSemanaCorto(d))} · ${esc(horaTexto(fh))}</div>`;
+};
+
+/* ---------- Calendario propio para los campos de fecha ----------
+   Cada <input type="date"> se cambia solo por un botón "18/10/2026 · dom" que abre un
+   calendario en español. El campo original sigue guardando el valor (AAAA-MM-DD) y avisa
+   con los eventos "input" y "change", así el resto del código no cambia. */
+const NOMBRES_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+  "septiembre", "octubre", "noviembre", "diciembre"];
+const DIAS_CORTOS = ["lu", "ma", "mi", "ju", "vi", "sá", "do"];
+
+function mejorarFecha(input) {
+  if (input.dataset.mejorada) return;
+  input.dataset.mejorada = "1";
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "campo-fecha";
+  const etiqueta = input.id && document.querySelector(`label[for="${input.id}"]`);
+  boton.setAttribute("aria-label", (etiqueta ? etiqueta.textContent.replace("*", "").trim() : input.getAttribute("aria-label") || "Fecha") + ": elegir fecha");
+  input.classList.add("fecha-oculta");
+  input.tabIndex = -1;
+  input.setAttribute("aria-hidden", "true");
+  input.after(boton);
+  if (etiqueta) etiqueta.addEventListener("click", (e) => { e.preventDefault(); boton.focus(); boton.click(); });
+  input._pintarFecha = () => {
+    boton.innerHTML = input.value
+      ? `<span class="cf-texto">${esc(fechaCorta(input.value))}</span><span class="cf-dia">${esc(diaSemanaCorto(input.value))}</span><span class="cf-icono" aria-hidden="true">📅</span>`
+      : `<span class="cf-texto cf-vacio">${esc(input.dataset.vacio || "Elegir fecha")}</span><span class="cf-icono" aria-hidden="true">📅</span>`;
+  };
+  input.addEventListener("change", input._pintarFecha);
+  input.addEventListener("input", input._pintarFecha);
+  boton.addEventListener("click", () => abrirCalendario(input, boton));
+  input._pintarFecha();
+}
+
+// Pone una fecha por código (y actualiza el botón que se ve).
+function fijarFecha(input, valor) {
+  if (!input) return;
+  input.value = valor || "";
+  if (input._pintarFecha) input._pintarFecha();
+}
+
+function elegirFecha(input, valor) {
+  fijarFecha(input, valor);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function abrirCalendario(input, boton) {
+  if (boton.dataset.calAbierto) { cerrarCalendario(); return; }
+  cerrarCalendario();
+  const hoy = hoyISO();
+  const base = input.value || hoy;
+  let anio = Number(base.slice(0, 4)), mes = Number(base.slice(5, 7)) - 1;
+  const cal = document.createElement("div");
+  cal.className = "calendario";
+  cal.setAttribute("role", "dialog");
+  cal.setAttribute("aria-label", "Elegir fecha");
+  (boton.closest("dialog") || document.body).appendChild(cal);
+  boton.dataset.calAbierto = "1";
+
+  const pintar = () => {
+    const primero = new Date(Date.UTC(anio, mes, 1));
+    const huecos = (primero.getUTCDay() + 6) % 7; // semana empieza el lunes
+    const diasMes = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+    let celdas = "";
+    for (let i = 0; i < huecos; i++) celdas += "<span></span>";
+    for (let d = 1; d <= diasMes; d++) {
+      const iso = `${anio}-${String(mes + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const clases = [iso === hoy ? "es-hoy" : "", iso === input.value ? "elegido" : ""].join(" ").trim();
+      celdas += `<button type="button" data-fecha="${iso}"${clases ? ` class="${clases}"` : ""}${iso === input.value ? ' aria-pressed="true"' : ""}
+        aria-label="${d} de ${NOMBRES_MES[mes]} de ${anio}">${d}</button>`;
+    }
+    cal.innerHTML = `<div class="cal-cabeza">
+        <button type="button" data-mes="-1" aria-label="Mes anterior">‹</button>
+        <strong>${NOMBRES_MES[mes].charAt(0).toUpperCase() + NOMBRES_MES[mes].slice(1)} ${anio}</strong>
+        <button type="button" data-mes="1" aria-label="Mes siguiente">›</button>
+      </div>
+      <div class="cal-semana">${DIAS_CORTOS.map((d) => `<span>${d}</span>`).join("")}</div>
+      <div class="cal-dias">${celdas}</div>
+      <div class="cal-pie">
+        <button type="button" data-cal="hoy">Hoy</button>
+        ${input.required ? "" : '<button type="button" data-cal="borrar">Borrar</button>'}
+      </div>`;
+  };
+  pintar();
+
+  cal.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.mes) {
+      mes += Number(b.dataset.mes);
+      if (mes < 0) { mes = 11; anio--; } else if (mes > 11) { mes = 0; anio++; }
+      pintar();
+      return;
+    }
+    if (b.dataset.fecha) elegirFecha(input, b.dataset.fecha);
+    else if (b.dataset.cal === "hoy") elegirFecha(input, hoy);
+    else if (b.dataset.cal === "borrar") elegirFecha(input, "");
+    cerrarCalendario();
+    boton.focus();
+  });
+
+  // Teclado: flechas mueven el día (← → un día, ↑ ↓ una semana), RePág/AvPág cambian de mes,
+  // Inicio/Fin van al primer/último día del mes, Enter o espacio eligen.
+  cal.addEventListener("keydown", (e) => {
+    const actual = e.target.closest("button[data-fecha]");
+    if (!actual) return;
+    const pasos = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    let destino = null;
+    if (pasos[e.key]) destino = sumarDias(actual.dataset.fecha, pasos[e.key]);
+    else if (e.key === "PageUp" || e.key === "PageDown") {
+      const [a, m, d] = actual.dataset.fecha.split("-").map(Number);
+      const nuevo = new Date(Date.UTC(a, m - 1 + (e.key === "PageUp" ? -1 : 1), 1));
+      const ultimo = new Date(Date.UTC(nuevo.getUTCFullYear(), nuevo.getUTCMonth() + 1, 0)).getUTCDate();
+      nuevo.setUTCDate(Math.min(d, ultimo));
+      destino = nuevo.toISOString().slice(0, 10);
+    } else if (e.key === "Home") destino = actual.dataset.fecha.slice(0, 8) + "01";
+    else if (e.key === "End") destino = $$("button[data-fecha]", cal).pop().dataset.fecha;
+    if (!destino) return;
+    e.preventDefault();
+    const nuevoAnio = Number(destino.slice(0, 4)), nuevoMes = Number(destino.slice(5, 7)) - 1;
+    if (nuevoAnio !== anio || nuevoMes !== mes) { anio = nuevoAnio; mes = nuevoMes; pintar(); }
+    const b = $(`button[data-fecha="${destino}"]`, cal);
+    if (b) b.focus();
+  });
+
+  // Se ubica debajo del botón (o encima si no cabe).
+  const r = boton.getBoundingClientRect();
+  const ancho = cal.offsetWidth, alto = cal.offsetHeight;
+  let y = r.bottom + 4;
+  if (y + alto > window.innerHeight - 8) y = Math.max(8, r.top - alto - 4);
+  cal.style.left = Math.max(8, Math.min(r.left, window.innerWidth - ancho - 8)) + "px";
+  cal.style.top = y + "px";
+  const elegido = $("button.elegido", cal) || $("button.es-hoy", cal);
+  if (elegido) elegido.focus();
+
+  setTimeout(() => {
+    document.addEventListener("click", cerrarCalendarioFuera, true);
+    document.addEventListener("keydown", cerrarCalendarioEsc);
+    window.addEventListener("resize", cerrarCalendario);
+  }, 0);
+}
+function cerrarCalendario() {
+  $$(".calendario").forEach((c) => c.remove());
+  $$("[data-cal-abierto]").forEach((b) => b.removeAttribute("data-cal-abierto"));
+  document.removeEventListener("click", cerrarCalendarioFuera, true);
+  document.removeEventListener("keydown", cerrarCalendarioEsc);
+  window.removeEventListener("resize", cerrarCalendario);
+}
+function cerrarCalendarioFuera(e) {
+  if (e.target.closest(".calendario")) return;
+  const mismo = e.target.closest("[data-cal-abierto]");
+  cerrarCalendario();
+  if (mismo) e.stopPropagation();
+}
+function cerrarCalendarioEsc(e) { if (e.key === "Escape") cerrarCalendario(); }
+
+// Cualquier campo de fecha que aparezca en la página se mejora solo.
+function vigilarFechas() {
+  $$('input[type="date"]').forEach(mejorarFecha);
+  new MutationObserver((cambios) => {
+    for (const c of cambios) for (const n of c.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.matches && n.matches('input[type="date"]')) mejorarFecha(n);
+      if (n.querySelectorAll) n.querySelectorAll('input[type="date"]').forEach(mejorarFecha);
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
+/* ---------- Menú de acciones "⋯" (se abre encima de todo, también dentro de tablas) ---------- */
+// opciones: [{ texto, peligro?, alHacer }]
+function abrirMenu(boton, opciones) {
+  cerrarMenu();
+  const menu = document.createElement("div");
+  menu.className = "menu-flotante";
+  menu.setAttribute("role", "menu");
+  opciones.forEach((o) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.textContent = o.texto;
+    if (o.peligro) item.className = "peligro";
+    item.addEventListener("click", () => { cerrarMenu(); o.alHacer(); });
+    menu.appendChild(item);
+  });
+  (boton.closest("dialog") || document.body).appendChild(menu);
+  const r = boton.getBoundingClientRect();
+  const ancho = menu.offsetWidth, alto = menu.offsetHeight;
+  let x = Math.min(r.right - ancho, window.innerWidth - ancho - 8);
+  let y = r.bottom + 4;
+  if (y + alto > window.innerHeight - 8) y = Math.max(8, r.top - alto - 4);
+  menu.style.left = Math.max(8, x) + "px";
+  menu.style.top = y + "px";
+  boton.setAttribute("aria-expanded", "true");
+  menu.dataset.dueno = "1";
+  boton.dataset.menuAbierto = "1";
+  menu.querySelector("button").focus();
+  setTimeout(() => {
+    document.addEventListener("click", cerrarMenuFuera, true);
+    window.addEventListener("scroll", cerrarMenu, true);
+    window.addEventListener("resize", cerrarMenu);
+    document.addEventListener("keydown", cerrarMenuEsc);
+  }, 0);
+}
+function cerrarMenu() {
+  $$(".menu-flotante").forEach((m) => m.remove());
+  $$("[data-menu-abierto]").forEach((b) => { b.removeAttribute("data-menu-abierto"); b.setAttribute("aria-expanded", "false"); });
+  document.removeEventListener("click", cerrarMenuFuera, true);
+  window.removeEventListener("scroll", cerrarMenu, true);
+  window.removeEventListener("resize", cerrarMenu);
+  document.removeEventListener("keydown", cerrarMenuEsc);
+}
+function cerrarMenuFuera(e) {
+  if (e.target.closest(".menu-flotante")) return;
+  const mismoBoton = e.target.closest("[data-menu-abierto]");
+  cerrarMenu();
+  if (mismoBoton) e.stopPropagation(); // un segundo clic en ⋯ solo cierra el menú
+}
+function cerrarMenuEsc(e) { if (e.key === "Escape") cerrarMenu(); }
+const botonMenu = (id, etiqueta = "Más acciones") =>
+  `<button type="button" class="btn chico alt solo-icono" data-menu="${id}" aria-haspopup="menu" aria-expanded="false" title="${esc(etiqueta)}" aria-label="${esc(etiqueta)}">⋯</button>`;
+
+/* ---------- Pedir el motivo de una cancelación ---------- */
+const MOTIVOS_RAPIDOS = ["El cliente canceló", "El cliente no llegó", "Error al registrar", "Precio o servicio equivocado"];
+function pedirMotivo({ titulo, texto, aviso: advertencia = "", boton = "Sí, cancelar" }) {
+  return new Promise((resolver) => {
+    const dialogo = abrirDialogo(`<form id="form-motivo">
+      <h2>${esc(titulo)}</h2>
+      <p>${texto}</p>
+      ${advertencia ? `<p class="aviso-fijo">${advertencia}</p>` : ""}
+      <label for="m-motivo">Motivo *</label>
+      <div class="filtros chips-motivo">${MOTIVOS_RAPIDOS.map((m) => `<button type="button" class="chip" data-motivo="${esc(m)}">${esc(m)}</button>`).join("")}</div>
+      <input id="m-motivo" maxlength="200" placeholder="Escribe o elige un motivo">
+      <p class="suave">Quedará registrado que lo cancelaste tú (${esc([nombreUsuario(), estado.sesion && estado.sesion.user && estado.sesion.user.email].filter(Boolean).join(" · "))}), con la fecha y la hora.</p>
+      <p id="m-error" class="error" role="alert"></p>
+      <div class="acciones">
+        <button type="button" class="btn alt" id="m-volver">Volver</button>
+        <button type="submit" class="btn peligro-lleno">${esc(boton)}</button>
+      </div></form>`, "dialogo-motivo");
+    let respuesta = null;
+    $$("[data-motivo]", dialogo).forEach((b) => b.addEventListener("click", () => {
+      $("#m-motivo").value = b.dataset.motivo;
+      $$("[data-motivo]", dialogo).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    }));
+    $("#m-volver").addEventListener("click", () => cerrarDialogo("dialogo-motivo"));
+    $("#form-motivo").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const motivo = $("#m-motivo").value.trim();
+      if (!motivo) { $("#m-error").textContent = "Escribe o elige el motivo."; return; }
+      respuesta = motivo;
+      cerrarDialogo("dialogo-motivo");
+    });
+    dialogo.addEventListener("close", () => resolver(respuesta), { once: true });
+    $("#m-motivo").focus();
+  });
+}
+
+/* ---------- Confirmar una acción (reemplaza window.confirm, que en celular se ve feo) ----------
+   confirmar({ titulo, texto, boton, peligro }) → Promise<true|false> */
+function confirmar({ titulo, texto = "", boton = "Sí, continuar", peligro = false }) {
+  return new Promise((resolver) => {
+    const dialogo = abrirDialogo(`<form id="form-confirmar">
+      <h2>${esc(titulo)}</h2>
+      ${texto ? `<p>${esc(texto).replace(/\n/g, "<br>")}</p>` : ""}
+      <div class="acciones">
+        <button type="button" class="btn alt" id="c-volver">Volver</button>
+        <button type="submit" class="btn${peligro ? " peligro-lleno" : ""}" id="c-si">${esc(boton)}</button>
+      </div></form>`, "dialogo-confirmar");
+    let respuesta = false;
+    $("#c-volver").addEventListener("click", () => cerrarDialogo("dialogo-confirmar"));
+    $("#form-confirmar").addEventListener("submit", (e) => {
+      e.preventDefault();
+      respuesta = true;
+      cerrarDialogo("dialogo-confirmar");
+    });
+    dialogo.addEventListener("close", () => resolver(respuesta), { once: true });
+    $("#c-volver").focus();
+  });
+}
+
+// Texto "Cancelado por Jessica · 18/10/2026 10:30 a. m. · Motivo"
+function htmlAuditoria(por, en, motivo, palabra = "") {
+  if (!por && !en && !motivo) return "";
+  return `<div class="auditoria">${palabra ? esc(palabra) + (por ? " por" : "") : (por ? "Por" : "")}${por ? ` <strong>${esc(por)}</strong>` : ""}${en ? ` · ${esc(fechaCorta(diaDe(en)))} ${esc(horaTexto(en))}` : ""}${motivo ? `<div>“${esc(motivo)}”</div>` : ""}</div>`;
+}
+
 /* ---------- WhatsApp: avisar que ya puede recoger la mascota ---------- */
+// Solo el primer nombre del dueño, con mayúscula inicial ("maria de los angeles" → "Maria").
+function primerNombre(nombre) {
+  const palabra = String(nombre ?? "").trim().split(/\s+/)[0] || "";
+  return palabra.charAt(0).toUpperCase() + palabra.slice(1);
+}
+
 function mensajeRecoger(cliente, mascota) {
-  return `¡Hola, ${cliente}! 💚
+  return `¡Hola, ${primerNombre(cliente)}! Ya puedes venir por ${mascota} en ${NOMBRE_NEGOCIO}.
 
-${mascota} ya está listo y súper consentido 🐾✨
+¡Te esperamos!`;
+}
 
-Ya puedes pasar a recogerlo en ${NOMBRE_NEGOCIO}. ¡Te esperamos! 🛁🌿`;
+// Recordatorio de una cita pendiente: nombre, mascota, fecha y hora (y el servicio).
+function mensajeRecordatorioCita(cita) {
+  const dia = diaDe(cita.fecha_hora);
+  const hoy = hoyISO();
+  const cuando = dia === hoy ? "hoy" : dia === sumarDias(hoy, 1) ? "mañana" : `el ${diaTexto(dia).replace(",", "")}`;
+  const servicio = cita.servicio ? ` (${String(cita.servicio).toLowerCase()})` : "";
+  const hora = horaTexto(cita.fecha_hora).replace(/\s+/g, " ");
+  return `¡Hola, ${primerNombre(cita.cliente)}! Te recordamos la cita de ${cita.mascota}${servicio} en ${NOMBRE_NEGOCIO} ${cuando} a las ${hora}${hora.endsWith(".") ? "" : "."}
+
+¡Te esperamos!`;
+}
+
+// Ventana para revisar el mensaje antes de abrir WhatsApp.
+function abrirDialogoWhatsApp({ titulo, intro = "", cita, mensaje, boton = "Enviar por WhatsApp" }) {
+  const telefono = cita.telefono || cita.telefono2;
+  abrirDialogo(`<div>
+    <h2>${esc(titulo)}</h2>
+    ${intro}
+    ${telefono
+      ? `<p class="suave">Mensaje para ${esc(cita.cliente)} (${esc(telefono)}):</p>
+         <p class="vista-mensaje">${esc(mensaje)}</p>`
+      : '<p class="suave">Este cliente no tiene teléfono guardado.</p>'}
+    <div class="acciones">
+      <button type="button" class="btn alt" id="w-cerrar">Cerrar</button>
+      ${telefono ? `<button type="button" class="btn" id="w-enviar">${esc(boton)}</button>` : ""}
+    </div></div>`);
+  $("#w-cerrar").addEventListener("click", () => cerrarDialogo());
+  const enviar = $("#w-enviar");
+  if (enviar) enviar.addEventListener("click", () => {
+    window.open(enlaceWhatsApp(telefono, mensaje), "_blank", "noopener");
+    cerrarDialogo();
+  });
 }
 
 function abrirAvisoRecoger(cita) {
-  const telefono = cita.telefono || cita.telefono2;
-  abrirDialogo(`<div>
-    <h2>✔ Servicio terminado</h2>
-    <p><strong>${esc(cita.mascota)}</strong> quedó registrado en el historial.</p>
-    ${telefono
-      ? `<p class="suave">¿Le avisas a ${esc(cita.cliente)} que ya puede recogerlo?</p>`
-      : '<p class="suave">Este cliente no tiene teléfono guardado.</p>'}
-    <div class="acciones">
-      <button type="button" class="btn alt" id="r-cerrar">Cerrar</button>
-      ${telefono ? '<button type="button" class="btn" id="r-whatsapp">📲 Avisar por WhatsApp</button>' : ""}
-    </div></div>`);
-  $("#r-cerrar").addEventListener("click", () => cerrarDialogo());
-  const boton = $("#r-whatsapp");
-  if (boton) boton.addEventListener("click", () => {
-    window.open(enlaceWhatsApp(telefono, mensajeRecoger(cita.cliente, cita.mascota)), "_blank", "noopener");
-    cerrarDialogo();
+  abrirDialogoWhatsApp({
+    titulo: "✔ Servicio terminado",
+    intro: `<p><strong>${esc(cita.mascota)}</strong> quedó registrado en el historial. ¿Le avisas que ya puede recogerlo?</p>`,
+    cita,
+    mensaje: mensajeRecoger(cita.cliente, cita.mascota),
+    boton: "Avisar por WhatsApp",
+  });
+}
+
+function abrirRecordatorioCita(cita) {
+  abrirDialogoWhatsApp({
+    titulo: "Recordar la cita",
+    intro: `<p><strong>${esc(cita.mascota)}</strong> · ${esc(cita.servicio ?? "")} · ${esc(fechaCorta(diaDe(cita.fecha_hora)))} ${esc(horaTexto(cita.fecha_hora))}</p>`,
+    cita,
+    mensaje: mensajeRecordatorioCita(cita),
+    boton: "Enviar recordatorio",
   });
 }
 
@@ -367,7 +727,7 @@ function cerrarDialogo(id = "dialogo") {
 }
 
 /* ---------- Estado, logo, usuario, menú y pantallas ---------- */
-const estado = { sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null, logoUrl: null, recuperacion: RECUPERACION };
+const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null, logoUrl: null, recuperacion: RECUPERACION };
 
 // El logo vive en Supabase Storage (bucket público "logo"). Se usa el más reciente.
 async function cargarLogo() {
@@ -421,10 +781,36 @@ const MENU = [
   { clave: "agendar", titulo: "Agendar", publica: false },
   { clave: "agenda", titulo: "Agenda", publica: false },
   { clave: "clientes", titulo: "Clientes y mascotas", publica: false },
-  { clave: "reportes", titulo: "Reportes", publica: false },
+  { clave: "reportes", titulo: "Reportes", publica: false, soloAdmin: true },
   { clave: "catalogos", titulo: "Catálogos", publica: false },
   { clave: "videos", titulo: "Videos", publica: true }, // se ve sin iniciar sesión
+  { clave: "usuarios", titulo: "Usuarios", publica: false, soloAdmin: true },
 ];
+
+/* ---------- Roles: administrador y empleado ---------- */
+const esAdmin = () => estado.rol === "administrador";
+const puedeVer = (m) => !m.soloAdmin || esAdmin();
+
+// Lee el rol de la persona que inició sesión (tabla "perfiles").
+async function cargarRol() {
+  if (!estado.sesion) { estado.rol = null; return; }
+  try {
+    const { data, error } = await db.from("perfiles").select("rol").eq("id", estado.sesion.user.id).maybeSingle();
+    if (error) throw error;
+    estado.rol = data ? data.rol : "empleado";
+  } catch (error) {
+    // Solo si la base aún no tiene roles (SQL v8 sin ejecutar) todo sigue como antes.
+    // Ante cualquier otro error se entra como empleado (lo más seguro).
+    const texto = (error && error.message) || String(error);
+    if (/perfiles|does not exist|could not find the table|schema cache/i.test(texto) && !/permission|row-level/i.test(texto)) {
+      estado.rol = "administrador";
+      estado.sinRoles = true;
+    } else {
+      estado.rol = "empleado";
+    }
+    console.warn("Rol:", texto);
+  }
+}
 
 // Cada archivo de pantalla agrega la suya aquí: PANTALLAS.hoy = { html, despues }
 const PANTALLAS = {};
@@ -549,6 +935,10 @@ function pedirRecuperacion() {
     const caja = $("#o-mensaje"), boton = $("button[type=submit]", evento.target);
     caja.className = "error";
     caja.textContent = "";
+    if (location.protocol === "file:") {
+      caja.textContent = "Estás abriendo el sitio como archivo de tu computador. El enlace del correo solo funciona con el sitio publicado en internet (por ejemplo, GitHub Pages).";
+      return;
+    }
     boton.disabled = true;
     boton.textContent = "Enviando…";
     try {
@@ -577,15 +967,20 @@ function htmlPublico() {
 }
 
 function htmlPanel(clave) {
-  const enlaces = MENU.map((m) =>
+  const enlaces = MENU.filter(puedeVer).map((m) =>
     `<a href="#/${m.clave}"${m.clave === clave ? ' aria-current="page"' : ""}>${esc(m.titulo)}</a>`).join("");
   const nombre = nombreUsuario();
   return `<div class="app">
     <aside class="lateral">
-      <div class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(NOMBRE_NEGOCIO)}</span></div>
-      <nav aria-label="Secciones">${enlaces}</nav>
+      <div class="cabeza-lateral">
+        <div class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(NOMBRE_NEGOCIO)}</span></div>
+        <button type="button" class="menu-movil" id="menu-movil" aria-expanded="false" aria-controls="menu-secciones" aria-label="Abrir menú">
+          <span class="actual">${esc((MENU.find((m) => m.clave === clave) || {}).titulo || "")}</span> ☰</button>
+      </div>
+      <nav aria-label="Secciones" id="menu-secciones">${enlaces}</nav>
       <div class="pie">
-        <button id="perfil" class="usuario" title="Cambiar mi nombre">${nombre ? "👤 " + esc(nombre) : "👤 Escribe tu nombre"}</button>
+        <button id="perfil" class="usuario" title="Cambiar mi nombre">${nombre ? "👤 " + esc(nombre) : "👤 Escribe tu nombre"}
+          <span class="rol-usuario">${esc(esAdmin() ? "Administrador" : "Colaborador")}</span></button>
         <button id="salir" class="btn alt">Cerrar sesión</button>
       </div>
     </aside>
@@ -649,6 +1044,13 @@ function montarPanel() {
     location.hash = "#/hoy";
   });
   $("#perfil").addEventListener("click", pedirNombre);
+  // Celular: el menú se abre y se cierra con el botón ☰
+  const lateral = $(".lateral"), botonMenuMovil = $("#menu-movil");
+  botonMenuMovil.addEventListener("click", () => {
+    const abierto = lateral.classList.toggle("abierta");
+    botonMenuMovil.setAttribute("aria-expanded", String(abierto));
+    botonMenuMovil.setAttribute("aria-label", abierto ? "Cerrar menú" : "Abrir menú");
+  });
   $("#buscador").addEventListener("keydown", (evento) => {
     if (evento.key !== "Enter") return;
     estado.busqueda = evento.target.value.trim();
@@ -658,6 +1060,8 @@ function montarPanel() {
 }
 
 function pintar() {
+  cerrarMenu();
+  cerrarCalendario();
   cerrarDialogo();
   cerrarDialogo("dialogo-ficha");
   const raiz = $("#raiz");
@@ -684,6 +1088,15 @@ function pintar() {
     }
     return;
   }
+  // Secciones solo para administrador (Reportes, Usuarios)
+  if (!puedeVer(meta)) {
+    history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    raiz.innerHTML = htmlPanel("hoy");
+    montarPanel();
+    montarPantalla("hoy");
+    aviso("Esa sección es solo para el administrador.", true);
+    return;
+  }
   raiz.innerHTML = htmlPanel(clave);
   montarPanel();
   montarPantalla(clave);
@@ -692,6 +1105,7 @@ function pintar() {
 /* ---------- Arranque (se llama desde index.html al final) ---------- */
 async function iniciar() {
   if (typeof NOMBRE_NEGOCIO === "string") document.title = NOMBRE_NEGOCIO;
+  vigilarFechas();
   if (configurado && db) {
     // El logo se busca antes de dibujar (máximo 2,5 segundos de espera).
     await Promise.race([cargarLogo(), new Promise((resolver) => setTimeout(resolver, 2500))]);
@@ -699,6 +1113,7 @@ async function iniciar() {
       const { data } = await db.auth.getSession();
       estado.sesion = data.session;
       estado.usuarioId = data.session ? data.session.user.id : null;
+      await cargarRol();
     } catch (error) {
       aviso(mensajeError(error), true);
     }
@@ -710,13 +1125,13 @@ async function iniciar() {
       if (evento === "PASSWORD_RECOVERY") {
         estado.recuperacion = { modo: "nueva" };
         estado.usuarioId = nuevoId;
-        setTimeout(pintar, 0);
+        setTimeout(async () => { await cargarRol(); pintar(); }, 0);
         return;
       }
       // Solo se vuelve a dibujar si entró o salió alguien (no al renovar el token).
       if (nuevoId !== estado.usuarioId) {
         estado.usuarioId = nuevoId;
-        setTimeout(pintar, 0);
+        setTimeout(async () => { await cargarRol(); pintar(); }, 0);
       }
     });
   }

@@ -128,7 +128,7 @@ Característica: Clientes y mascotas
 
 ### Reglas
 1. Encima del historial se muestra **"N servicios · Total $X"** (con o sin las demás mascotas del cliente).
-2. En "Editar servicio" está el botón **Eliminar servicio**: pide confirmación y lo borra del historial. Si el servicio nació de una cita, la cita también se borra para que no quede como "realizada".
+2. ~~Eliminar servicio~~ (v3) fue reemplazado en v4 por **Cancelar servicio** (ver abajo).
 
 ```gherkin
 # language: es
@@ -139,14 +139,80 @@ Característica: Clientes y mascotas v3
     Cuando abro su ficha
     Entonces veo "12 servicios · Total $488.000"
 
-  Escenario: Eliminar un servicio
-    Dado que abrí "Editar" en un servicio de "Luna" de $40.000
-    Cuando presiono "Eliminar servicio" y confirmo
-    Entonces veo "Servicio eliminado."
-    Y el historial muestra "11 servicios · Total $448.000"
-    Y la cita de la que salió ya no está en la Agenda
-
   Escenario: Filtrar la lista por especie
     Cuando elijo "gato" en el filtro de "Especie"
     Entonces solo veo gatos
+```
+
+## Novedades v4
+
+### Reglas
+1. En "Editar servicio" el botón rojo es **Cancelar servicio**. Pide motivo, registra quién y cuándo, y el servicio deja de contar (visitas, total, reportes y recordatorios). Si salió de una cita, la cita queda "cancelada".
+2. El historial de la ficha muestra los **servicios cancelados** tachados, con la etiqueta "cancelado", quién lo canceló, cuándo y el motivo. **No suman** en el total ni en las visitas.
+3. Casilla **"Ver cancelados (N)"**, marcada por defecto, para mostrarlos u ocultarlos.
+4. Botones del historial más pequeños ("Editar").
+5. Fechas en formato **dd/mm/aaaa**. "Última visita" se filtra con **calendario**.
+6. En celular, al tocar una mascota la pantalla baja sola hasta su ficha.
+
+```gherkin
+# language: es
+Característica: Servicios cancelados en la ficha
+
+  Escenario: Cancelar un servicio desde el historial
+    Dado que "Luna" tiene 12 servicios por $488.000
+    Cuando abro "Editar" en el servicio de $48.000 y presiono "Cancelar servicio"
+    Y escribo el motivo "Precio equivocado" y confirmo
+    Entonces veo "Servicio cancelado. Quedó registrado quién lo canceló."
+    Y el historial dice "11 servicios · Total $440.000"
+    Y el servicio aparece tachado con "cancelado", "Por Jessica", la fecha y la hora, y "Precio equivocado"
+
+  Escenario: Ocultar los cancelados
+    Cuando desmarco "Ver cancelados (1)"
+    Entonces el servicio cancelado deja de verse
+    Y el total no cambia
+
+  Escenario: Los cancelados no cuentan como visita
+    Dado que a "Luna" le cancelaron un servicio
+    Entonces en la lista "Visitas" no lo cuenta
+    Y en "Agendar" no aparece en "Servicios terminados"
+```
+
+## Novedades v6
+
+1. Quien cancela un servicio queda registrado como **"Nombre (correo)"**, por ejemplo "Jessica (jessica@correo.com)". El correo sale de la cuenta con la que se inició sesión, así que no se puede cambiar como el nombre del perfil.
+2. La ventana de cancelar muestra antes de confirmar el nombre y el correo que quedarán guardados.
+3. Las fechas del formulario "Editar servicio" usan el calendario propio.
+
+## Novedades v13
+
+### Reglas
+1. La lista trae **todas** las mascotas (antes máximo 1.000) y la ficha **todo** el historial (antes 60), así el total cobrado es correcto.
+2. Botón **Registrar visita anterior** en el historial de la ficha: para servicios que se hicieron antes de usar el sistema (o que se olvidó registrar).
+   - Campos: fecha (obligatoria, **no puede ser futura**), hora, servicio, precio cobrado (se sugiere el de la raza), guía, notas y baño medicado (solo Baño y Corte y baño).
+   - Se crea la cita ya **realizada** en esa fecha y su servicio con **esa misma fecha**; cuenta para "A quién buscar" y para Reportes.
+   - Necesita el SQL v10 (función `registrar_visita_anterior`).
+3. "Marcar cliente inactivo" y "Reactivar" se confirman en una ventana propia (no la del navegador).
+4. Si la base no deja guardar los cambios de la ficha, se muestra el error en vez de "Cambios guardados.".
+
+```gherkin
+# language: es
+Característica: Visita anterior
+
+  Escenario: Registrar una visita que se hizo antes del sistema
+    Dado que abro la ficha de "Akira", que no tiene servicios
+    Cuando presiono "Registrar visita anterior"
+    Y elijo la fecha 15/03/2026, el servicio "Baño" y el precio 30000
+    Y presiono "Guardar visita"
+    Entonces veo "Visita del 15/03/2026 guardada en el historial de Akira."
+    Y el historial muestra el baño del 15/03/2026
+    Y "Akira" aparece en "A quién buscar" cuando se cumplan los días del grupo
+
+  Escenario: Fecha futura
+    Cuando elijo una fecha de la próxima semana y presiono "Guardar visita"
+    Entonces veo "La fecha no puede ser futura. Para eso usa Agendar."
+
+  Escenario: Más de 1.000 mascotas
+    Dado que hay 1.203 mascotas registradas
+    Cuando abro Clientes
+    Entonces veo "Mostrando 1203 de 1203 registros"
 ```

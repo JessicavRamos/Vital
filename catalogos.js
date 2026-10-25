@@ -31,7 +31,9 @@ async function guardarCampo(tabla, id, entrada) {
   }
   if (campo === "grupo_id") valor = Number(valor);
   try {
-    await q(db.from(tabla).update({ [campo]: valor }).eq("id", id));
+    // Se pide la fila guardada: si la base no dejó cambiarla (permisos), no vuelve nada.
+    const filas = await q(db.from(tabla).update({ [campo]: valor }).eq("id", id).select("id"));
+    if (!filas.length) throw new Error("permission denied");
     aviso("Guardado.");
   } catch (error) {
     aviso(mensajeError(error), true);
@@ -49,9 +51,10 @@ function conectarEdicion(contenedor, tabla) {
 }
 
 async function quitarFila(tabla, id, pregunta) {
-  if (!window.confirm(pregunta)) return;
+  if (!(await confirmar({ titulo: "¿Quitar?", texto: pregunta, boton: "Sí, quitar", peligro: true }))) return;
   try {
-    await q(db.from(tabla).delete().eq("id", id));
+    const filas = await q(db.from(tabla).delete().eq("id", id).select("id"));
+    if (!filas.length) throw new Error("permission denied");
     aviso("Eliminado.");
     cargarCatalogos();
   } catch (error) {
@@ -76,24 +79,32 @@ const numeroONulo = (id) => ($(id).value === "" ? null : Number($(id).value));
 /* ---------- Razas ---------- */
 async function pestanaRazas(caja) {
   const razas = await q(db.from("razas").select("*").order("especie").order("nombre"));
+  // Empleado: solo puede ver la lista de precios (no agregar, cambiar ni quitar razas).
+  if (!esAdmin()) {
+    caja.innerHTML = `<p class="aviso-fijo">Solo el administrador puede cambiar los precios y las razas.</p>
+      <div class="tabla-scroll"><table><thead><tr><th>Raza</th><th>Especie</th><th class="num">Baño</th><th class="num">Corte</th><th class="num">Corte y baño</th><th class="num">Uñas</th></tr></thead>
+      <tbody>${razas.map((r) => `<tr><td>${esc(r.nombre)}</td><td>${esc(r.especie)}</td>
+        ${["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"].map((c) => `<td class="num">${dinero(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    return;
+  }
   caja.innerHTML = `
-    <p class="suave">Escribe aquí tus precios. Al cambiar una celda se guarda sola. El recargo medicado
-    (por ejemplo $8.000 o $16.000 según el tamaño) se suma cuando marcas "baño medicado".</p>
+    <p class="suave">Escribe aquí tus precios. Al cambiar una celda se guarda sola. El recargo del baño medicado
+    ($8.000 o $16.000 según el tamaño) se elige al agendar o al terminar la cita.</p>
     <form id="nueva-raza" class="fila-nueva">
       <div><label for="r-nombre">Raza</label><input id="r-nombre" required></div>
       <div><label for="r-especie">Especie</label><select id="r-especie"><option value="perro">Perro</option><option value="gato">Gato</option></select></div>
       <div><label for="r-bano">Baño</label><input id="r-bano" type="number" min="0" step="any"></div>
       <div><label for="r-corte">Corte</label><input id="r-corte" type="number" min="0" step="any"></div>
       <div><label for="r-cb">Corte y baño</label><input id="r-cb" type="number" min="0" step="any"></div>
-      <div><label for="r-med">Recargo medicado</label><input id="r-med" type="number" min="0" step="any"></div>
+      <div><label for="r-unas">Uñas</label><input id="r-unas" type="number" min="0" step="any"></div>
       <div><button class="btn" type="submit">Agregar raza</button></div>
       <p class="error" role="alert"></p>
     </form>
-    <div class="tabla-scroll"><table><thead><tr><th>Raza</th><th>Especie</th><th>Baño</th><th>Corte</th><th>Corte y baño</th><th>Recargo medicado</th><th></th></tr></thead>
+    <div class="tabla-scroll"><table><thead><tr><th>Raza</th><th>Especie</th><th>Baño</th><th>Corte</th><th>Corte y baño</th><th>Uñas</th><th></th></tr></thead>
     <tbody id="tabla-razas">${razas.map((r) => `<tr data-id="${r.id}">
       <td><input data-campo="nombre" value="${esc(r.nombre)}" aria-label="Nombre de la raza"></td>
       <td>${esc(r.especie)}</td>
-      ${["precio_bano", "precio_corte", "precio_corte_bano", "recargo_medicado"].map((c) =>
+      ${["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"].map((c) =>
         `<td><input data-campo="${c}" type="number" min="0" step="any" value="${esc(r[c])}" aria-label="${c}"></td>`).join("")}
       <td><button class="btn alt" data-quitar="${r.id}">Quitar</button></td></tr>`).join("")}</tbody></table></div>`;
 
@@ -108,7 +119,7 @@ async function pestanaRazas(caja) {
       precio_bano: numeroONulo("#r-bano"),
       precio_corte: numeroONulo("#r-corte"),
       precio_corte_bano: numeroONulo("#r-cb"),
-      recargo_medicado: numeroONulo("#r-med"),
+      precio_unas: numeroONulo("#r-unas"),
     }, evento.target);
   });
 }
@@ -147,6 +158,18 @@ async function pestanaServicios(caja) {
   ]);
   const opcionesGrupo = (actual) => grupos.map((g) =>
     `<option value="${g.id}"${g.id === actual ? " selected" : ""}>${esc(g.nombre)}</option>`).join("");
+  // Colaborador: solo ve los servicios y cada cuántos días vuelven (cambiarlos afecta a todos).
+  if (!esAdmin()) {
+    const nombreGrupo = new Map(grupos.map((g) => [g.id, g.nombre]));
+    caja.innerHTML = `<p class="aviso-fijo">Solo el administrador puede cambiar los servicios y los recordatorios.</p>
+      <h3>Grupos de recordatorio</h3>
+      <div class="tabla-scroll"><table><thead><tr><th>Grupo</th><th class="num">Días para volver</th></tr></thead>
+      <tbody>${grupos.map((g) => `<tr><td>${esc(g.nombre)}</td><td class="num">${esc(g.frecuencia_dias)}</td></tr>`).join("")}</tbody></table></div>
+      <h3>Servicios</h3>
+      <div class="tabla-scroll"><table><thead><tr><th>Servicio</th><th>Grupo</th></tr></thead>
+      <tbody>${tipos.map((t) => `<tr><td>${esc(t.nombre)}</td><td>${esc(nombreGrupo.get(t.grupo_id) ?? "—")}</td></tr>`).join("")}</tbody></table></div>`;
+    return;
+  }
 
   caja.innerHTML = `
     <p class="aviso-fijo">No cambies el nombre de <strong>${SERVICIOS_FIJOS.join(", ")}</strong>: el precio sugerido por raza depende de esos nombres.</p>
@@ -228,13 +251,14 @@ async function pestanaNegocio(caja) {
     <div class="logo-vista">${estado.logoUrl
       ? `<img src="${esc(estado.logoUrl)}" alt="Logo actual">`
       : '<p class="suave">Todavía no has subido un logo.</p>'}</div>
-    <form id="form-logo">
+    ${esAdmin() ? "" : '<p class="aviso-fijo">Solo el administrador puede cambiar el logo.</p>'}
+    <form id="form-logo"${esAdmin() ? "" : " hidden"}>
       <label for="l-archivo">Imagen (PNG, JPG, WEBP o SVG; máximo 2 MB)</label>
       <input id="l-archivo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" required>
       <p id="l-error" class="error" role="alert"></p>
       <button class="btn" type="submit">Subir logo</button>
     </form>`;
-  $("#form-logo").addEventListener("submit", subirLogo);
+  if (esAdmin()) $("#form-logo").addEventListener("submit", subirLogo);
 }
 
 const CARGADORES_CAT = { razas: pestanaRazas, guias: pestanaGuias, servicios: pestanaServicios, negocio: pestanaNegocio };

@@ -59,7 +59,33 @@ async function calcularReporte(desde, hasta) {
     }),
   ]);
 
+  // Bitácora de cancelaciones (si las tablas/columnas aún no existen, se deja vacío)
+  let anulados = [];
+  try {
+    anulados = await traerTodo(() => {
+      let c = db.from("servicios_anulados").select("*").order("anulado_en", { ascending: false }).order("id");
+      if (desde) c = c.gte("anulado_en", inicioDiaBogota(desde));
+      if (hasta) c = c.lt("anulado_en", inicioDiaBogota(sumarDias(hasta, 1)));
+      return c;
+    });
+  } catch (error) { anulados = []; }
+  const idsCanceladas = citas.filter((c) => c.estado === "cancelada").map((c) => c.id);
+  if (idsCanceladas.length) {
+    try {
+      const datos = [];
+      for (let i = 0; i < idsCanceladas.length; i += 200) {
+        datos.push(...await q(db.from("citas").select("id,cancelada_por,cancelada_en,motivo_cancelacion").in("id", idsCanceladas.slice(i, i + 200))));
+      }
+      const porId = new Map(datos.map((d) => [d.id, d]));
+      citas.forEach((c) => Object.assign(c, porId.get(c.id) || {}));
+    } catch (error) { /* sin auditoría */ }
+  }
+
   const mascotaPorId = new Map(mascotas.map((m) => [m.mascota_id, m]));
+  const filasAnulados = anulados.map((a) => {
+    const m = mascotaPorId.get(a.mascota_id) || {};
+    return { ...a, mascota: m.mascota ?? "", cliente: m.cliente ?? "", precio: numero(a.precio_cobrado) };
+  });
   const filasHist = historial.map((f) => {
     const m = mascotaPorId.get(f.mascota_id) || {};
     return {
@@ -126,8 +152,10 @@ async function calcularReporte(desde, hasta) {
     citasRealizadas: citas.filter((c) => c.estado === "realizada").length,
     citasPendientes: citas.filter((c) => c.estado === "pendiente").length,
     citasCanceladas: citas.filter((c) => c.estado === "cancelada").length,
+    anulados: filasAnulados.length,
+    dineroAnulado: filasAnulados.reduce((s, a) => s + a.precio, 0),
   };
-  return { desde, hasta, resumen, filasHist, filasMascotas, filasClientes, citas, porServicio, porMes };
+  return { desde, hasta, resumen, filasHist, filasMascotas, filasClientes, citas, porServicio, porMes, filasAnulados };
 }
 
 /* ---------- Pantalla ---------- */
@@ -155,8 +183,10 @@ function pintarReporte(d) {
       <div class="stat"><b>${r.clientesRegistrados}</b>Clientes registrados (${r.clientesActivos} activos)</div>
     </div>
     <p class="suave">Citas del período: ${r.citas} · ${r.citasRealizadas} realizadas · ${r.citasPendientes} pendientes · ${r.citasCanceladas} canceladas</p>
+    ${r.anulados ? `<p class="aviso-fijo">⚠ ${r.anulados} ${r.anulados === 1 ? "servicio realizado fue cancelado" : "servicios realizados fueron cancelados"} en este período (${dinero(r.dineroAnulado)} que ya no cuentan). Mira el detalle abajo y en la hoja "Cancelados" del Excel.</p>` : ""}
     <div class="columnas">${htmlTablaSimple("Por servicio", d.porServicio)}${htmlTablaSimple("Por mes", d.porMes)}</div>
     <div class="tarjeta"><h2>Dueños</h2><p class="suave">Suma de lo que se le cobró a todas sus mascotas en el período.</p><div id="rep-clientes"></div></div>
+    ${d.filasAnulados.length ? `<div class="tarjeta"><h2>Servicios cancelados</h2><p class="suave">Quién canceló cada servicio realizado, cuándo y por qué.</p><div id="rep-anulados"></div></div>` : ""}
     <div class="tarjeta"><h2>Mascotas</h2><p class="suave">Todas las mascotas registradas, con lo cobrado en el período.</p><div id="rep-mascotas"></div></div>`;
 
   tablaInteractiva($("#rep-clientes"), {
@@ -174,6 +204,21 @@ function pintarReporte(d) {
       <td>${c.num_mascotas}<div class="suave">${esc(c.mascotas)}</div></td>
       <td class="num">${c.servicios_periodo}</td><td class="num"><strong>${dinero(c.total_periodo)}</strong></td></tr>`,
   });
+  if (d.filasAnulados.length) tablaInteractiva($("#rep-anulados"), {
+    id: "rep-anulados",
+    filas: d.filasAnulados,
+    columnas: [
+      { titulo: "Cancelado el", valor: (a) => a.anulado_en, dia: (a) => diaDe(a.anulado_en), filtro: "fecha" },
+      { titulo: "Por", valor: (a) => a.anulado_por, filtro: "lista" },
+      { titulo: "Mascota", valor: (a) => a.mascota, filtro: "texto" },
+      { titulo: "Servicio", valor: (a) => a.servicio ?? "", filtro: "lista" },
+      { titulo: "Fecha del servicio", valor: (a) => a.fecha ?? "", filtro: false },
+      { titulo: "Valor", valor: (a) => a.precio, filtro: false, clase: "num" },
+      { titulo: "Motivo", valor: (a) => a.motivo, filtro: "texto" },
+    ],
+    fila: (a) => `<tr><td>${htmlFechaHora(a.anulado_en)}</td><td>${esc(a.anulado_por)}</td><td>${esc(a.mascota)}<div class="suave">${esc(a.cliente)}</div></td>
+      <td>${esc(a.servicio ?? "")}</td><td>${esc(fechaCorta(a.fecha))}</td><td class="num"><s>${dinero(a.precio)}</s></td><td>${esc(a.motivo)}</td></tr>`,
+  });
   tablaInteractiva($("#rep-mascotas"), {
     id: "rep-mascotas",
     filas: d.filasMascotas,
@@ -182,12 +227,12 @@ function pintarReporte(d) {
       { titulo: "Especie", valor: (m) => m.especie, filtro: "lista" },
       { titulo: "Raza", valor: (m) => m.raza ?? "", filtro: "lista" },
       { titulo: "Dueño", valor: (m) => m.cliente, filtro: "texto" },
-      { titulo: "Última visita", valor: (m) => m.ultima_visita ?? "", filtro: false },
+      { titulo: "Última visita", valor: (m) => m.ultima_visita ?? "", filtro: "fecha" },
       { titulo: "Servicios", valor: (m) => m.servicios_periodo, filtro: false, clase: "num" },
       { titulo: "Total", valor: (m) => m.total_periodo, filtro: false, clase: "num" },
     ],
     fila: (m) => `<tr><td>${esc(m.mascota)}</td><td>${esc(m.especie)}</td><td>${esc(m.raza ?? "—")}</td>
-      <td>${esc(m.cliente)}</td><td>${esc(fechaTexto(m.ultima_visita))}</td>
+      <td>${esc(m.cliente)}</td><td>${esc(fechaCorta(m.ultima_visita))}</td>
       <td class="num">${m.servicios_periodo}</td><td class="num"><strong>${dinero(m.total_periodo)}</strong></td></tr>`,
   });
 }
@@ -280,8 +325,10 @@ async function descargarExcel() {
       ["Citas realizadas", r.citasRealizadas],
       ["Citas pendientes", r.citasPendientes],
       ["Citas canceladas", r.citasCanceladas],
+      ["Servicios realizados que se cancelaron", r.anulados],
+      ["Dinero de servicios cancelados (no cuenta)", r.dineroAnulado],
     ]);
-    ["B6", "B8"].forEach((ref) => { resumen[ref].z = FORMATO_DINERO; });
+    ["B6", "B8", "B20"].forEach((ref) => { if (resumen[ref]) resumen[ref].z = FORMATO_DINERO; });
     resumen["!cols"] = [{ wch: 34 }, { wch: 28 }];
     XLSX.utils.book_append_sheet(libro, resumen, "Resumen");
 
@@ -310,14 +357,23 @@ async function descargarExcel() {
     ), "Dueños");
 
     XLSX.utils.book_append_sheet(libro, hojaExcel(
-      ["Fecha", "Hora", "Mascota", "Dueño", "Teléfono", "Servicio", "Medicado", "Estado", "Precio acordado", "Precio cobrado", "Motivo"],
+      ["Fecha", "Hora", "Mascota", "Dueño", "Teléfono", "Servicio", "Medicado", "Estado", "Precio acordado", "Precio cobrado", "Motivo", "Cancelada por", "Cancelada el", "Motivo de cancelación"],
       d.citas.map((c) => [aFecha(diaDe(c.fecha_hora)), horaTexto(c.fecha_hora), c.mascota, c.cliente, c.telefono ?? "",
         c.servicio ?? "", siNo(c.medicado), c.estado,
         c.precio_acordado === null || c.precio_acordado === undefined ? null : numero(c.precio_acordado),
-        c.precio_cobrado === null || c.precio_cobrado === undefined ? null : numero(c.precio_cobrado), c.motivo ?? ""]),
-      { dinero: [8, 9], fecha: [0], anchos: [12, 10, 16, 22, 14, 16, 10, 11, 14, 14, 30],
+        c.precio_cobrado === null || c.precio_cobrado === undefined || c.estado === "cancelada" ? null : numero(c.precio_cobrado), c.motivo ?? "",
+        c.cancelada_por ?? "", c.cancelada_en ? `${fechaCorta(diaDe(c.cancelada_en))} ${horaTexto(c.cancelada_en)}` : "", c.motivo_cancelacion ?? ""]),
+      { dinero: [8, 9], fecha: [0], anchos: [12, 10, 16, 22, 14, 16, 10, 11, 14, 14, 24, 16, 18, 30],
         totales: { etiqueta: `Total (${d.citas.length} citas)`, sumar: [9] } },
     ), "Citas");
+
+    XLSX.utils.book_append_sheet(libro, hojaExcel(
+      ["Cancelado el", "Cancelado por", "Mascota", "Dueño", "Servicio", "Fecha del servicio", "Valor (no cuenta)", "Motivo"],
+      d.filasAnulados.map((a) => [`${fechaCorta(diaDe(a.anulado_en))} ${horaTexto(a.anulado_en)}`, a.anulado_por, a.mascota, a.cliente,
+        a.servicio ?? "", aFecha(a.fecha), a.precio, a.motivo]),
+      { dinero: [6], fecha: [5], anchos: [20, 16, 16, 22, 16, 14, 14, 36],
+        totales: { etiqueta: `Total (${d.filasAnulados.length} cancelados)`, sumar: [6] } },
+    ), "Cancelados");
 
     XLSX.utils.book_append_sheet(libro, hojaExcel(
       ["Servicio", "Cantidad", "Total"], d.porServicio.map((g) => [g.nombre, g.cantidad, g.total]),
@@ -341,6 +397,58 @@ async function descargarExcel() {
   }
 }
 
+/* ---------- Respaldo completo ----------
+   Descarga TODAS las tablas tal cual están en la base (una hoja por tabla), para guardar una copia.
+   El plan gratis de Supabase no guarda respaldos que puedas restaurar tú misma. */
+const TABLAS_RESPALDO = ["clientes", "mascotas", "citas", "servicios", "servicios_anulados", "razas", "tipos_servicio",
+  "grupos_recordatorio", "guias", "videos", "pendientes_descartados", "perfiles"];
+
+async function descargarRespaldo() {
+  const boton = $("#rep-respaldo");
+  boton.disabled = true;
+  boton.textContent = "Preparando respaldo…";
+  try {
+    await cargarScript(URL_EXCEL);
+    const XLSX = window.XLSX;
+    const libro = XLSX.utils.book_new();
+    const resumen = [["Tabla", "Filas"]];
+    for (const tabla of TABLAS_RESPALDO) {
+      let filas;
+      try {
+        filas = await traerTodo(() => db.from(tabla).select("*").order("id"));
+      } catch (error) { continue; } // si la tabla no existe en esta base, se salta
+      resumen.push([tabla, filas.length]);
+      const hoja = filas.length ? XLSX.utils.json_to_sheet(filas.map((f) => Object.fromEntries(Object.entries(f)
+        .map(([k, v]) => [k, v !== null && typeof v === "object" ? JSON.stringify(v) : v]))))
+        : XLSX.utils.aoa_to_sheet([["(sin filas)"]]);
+      XLSX.utils.book_append_sheet(libro, hoja, tabla.slice(0, 31));
+    }
+    const portada = XLSX.utils.aoa_to_sheet([[`Respaldo de ${NOMBRE_NEGOCIO}`],
+      ["Generado", new Date().toLocaleString("es-CO", { timeZone: ZONA })], [], ...resumen]);
+    XLSX.utils.book_append_sheet(libro, portada, "Contenido");
+    libro.SheetNames.unshift(libro.SheetNames.pop()); // "Contenido" primero
+    XLSX.writeFile(libro, `Respaldo_${nombreSeguroArchivo(NOMBRE_NEGOCIO)}_${hoyISO()}.xlsx`);
+    try { localStorage.setItem("ultimo-respaldo", hoyISO()); } catch (e) { /* sin almacenamiento */ }
+    aviso("Respaldo descargado. Guárdalo en un lugar seguro (por ejemplo, Google Drive).");
+    pintarUltimoRespaldo();
+  } catch (error) {
+    aviso(mensajeError(error), true);
+  } finally {
+    if ($("#rep-respaldo")) { boton.disabled = false; boton.textContent = "⬇ Descargar respaldo completo"; }
+  }
+}
+
+function pintarUltimoRespaldo() {
+  const caja = $("#rep-ultimo-respaldo");
+  if (!caja) return;
+  let ultimo = null;
+  try { ultimo = localStorage.getItem("ultimo-respaldo"); } catch (e) { /* sin almacenamiento */ }
+  const dias = ultimo ? diasEntre(ultimo, hoyISO()) : null;
+  caja.innerHTML = ultimo
+    ? `Último respaldo desde este navegador: <strong>${esc(fechaCorta(ultimo))}</strong>${dias > 30 ? ' · <span class="mal">hace más de un mes, descarga uno nuevo</span>' : ""}`
+    : "Todavía no has descargado un respaldo desde este navegador. Se recomienda uno cada mes.";
+}
+
 const nombreSeguroArchivo = (t) => String(t).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "") || "reporte";
 
 PANTALLAS.reportes = {
@@ -353,19 +461,26 @@ PANTALLAS.reportes = {
       <div class="filtros">${Object.entries(RANGOS).map(([clave, texto]) =>
         `<button class="chip" data-rango="${clave}" aria-pressed="${clave === rangoReporte}">${texto}</button>`).join("")}</div>
       <div class="fila-nueva">
-        <div><label for="rep-desde">Desde</label><input id="rep-desde" type="date" value="${desde}"></div>
-        <div><label for="rep-hasta">Hasta</label><input id="rep-hasta" type="date" value="${hasta}"></div>
+        <div><label for="rep-desde">Desde</label><input id="rep-desde" type="date" value="${desde}" data-vacio="Desde el inicio"></div>
+        <div><label for="rep-hasta">Hasta</label><input id="rep-hasta" type="date" value="${hasta}" data-vacio="Hasta hoy"></div>
         <div><button class="btn" id="rep-excel" type="button" disabled>⬇ Descargar Excel</button></div>
       </div>
     </div>
-    <div id="rep-resultado"><p class="suave">Calculando…</p></div>`;
+    <div id="rep-resultado"><p class="suave">Calculando…</p></div>
+    <div class="tarjeta">
+      <h2>Respaldo de la base de datos</h2>
+      <p class="suave">Descarga una copia de <strong>todas</strong> tus tablas (clientes, mascotas, citas, servicios, precios…)
+      en un Excel. Si algún día se pierde o se daña algo, con este archivo se puede recuperar.</p>
+      <p class="suave" id="rep-ultimo-respaldo"></p>
+      <button class="btn alt" id="rep-respaldo" type="button">⬇ Descargar respaldo completo</button>
+    </div>`;
   },
   despues: async () => {
     $$("[data-rango]").forEach((b) => b.addEventListener("click", () => {
       rangoReporte = b.dataset.rango;
       const { desde, hasta } = fechasDeRango(rangoReporte);
-      $("#rep-desde").value = desde;
-      $("#rep-hasta").value = hasta;
+      fijarFecha($("#rep-desde"), desde);
+      fijarFecha($("#rep-hasta"), hasta);
       $$("[data-rango]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       cargarReporte();
     }));
@@ -377,6 +492,8 @@ PANTALLAS.reportes = {
     $("#rep-desde").addEventListener("change", alCambiarFecha);
     $("#rep-hasta").addEventListener("change", alCambiarFecha);
     $("#rep-excel").addEventListener("click", descargarExcel);
+    $("#rep-respaldo").addEventListener("click", descargarRespaldo);
+    pintarUltimoRespaldo();
     await cargarReporte();
   },
 };

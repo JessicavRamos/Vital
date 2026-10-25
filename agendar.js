@@ -120,16 +120,23 @@ function htmlHistorialAgendar() {
 async function cargarHistorialAgendar() {
   const sel = A.sel;
   if (!sel) return;
-  let consulta = db.from("historial").select("*").order("fecha", { ascending: false }).limit(500);
-  consulta = A.histTodas ? consulta.eq("cliente_id", sel.cliente_id) : consulta.eq("mascota_id", sel.mascota_id);
-  const filas = await q(consulta);
+  const filas = await traerTodo(() => {
+    const consulta = db.from("historial").select("*").order("fecha", { ascending: false }).order("id");
+    return A.histTodas ? consulta.eq("cliente_id", sel.cliente_id) : consulta.eq("mascota_id", sel.mascota_id);
+  });
   // La hora sale de la cita de la que nació cada servicio.
   try {
     const ids = filas.map((f) => f.id);
     if (ids.length) {
-      const servicios = await q(db.from("servicios").select("id,cita_id").in("id", ids));
+      // De a 200 ids por consulta para no pasar el largo máximo de la dirección.
+      const enLotes = async (lista, crear) => {
+        const todo = [];
+        for (let i = 0; i < lista.length; i += 200) todo.push(...await q(crear(lista.slice(i, i + 200))));
+        return todo;
+      };
+      const servicios = await enLotes(ids, (lote) => db.from("servicios").select("id,cita_id").in("id", lote));
       const idsCita = servicios.map((x) => x.cita_id).filter(Boolean);
-      const citas = idsCita.length ? await q(db.from("citas").select("id,fecha_hora").in("id", idsCita)) : [];
+      const citas = await enLotes(idsCita, (lote) => db.from("citas").select("id,fecha_hora").in("id", lote));
       const horaCita = new Map(citas.map((c) => [c.id, c.fecha_hora]));
       const horaServicio = new Map(servicios.map((x) => [x.id, horaCita.get(x.cita_id)]));
       filas.forEach((f) => {
@@ -153,7 +160,7 @@ async function actualizarPrecio() {
   const razaElegida = A.razas.find((r) => r.id === Number($("#a-raza").value));
   const deRaza = precioRaza(razaElegida, tipo && tipo.nombre);
   let valor = null, origen = null;
-  let recargoRaza = razaElegida ? (razaElegida.recargo_medicado ?? null) : null;
+  let recargoRaza = null; // el recargo se propone solo si la mascota ya tuvo baño medicado
 
   if (A.sel) {
     try {
@@ -271,11 +278,16 @@ async function enviarAgendar(evento) {
   try {
     const filas = await q(db.rpc("registrar_cita", datos));
     const r = filas[0];
+    let razaFallo = false;
     if (A.sel && !A.sel.raza_id && datos.p_raza_id) {
-      await q(db.from("mascotas").update({ raza_id: datos.p_raza_id }).eq("id", A.sel.mascota_id));
+      try {
+        const guardadas = await q(db.from("mascotas").update({ raza_id: datos.p_raza_id }).eq("id", A.sel.mascota_id).select("id"));
+        razaFallo = !guardadas.length;
+      } catch (e) { razaFallo = true; }
     }
     const nuevos = [r.o_cliente_nuevo ? "cliente nuevo" : null, r.o_mascota_nueva ? "mascota nueva" : null].filter(Boolean);
-    aviso("Cita agendada" + (nuevos.length ? " · se guardó: " + nuevos.join(" y ") : ""));
+    if (razaFallo) aviso("La cita quedó agendada, pero no se pudo guardar la raza de la mascota.", true);
+    else aviso("Cita agendada" + (nuevos.length ? " · se guardó: " + nuevos.join(" y ") : ""));
     montarPantalla("agendar");
   } catch (fallo) {
     error.textContent = mensajeError(fallo);
@@ -341,7 +353,7 @@ PANTALLAS.agendar = {
     $("#a-servicio").innerHTML = A.tipos.map((t) => `<option value="${t.id}">${esc(t.nombre)}</option>`).join("");
     const bano = A.tipos.find((t) => t.nombre === "Baño");
     if (bano) $("#a-servicio").value = bano.id; // predeterminado: Baño, para perros y gatos
-    $("#a-dia").value = sumarDias(hoyISO(), 1);
+    fijarFecha($("#a-dia"), sumarDias(hoyISO(), 1));
     llenarRazas();
     ajustarBloqueMedicado();
     pintarDia();
@@ -369,7 +381,7 @@ PANTALLAS.agendar = {
 
     // Día y hora
     $$("[data-dia]").forEach((b) => b.addEventListener("click", () => {
-      $("#a-dia").value = sumarDias(hoyISO(), Number(b.dataset.dia));
+      fijarFecha($("#a-dia"), sumarDias(hoyISO(), Number(b.dataset.dia)));
       pintarDia();
     }));
     $("#a-dia").addEventListener("change", pintarDia);
@@ -393,7 +405,12 @@ PANTALLAS.agendar = {
     // Si vienes desde "A quién buscar hoy", se rellena sola la mascota.
     const previo = estado.agendarPrefill;
     estado.agendarPrefill = null;
-    if (previo) {
+    if (previo && previo.dia) {
+      // Viene de la Agenda: "+ Agendar para este día"
+      fijarFecha($("#a-dia"), previo.dia);
+      pintarDia();
+      await actualizarPrecio();
+    } else if (previo) {
       $("#a-mascota").value = previo.mascota;
       $("#a-telefono").value = previo.telefono ?? "";
       await buscarCoincidencias(previo.telefono || previo.mascota);

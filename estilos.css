@@ -528,3 +528,8 @@ td select[data-rol]{min-width:150px}
 #dialogo-confirmar{max-width:440px}
 #dialogo-confirmar h2{margin-top:0}
 .calendario button[data-fecha]:focus-visible{outline:2px solid var(--marca);outline-offset:1px}
+
+/* Firma del producto (DALU Vital) */
+.firma-producto{margin:22px 0 0;text-align:center;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--suave)}
+.firma-producto strong{color:var(--tinta);font-weight:700}
+.lateral .firma-producto{margin:12px 0 0;color:var(--sobre-marca);opacity:.7}

@@ -1,4 +1,4 @@
-// Pruebas automáticas de Pet Garden (Playwright).
+// Pruebas automáticas de DALU Vital (Playwright).
 // Supabase y la librería de Excel se reemplazan por versiones falsas: NO se toca tu base real.
 const { test, expect } = require("@playwright/test");
 const path = require("path");

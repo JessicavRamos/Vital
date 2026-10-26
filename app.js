@@ -1,9 +1,12 @@
 "use strict";
 
 /* =====================================================================
-   Pet Garden · NÚCLEO: utilidades, login, menú y navegación
+   DALU Vital · NÚCLEO: utilidades, login, menú y navegación
    ===================================================================== */
 
+
+// Nombre del producto. El nombre del negocio cliente va en config.js (NOMBRE_NEGOCIO).
+const NOMBRE_PRODUCTO = "DALU Vital";
 
 /* ---------- Utilidades generales ---------- */
 const $ = (selector, raiz = document) => raiz.querySelector(selector);
@@ -850,6 +853,7 @@ function htmlLogin() {
           <p class="suave centrado"><button type="button" class="enlace pequeno" id="olvide">¿Olvidaste tu contraseña?</button></p>
           <p class="suave centrado"><a href="#/videos">Ver videos de productos</a></p>
         </form>
+        <p class="firma-producto">Con tecnología de <strong>${esc(NOMBRE_PRODUCTO)}</strong></p>
       </section>
     </div>
   </main>`;
@@ -877,6 +881,7 @@ function htmlNuevaClave() {
           <button class="btn grande" type="submit">Guardar contraseña</button>
           <p class="suave centrado"><button type="button" class="enlace pequeno" id="cancelar-clave">Cancelar</button></p>
         </form>
+        <p class="firma-producto">Con tecnología de <strong>${esc(NOMBRE_PRODUCTO)}</strong></p>
       </section>
     </div>
   </main>`;
@@ -982,6 +987,7 @@ function htmlPanel(clave) {
         <button id="perfil" class="usuario" title="Cambiar mi nombre">${nombre ? "👤 " + esc(nombre) : "👤 Escribe tu nombre"}
           <span class="rol-usuario">${esc(esAdmin() ? "Administrador" : "Colaborador")}</span></button>
         <button id="salir" class="btn alt">Cerrar sesión</button>
+        <p class="firma-producto">${esc(NOMBRE_PRODUCTO)}</p>
       </div>
     </aside>
     <div class="principal">
@@ -1104,7 +1110,7 @@ function pintar() {
 
 /* ---------- Arranque (se llama desde index.html al final) ---------- */
 async function iniciar() {
-  if (typeof NOMBRE_NEGOCIO === "string") document.title = NOMBRE_NEGOCIO;
+  document.title = typeof NOMBRE_NEGOCIO === "string" ? `${NOMBRE_NEGOCIO} · ${NOMBRE_PRODUCTO}` : NOMBRE_PRODUCTO;
   vigilarFechas();
   if (configurado && db) {
     // El logo se busca antes de dibujar (máximo 2,5 segundos de espera).

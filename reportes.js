@@ -307,7 +307,7 @@ async function descargarExcel() {
     const siNo = (b) => (b ? "Sí" : "No");
 
     const resumen = XLSX.utils.aoa_to_sheet([
-      [`Reporte de ${NOMBRE_NEGOCIO}`],
+      [`Reporte de ${nombreNegocio()}`],
       ["Período", textoRango(d.desde, d.hasta)],
       ["Generado", new Date().toLocaleString("es-CO", { timeZone: ZONA })],
       [],
@@ -385,7 +385,7 @@ async function descargarExcel() {
       { dinero: [2], anchos: [20, 10, 14], totales: { etiqueta: "Total", sumar: [1, 2] } },
     ), "Por mes");
 
-    const negocio = nombreSeguroArchivo(NOMBRE_NEGOCIO);
+    const negocio = nombreSeguroArchivo(nombreNegocio());
     const periodo = d.desde || d.hasta ? `${d.desde || "inicio"}_a_${d.hasta || hoyISO()}` : "todo";
     XLSX.writeFile(libro, `${negocio}-reporte-${periodo}.xlsx`, { compression: true });
     aviso("Excel descargado.");
@@ -415,7 +415,11 @@ async function descargarRespaldo() {
     for (const tabla of TABLAS_RESPALDO) {
       let filas;
       try {
-        filas = await traerTodo(() => db.from(tabla).select("*").order("id"));
+        // Solo los perfiles de ESTE negocio (DALU podría ver los de todos).
+        filas = await traerTodo(() => {
+          const consulta = db.from(tabla).select("*").order("id");
+          return tabla === "perfiles" && estado.negocio && estado.negocio.id ? consulta.eq("negocio_id", estado.negocio.id) : consulta;
+        });
       } catch (error) { continue; } // si la tabla no existe en esta base, se salta
       resumen.push([tabla, filas.length]);
       const hoja = filas.length ? XLSX.utils.json_to_sheet(filas.map((f) => Object.fromEntries(Object.entries(f)
@@ -423,11 +427,11 @@ async function descargarRespaldo() {
         : XLSX.utils.aoa_to_sheet([["(sin filas)"]]);
       XLSX.utils.book_append_sheet(libro, hoja, tabla.slice(0, 31));
     }
-    const portada = XLSX.utils.aoa_to_sheet([[`Respaldo de ${NOMBRE_NEGOCIO}`],
+    const portada = XLSX.utils.aoa_to_sheet([[`Respaldo de ${nombreNegocio()}`],
       ["Generado", new Date().toLocaleString("es-CO", { timeZone: ZONA })], [], ...resumen]);
     XLSX.utils.book_append_sheet(libro, portada, "Contenido");
     libro.SheetNames.unshift(libro.SheetNames.pop()); // "Contenido" primero
-    XLSX.writeFile(libro, `Respaldo_${nombreSeguroArchivo(NOMBRE_NEGOCIO)}_${hoyISO()}.xlsx`);
+    XLSX.writeFile(libro, `Respaldo_${nombreSeguroArchivo(nombreNegocio())}_${hoyISO()}.xlsx`);
     try { localStorage.setItem("ultimo-respaldo", hoyISO()); } catch (e) { /* sin almacenamiento */ }
     aviso("Respaldo descargado. Guárdalo en un lugar seguro (por ejemplo, Google Drive).");
     pintarUltimoRespaldo();

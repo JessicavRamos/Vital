@@ -169,3 +169,122 @@ test.describe("Reportes", () => {
     expect(excel.hojas).toEqual(expect.arrayContaining(["clientes", "citas", "servicios", "razas"]));
   });
 });
+
+test.describe("Multinegocio", () => {
+  test("sin sesión, la entrada muestra el negocio de la dirección", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion&negocio=vet-norte" });
+    await expect(page.locator(".acceso-marca h1")).toHaveText("Vet Norte");
+    await expect(page).toHaveTitle("Vet Norte · DALU Vital");
+  });
+
+  test("los videos públicos solo muestran los del negocio de la dirección", async ({ page }) => {
+    await abrir(page, "videos", { extra: "sinsesion&negocio=petgarden" });
+    await expect(page.locator("#v-publico")).not.toContainText("Cargando");
+    const cargados = await page.evaluate(() => V.todos.map((v) => v.titulo));
+    expect(cargados).toContain("Croquetas premium");
+    expect(cargados).not.toContain("Solo de Vet Norte");
+  });
+
+  test("con sesión, Usuarios solo lista personas de mi negocio", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await expect(page.locator("#u-lista")).toContainText("Andrés");
+    await expect(page.locator("#u-lista")).not.toContainText("Laura");
+  });
+
+  test("DALU tampoco ve en Usuarios a personas de otros negocios", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "dalu" });
+    await expect(page.locator("#u-lista")).toContainText("Andrés");
+    await expect(page.locator("#u-lista")).not.toContainText("Laura");
+  });
+
+  test("el administrador invita por correo a su negocio", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.fill("#i-correo", "Nueva@Correo.co");
+    await page.selectOption("#i-rol", "administrador");
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await expect(aviso(page)).toContainText("Invitación lista");
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "invitar_usuario"));
+    expect(llamada[2]).toEqual({ p_correo: "nueva@correo.co", p_rol: "administrador" });
+    await expect(page.locator("#u-invitaciones")).toContainText("nueva@correo.co");
+  });
+
+  test("crear cuenta sin invitación muestra un mensaje claro", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await page.getByRole("button", { name: /Crea tu cuenta/ }).click();
+    await page.fill("#cc-nombre", "Pedro");
+    await page.fill("#cc-correo", "pedro@x.co");
+    await page.fill("#cc-clave", "secreta123");
+    await page.getByRole("button", { name: "Crear cuenta" }).click();
+    await expect(page.locator("#cc-error")).toContainText("no tiene invitación");
+  });
+
+  test("el menú Negocios solo aparece para DALU", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator("#menu-secciones")).not.toContainText("Negocios");
+    await page.goto("/index.html#/negocios");
+    await expect(page).toHaveURL(/#\/hoy/);
+  });
+
+  test("DALU crea un negocio con su enlace y la invitación del administrador", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#n-lista")).toContainText("Vet Norte");
+    await page.fill("#nn-nombre", "Veterinaria San Roque");
+    await expect(page.locator("#nn-slug")).toHaveValue("veterinaria-san-roque");
+    await page.fill("#nn-correo", "admin@sanroque.co");
+    await page.getByRole("button", { name: "Crear negocio" }).click();
+    await expect(page.locator("#dialogo")).toContainText("?negocio=veterinaria-san-roque");
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "crear_negocio"));
+    expect(llamada[2]).toEqual({ p_nombre: "Veterinaria San Roque", p_slug: "veterinaria-san-roque", p_correo_admin: "admin@sanroque.co" });
+  });
+
+  test("un usuario sin negocio ve el aviso y no el panel", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinnegocio" });
+    await expect(page.locator("h1")).toHaveText("Tu usuario aún no tiene negocio");
+    await expect(page.locator("#menu-secciones")).toHaveCount(0);
+  });
+
+  test("el logo se sube a la carpeta del negocio", async ({ page }) => {
+    await abrir(page, "catalogos");
+    await page.getByRole("button", { name: "Logo del negocio" }).click();
+    await page.setInputFiles("#l-archivo", { name: "logo.png", mimeType: "image/png", buffer: Buffer.from("png") });
+    await page.getByRole("button", { name: "Subir logo" }).click();
+    await expect(aviso(page)).toContainText("Logo actualizado");
+    const subida = await page.evaluate(() => window.__log.find((x) => x[0] === "upload"));
+    expect(subida[2]).toMatch(/^1\/logo-\d+\.png$/);
+  });
+});
+
+test.describe("Suscripción y pagos", () => {
+  test("el administrador ve solo los pagos de su negocio", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-pagos")).toContainText("Octubre 2026");
+    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
+    await expect(page.locator("#s-resumen")).toContainText("05/10/2026");
+    await expect(page.locator("#s-resumen")).toContainText("2 pagos");
+  });
+
+  test("DALU tampoco ve en Suscripción los pagos de otros negocios", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "dalu" });
+    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
+  });
+
+  test("el colaborador no ve Suscripción", async ({ page }) => {
+    await abrir(page, "hoy", { colaborador: true });
+    await expect(page.locator("#menu-secciones")).not.toContainText("Suscripción");
+    await page.goto("/index.html?empleado#/suscripcion");
+    await expect(page).toHaveURL(/#\/hoy/);
+  });
+
+  test("DALU registra un pago para un negocio", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
+    await page.selectOption("#np-negocio", { label: "Vet Norte" });
+    await page.evaluate(() => fijarFecha(document.querySelector("#np-fecha"), "2026-11-05"));
+    await page.fill("#np-valor", "95000");
+    await page.fill("#np-nota", "Noviembre 2026");
+    await page.getByRole("button", { name: "Registrar pago" }).click();
+    await expect(aviso(page)).toContainText("registrado para Vet Norte");
+    const pago = await page.evaluate(() => window.__T.pagos.find((p) => p.nota === "Noviembre 2026"));
+    expect(pago).toMatchObject({ negocio_id: 2, fecha: "2026-11-05", valor: 95000 });
+  });
+});

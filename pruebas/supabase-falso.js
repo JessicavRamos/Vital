@@ -1,6 +1,8 @@
 // Supabase falso en memoria para las pruebas automáticas (no toca tu base real).
 // Las pruebas lo cargan en lugar de la librería de Supabase.
-// Parámetros en la dirección: ?empleado (entra como colaborador), ?sinsesion, ?muchas (1.200 mascotas extra).
+// Parámetros en la dirección: ?empleado (entra como colaborador), ?sinsesion, ?muchas (1.200 mascotas extra),
+// ?dalu (la usuaria es de DALU), ?sinnegocio (su usuario no tiene negocio), ?negocio=slug (negocio del visitante).
+// Multinegocio: las filas con negocio_id se filtran como lo hace la base (RLS) cuando hay sesión.
 (function () {
   const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
   const dia = (n) => { const d = new Date(hoy + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -31,7 +33,22 @@
     ],
     pendientes_descartados: [],
     servicios_anulados: [],
-    perfiles: [{ id: 'u1', correo: 'a@b.co', nombre: 'Jessica', rol: (location.search.includes('empleado') ? 'empleado' : 'administrador'), creado_en: '2026-10-01T15:00:00Z' }, { id: 'u2', correo: 'andres@x.co', nombre: 'Andrés', rol: 'empleado', creado_en: '2026-10-10T15:00:00Z' }],
+    negocios: [
+      { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: true, creado_en: "2026-10-01T15:00:00Z" },
+      { id: 2, nombre: "Vet Norte", slug: "vet-norte", activo: true, creado_en: "2026-10-20T15:00:00Z" },
+    ],
+    invitaciones: [],
+    pagos: [
+      { id: 1, negocio_id: 1, fecha: "2026-09-05", valor: 80000, nota: "Septiembre 2026" },
+      { id: 2, negocio_id: 1, fecha: "2026-10-05", valor: 80000, nota: "Octubre 2026" },
+      { id: 3, negocio_id: 2, fecha: "2026-10-20", valor: 95000, nota: "Pago de Vet Norte" },
+    ],
+    perfiles: [
+      { id: 'u1', correo: 'a@b.co', nombre: 'Jessica', rol: (location.search.includes('empleado') ? 'empleado' : 'administrador'), creado_en: '2026-10-01T15:00:00Z',
+        negocio_id: location.search.includes('sinnegocio') ? null : 1 },
+      { id: 'u2', correo: 'andres@x.co', nombre: 'Andrés', rol: 'empleado', creado_en: '2026-10-10T15:00:00Z', negocio_id: 1 },
+      { id: 'u3', correo: 'otra@vetnorte.co', nombre: 'Laura', rol: 'administrador', creado_en: '2026-10-20T15:00:00Z', negocio_id: 2 },
+    ],
     ultima_guia: [{ mascota_id: 1, guia_id: 1, guia: "#7", fecha: dia(-35) }],
     precios_sugeridos: [{ mascota_id: 1, tipo_id: 1, precio_sugerido: 40000, origen: "mascota", recargo_medicado: null }],
     videos: [
@@ -39,6 +56,7 @@
       { id: 2, especie: "perro", categoria: "Juguetes", titulo: "Pelota mordedora", archivo: null, youtube_url: "https://youtu.be/dQw4w9WgXcQ", activo: true },
       { id: 3, especie: "perro", categoria: "Comida", titulo: "Snack dental", archivo: null, youtube_url: "https://www.youtube.com/shorts/dQw4w9WgXcQ", activo: false },
       { id: 4, especie: "gato", categoria: "Arena", titulo: "Arena aglomerante", archivo: null, youtube_url: "https://youtu.be/dQw4w9WgXcQ" },
+      { id: 5, especie: "perro", categoria: "Comida", titulo: "Solo de Vet Norte", archivo: null, youtube_url: "https://youtu.be/dQw4w9WgXcQ", activo: true, negocio_id: 2 },
     ],
   };
   // 12 servicios de Luna y 2 de Simba
@@ -70,7 +88,9 @@
   }
   const esEmpleado = location.search.includes("empleado");
   // Lo que la base (RLS) no le deja cambiar al colaborador: la actualización no devuelve filas.
-  const SOLO_ADMIN = { razas: ["insert", "update", "delete"], grupos_recordatorio: ["insert", "update", "delete"], tipos_servicio: ["insert", "update", "delete"], videos: ["delete"] };
+  const SOLO_ADMIN = { pagos: ["insert", "update", "delete"], razas: ["insert", "update", "delete"], grupos_recordatorio: ["insert", "update", "delete"], tipos_servicio: ["insert", "update", "delete"], videos: ["delete"] };
+  // Los videos de prueba sin negocio son de Pet Garden (negocio 1).
+  T.videos.forEach((v) => { if (v.negocio_id === undefined) v.negocio_id = 1; });
   window.__T = T;
   window.__log = [];
 
@@ -97,13 +117,17 @@
       window.__log.push([this.op, this.t, this.d]);
       if (!T[this.t]) return { data: null, error: { message: `relation "public.${this.t}" does not exist` } };
       const tabla = T[this.t];
-      const pasa = (r) => this.f.every((fn) => fn(r));
+      const mi = miNegocio();
+      // Como la base: con sesión solo se ven las filas del propio negocio (DALU ve todos los perfiles y negocios).
+      const deMiNegocio = (r) => !sesion || r.negocio_id === undefined || r.negocio_id === mi ||
+        (esDalu && ["perfiles", "invitaciones", "pagos"].includes(this.t));
+      const pasa = (r) => (this.t === "negocios" || deMiNegocio(r)) && this.f.every((fn) => fn(r));
       if (esEmpleado && (SOLO_ADMIN[this.t] || []).includes(this.op)) {
         if (this.op === "insert") return { data: null, error: { message: 'new row violates row-level security policy for table "' + this.t + '"' } };
         return { data: [], error: null };
       }
       if (this.op === "insert") {
-        const filas = (Array.isArray(this.d) ? this.d : [this.d]).map((x) => ({ id: Math.floor(Math.random() * 1e6), ...x }));
+        const filas = (Array.isArray(this.d) ? this.d : [this.d]).map((x) => ({ id: Math.floor(Math.random() * 1e6), negocio_id: mi, ...x }));
         tabla.push(...filas); return { data: this.ret ? filas : null, error: null };
       }
       if (this.op === "update") { const fs = tabla.filter(pasa); fs.forEach((r) => Object.assign(r, this.d)); return { data: this.ret ? fs : null, error: null }; }
@@ -118,11 +142,14 @@
       if (this.rg) fs = fs.slice(this.rg[0], this.rg[1] + 1);
       if (this.lim) fs = fs.slice(0, this.lim);
       if (this.cnt) return { count: fs.length, data: null, error: null };
+      if (this.t === "perfiles") fs = fs.map((p) => ({ ...p, negocios: T.negocios.find((n) => n.id === p.negocio_id) || null }));
       if (this.one) return { data: fs[0] || null, error: fs[0] || this.maybe ? null : { message: "no rows" } };
       return { data: JSON.parse(JSON.stringify(fs)), error: null };
     }
   }
   let sesion = { user: { id: "u1", email: "a@b.co", user_metadata: { nombre: "Jessica" } } };
+  const esDalu = location.search.includes("dalu");
+  function miNegocio() { const p = T.perfiles.find((x) => sesion && x.id === sesion.user.id); return p ? p.negocio_id : null; }
   if (location.search.includes("sinsesion")) sesion = null;
   let oyente = null;
   window.supabase = {
@@ -150,6 +177,23 @@
           if (sv) anular(sv.id, d.p_motivo); else cancelar(d.p_cita_id, d.p_motivo);
           return Promise.resolve({ data: null, error: null });
         }
+        if (n === "es_dalu") return Promise.resolve({ data: esDalu, error: null });
+        if (n === "invitar_usuario") {
+          const correo = String(d.p_correo || "").toLowerCase();
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return Promise.resolve({ data: null, error: { message: "Escribe un correo válido." } });
+          if (T.perfiles.some((p) => p.correo === correo && p.negocio_id)) return Promise.resolve({ data: null, error: { message: "Ese correo ya tiene acceso a un negocio y no se puede invitar." } });
+          T.invitaciones = T.invitaciones.filter((i) => i.correo !== correo);
+          T.invitaciones.push({ correo, rol: d.p_rol, negocio_id: d.p_negocio_id || miNegocio(), creado_en: ahora });
+          return Promise.resolve({ data: "invitado", error: null });
+        }
+        if (n === "crear_negocio") {
+          if (!esDalu) return Promise.resolve({ data: null, error: { message: "Solo DALU puede crear negocios." } });
+          if (T.negocios.some((x) => x.slug === d.p_slug)) return Promise.resolve({ data: null, error: { message: 'duplicate key value violates unique constraint "negocios_slug_key"' } });
+          const id = T.negocios.length + 1;
+          T.negocios.push({ id, nombre: d.p_nombre, slug: d.p_slug, activo: true, creado_en: ahora });
+          T.invitaciones.push({ correo: d.p_correo_admin, rol: "administrador", negocio_id: id, creado_en: ahora });
+          return Promise.resolve({ data: id, error: null });
+        }
         if (n === "registrar_visita_anterior") {
           const m = T.mascotas_resumen.find((x) => x.mascota_id === d.p_mascota_id) || {};
           const tipo = T.tipos_servicio.find((x) => x.id === d.p_tipo_id) || {};
@@ -166,8 +210,17 @@
         signOut: async () => { sesion = null; oyente && oyente("SIGNED_OUT", null); return {}; },
         updateUser: async (d) => { window.__log.push(["updateUser", d]); return { data: { user: sesion && sesion.user }, error: null }; },
         resetPasswordForEmail: async (e, o) => { window.__log.push(["reset", e, o]); return { error: null }; },
+        signUp: async (d) => {
+          window.__log.push(["signUp", d.email, d.options]);
+          if (!T.invitaciones.some((i) => i.correo === d.email.toLowerCase())) return { data: {}, error: { message: "Database error saving new user" } };
+          return { data: { session: null, user: { email: d.email } }, error: null };
+        },
       },
-      storage: { from: () => ({ list: async () => ({ data: [], error: null }), getPublicUrl: (n) => ({ data: { publicUrl: "https://x/" + n } }), upload: async () => ({}), remove: async () => ({}) }) },
+      storage: { from: (b) => ({
+        list: async (carpeta) => { window.__log.push(["list", b, carpeta]); return { data: [], error: null }; },
+        getPublicUrl: (n) => ({ data: { publicUrl: "https://x/" + n } }),
+        upload: async (n) => { window.__log.push(["upload", b, n]); return {}; },
+        remove: async (ns) => { window.__log.push(["remove", b, ns]); return {}; } }) },
     }),
   };
 })();

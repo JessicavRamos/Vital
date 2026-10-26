@@ -533,3 +533,14 @@ td select[data-rol]{min-width:150px}
 .firma-producto{margin:22px 0 0;text-align:center;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--suave)}
 .firma-producto strong{color:var(--tinta);font-weight:700}
 .lateral .firma-producto{margin:12px 0 0;color:var(--sobre-marca);opacity:.7}
+
+/* Multinegocio: invitaciones, negocios y enlaces */
+.fila-form{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end}
+.fila-form label{margin-top:0}
+.lista-invitaciones{list-style:none;padding:0;margin:6px 0}
+.lista-invitaciones li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--linea);flex-wrap:wrap}
+.lista-invitaciones li span{overflow-wrap:anywhere}
+.enlaces-negocio{padding-left:20px}
+.enlaces-negocio a{overflow-wrap:anywhere}
+.fila-form.pagos-form{grid-template-columns:1.3fr 1fr .8fr 1.3fr auto}
+@media (max-width:860px){.fila-form,.fila-form.pagos-form{grid-template-columns:1fr}}

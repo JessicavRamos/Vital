@@ -226,13 +226,14 @@ async function subirLogo(evento) {
   boton.disabled = true;
   boton.textContent = "Subiendo…";
   try {
+    // Cada negocio guarda su logo en su propia carpeta (logo/1/..., logo/2/...).
     const nombre = `logo-${Date.now()}.${extension}`;
     const { error: fallo } = await db.storage.from("logo")
-      .upload(nombre, archivo, { contentType: archivo.type, cacheControl: "31536000" });
+      .upload(enCarpeta(nombre), archivo, { contentType: archivo.type, cacheControl: "31536000" });
     if (fallo) throw fallo;
-    // Se borran los logos anteriores para no acumular archivos.
-    const { data } = await db.storage.from("logo").list("", { limit: 100 });
-    const viejos = (data || []).map((f) => f.name).filter((n) => /^logo-/.test(n) && n !== nombre);
+    // Se borran los logos anteriores de ESTE negocio para no acumular archivos.
+    const { data } = await db.storage.from("logo").list(carpetaNegocio(), { limit: 100 });
+    const viejos = (data || []).map((f) => f.name).filter((n) => /^logo-/.test(n) && n !== nombre).map(enCarpeta);
     if (viejos.length) await db.storage.from("logo").remove(viejos);
     await cargarLogo();
     aviso("Logo actualizado.");
@@ -246,7 +247,7 @@ async function subirLogo(evento) {
 
 async function pestanaNegocio(caja) {
   caja.innerHTML = `
-    <p class="suave">Sube el logo de ${esc(NOMBRE_NEGOCIO)}. Se verá en la pantalla de entrada y en el menú.
+    <p class="suave">Sube el logo de ${esc(nombreNegocio())}. Se verá en la pantalla de entrada y en el menú.
     Funciona mejor una imagen cuadrada o redonda, con fondo transparente (PNG).</p>
     <div class="logo-vista">${estado.logoUrl
       ? `<img src="${esc(estado.logoUrl)}" alt="Logo actual">`
@@ -257,7 +258,13 @@ async function pestanaNegocio(caja) {
       <input id="l-archivo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" required>
       <p id="l-error" class="error" role="alert"></p>
       <button class="btn" type="submit">Subir logo</button>
-    </form>`;
+    </form>
+    ${estado.negocio && estado.negocio.slug ? `<h3>Enlaces de ${esc(nombreNegocio())}</h3>
+    <p class="suave">Compártelos con tus clientes y tu equipo: abren el sistema con tu nombre y tu logo.</p>
+    <ul class="enlaces-negocio">
+      <li>Videos de productos: <a href="${esc(enlacePublico(estado.negocio.slug, "videos"))}" target="_blank" rel="noopener">${esc(enlacePublico(estado.negocio.slug, "videos"))}</a></li>
+      <li>Entrada para tu equipo: <a href="${esc(enlacePublico(estado.negocio.slug))}" target="_blank" rel="noopener">${esc(enlacePublico(estado.negocio.slug))}</a></li>
+    </ul>` : ""}`;
   if (esAdmin()) $("#form-logo").addEventListener("submit", subirLogo);
 }
 

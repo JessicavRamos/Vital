@@ -2,7 +2,7 @@
 
 /* =====================================================================
    HOY: citas del día y a quién buscar
-   (NOMBRE_NEGOCIO se define en app.js)
+   (nombreNegocio() se define en app.js)
    ===================================================================== */
 
 // "Descartar" quita a la mascota de "A quién buscar" solo para ESTE ciclo:
@@ -121,7 +121,7 @@ async function cargarHoy() {
     const p = pendientes[Number(b.dataset.whatsapp)];
     const mensaje = `¡Hola, ${primerNombre(p.cliente)}!
 
-Recibe un cordial saludo de parte de ${NOMBRE_NEGOCIO}.
+Recibe un cordial saludo de parte de ${nombreNegocio()}.
 
 Queremos agradecerte por permitirnos cuidar y consentir a ${p.mascota} en su última visita el ${fechaMensaje(p.ultima_fecha)}. ¡Fue un placer atenderlos!
 

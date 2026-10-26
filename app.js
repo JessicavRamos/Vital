@@ -5,7 +5,7 @@
    ===================================================================== */
 
 
-// Nombre del producto. El nombre del negocio cliente va en config.js (NOMBRE_NEGOCIO).
+// Nombre del producto. El nombre de cada negocio cliente viene de la base (tabla "negocios").
 const NOMBRE_PRODUCTO = "DALU Vital";
 
 /* ---------- Utilidades generales ---------- */
@@ -179,7 +179,11 @@ function mensajeError(error) {
     return "Ya existe un registro con ese dato (por ejemplo, otro cliente con ese teléfono o una raza repetida).";
   if (/foreign key/i.test(texto)) return "No se puede completar: este dato está en uso en otro lugar.";
   // Mensajes que escribimos nosotros en la base (en español) se muestran tal cual.
-  if (/^(Debes iniciar sesión|Escribe el motivo|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio de la cita|Debe quedar al menos un administrador)/.test(texto)) return texto;
+  if (/no tiene una invitación|database error saving new user/i.test(texto))
+    return "Ese correo no tiene invitación. Pide al administrador de tu negocio que te invite y vuelve a intentar.";
+  if (/user already registered/i.test(texto)) return "Ese correo ya tiene cuenta. Inicia sesión o usa «¿Olvidaste tu contraseña?».";
+  if (/negocios_slug_key|duplicate key.*slug/i.test(texto)) return "Ya existe un negocio con esa dirección corta. Usa otra.";
+  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio de la cita|Debe quedar al menos un administrador)/.test(texto)) return texto;
   return `No se pudo completar. Detalle técnico: ${texto}`;
 }
 
@@ -189,7 +193,6 @@ function mostrarError(caja, error) {
 
 const configurado =
   typeof SUPABASE_URL === "string" && typeof SUPABASE_ANON_KEY === "string" &&
-  typeof NOMBRE_NEGOCIO === "string" &&
   !SUPABASE_URL.includes("PEGA_AQUI") && !SUPABASE_ANON_KEY.includes("PEGA_AQUI");
 
 // ¿Se abrió la página desde el enlace del correo "recuperar contraseña"?
@@ -640,7 +643,7 @@ function primerNombre(nombre) {
 }
 
 function mensajeRecoger(cliente, mascota) {
-  return `¡Hola, ${primerNombre(cliente)}! Ya puedes venir por ${mascota} en ${NOMBRE_NEGOCIO}.
+  return `¡Hola, ${primerNombre(cliente)}! Ya puedes venir por ${mascota} en ${nombreNegocio()}.
 
 ¡Te esperamos!`;
 }
@@ -652,7 +655,7 @@ function mensajeRecordatorioCita(cita) {
   const cuando = dia === hoy ? "hoy" : dia === sumarDias(hoy, 1) ? "mañana" : `el ${diaTexto(dia).replace(",", "")}`;
   const servicio = cita.servicio ? ` (${String(cita.servicio).toLowerCase()})` : "";
   const hora = horaTexto(cita.fecha_hora).replace(/\s+/g, " ");
-  return `¡Hola, ${primerNombre(cita.cliente)}! Te recordamos la cita de ${cita.mascota}${servicio} en ${NOMBRE_NEGOCIO} ${cuando} a las ${hora}${hora.endsWith(".") ? "" : "."}
+  return `¡Hola, ${primerNombre(cita.cliente)}! Te recordamos la cita de ${cita.mascota}${servicio} en ${nombreNegocio()} ${cuando} a las ${hora}${hora.endsWith(".") ? "" : "."}
 
 ¡Te esperamos!`;
 }
@@ -730,21 +733,68 @@ function cerrarDialogo(id = "dialogo") {
 }
 
 /* ---------- Estado, logo, usuario, menú y pantallas ---------- */
-const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null, logoUrl: null, recuperacion: RECUPERACION };
+const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null,
+  logoUrl: null, recuperacion: RECUPERACION, negocio: null, esDalu: false };
 
-// El logo vive en Supabase Storage (bucket público "logo"). Se usa el más reciente.
-async function cargarLogo() {
+/* ---------- Negocio (cada cliente de DALU Vital) ---------- */
+// Con sesión: el negocio del usuario. Sin sesión (entrada y videos públicos): el de la dirección
+// (?negocio=petgarden), el último que se usó en este navegador o NEGOCIO_POR_DEFECTO de config.js.
+// Si la base aún no tiene la tabla "negocios" (antes del SQL v11), "id" queda en null (modo anterior).
+const CLAVE_NEGOCIO = "dalu-vital-negocio";
+const negocioLegado = () => ({ id: null, nombre: typeof NOMBRE_NEGOCIO === "string" ? NOMBRE_NEGOCIO : NOMBRE_PRODUCTO, slug: null });
+const nombreNegocio = () => (estado.negocio && estado.negocio.nombre) || NOMBRE_PRODUCTO;
+// Carpeta del negocio en Storage ("" = archivos de antes, sin carpeta).
+const carpetaNegocio = () => (estado.negocio && estado.negocio.id ? String(estado.negocio.id) : "");
+const enCarpeta = (nombre) => (carpetaNegocio() ? `${carpetaNegocio()}/${nombre}` : nombre);
+
+function recordarNegocio(negocio) {
   try {
+    if (negocio && negocio.id) localStorage.setItem(CLAVE_NEGOCIO, JSON.stringify({ id: negocio.id, nombre: negocio.nombre, slug: negocio.slug }));
+  } catch (error) { /* sin almacenamiento: no pasa nada */ }
+}
+function negocioRecordado() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_NEGOCIO) || "null"); } catch (error) { return null; }
+}
+const enlacePublico = (slug, ruta = "") =>
+  `${location.origin}${location.pathname}?negocio=${encodeURIComponent(slug)}${ruta ? "#/" + ruta : ""}`;
+
+async function cargarNegocioVisitante() {
+  const pedido = new URLSearchParams(location.search).get("negocio");
+  const recordado = negocioRecordado();
+  const slug = (pedido || (recordado && recordado.slug) ||
+    (typeof NEGOCIO_POR_DEFECTO === "string" ? NEGOCIO_POR_DEFECTO : "")).trim().toLowerCase();
+  if (!slug) { estado.negocio = null; return; }
+  try {
+    const { data, error } = await db.from("negocios").select("id,nombre,slug").eq("slug", slug).maybeSingle();
+    if (error) throw error;
+    estado.negocio = data || null;
+    if (data && pedido) recordarNegocio(data);
+  } catch (error) {
+    // Base sin la tabla "negocios" (antes del v11): todo funciona como antes.
+    estado.negocio = /negocios|does not exist|schema cache/i.test((error && error.message) || "") ? negocioLegado() : recordado;
+  }
+}
+
+// El logo vive en Supabase Storage (bucket público "logo"), en la carpeta del negocio.
+// Se usa el más reciente. Pet Garden (negocio 1) conserva el logo que subió antes (sin carpeta).
+async function cargarLogo() {
+  estado.logoUrl = null;
+  if (!estado.negocio) return;
+  const buscar = async (carpeta) => {
     const { data, error } = await db.storage.from("logo")
-      .list("", { limit: 10, sortBy: { column: "created_at", order: "desc" } });
+      .list(carpeta, { limit: 10, sortBy: { column: "created_at", order: "desc" } });
     const archivo = !error && data ? data.find((f) => /^logo-/.test(f.name)) : null;
-    estado.logoUrl = archivo ? db.storage.from("logo").getPublicUrl(archivo.name).data.publicUrl : null;
+    return archivo ? db.storage.from("logo").getPublicUrl(carpeta ? `${carpeta}/${archivo.name}` : archivo.name).data.publicUrl : null;
+  };
+  try {
+    estado.logoUrl = await buscar(carpetaNegocio());
+    if (!estado.logoUrl && estado.negocio.id === 1) estado.logoUrl = await buscar("");
   } catch (error) {
     estado.logoUrl = null;
   }
 }
 const htmlLogo = (clase) => estado.logoUrl
-  ? `<img class="${clase}" src="${esc(estado.logoUrl)}" alt="Logo de ${esc(NOMBRE_NEGOCIO)}">`
+  ? `<img class="${clase}" src="${esc(estado.logoUrl)}" alt="Logo de ${esc(nombreNegocio())}">`
   : `<span class="${clase} sin-logo" aria-hidden="true">🐾</span>`;
 
 function nombreUsuario() {
@@ -788,19 +838,34 @@ const MENU = [
   { clave: "catalogos", titulo: "Catálogos", publica: false },
   { clave: "videos", titulo: "Videos", publica: true }, // se ve sin iniciar sesión
   { clave: "usuarios", titulo: "Usuarios", publica: false, soloAdmin: true },
+  { clave: "suscripcion", titulo: "Suscripción", publica: false, soloAdmin: true },
+  { clave: "negocios", titulo: "Negocios · DALU", publica: false, soloDalu: true },
 ];
 
 /* ---------- Roles: administrador y empleado ---------- */
 const esAdmin = () => estado.rol === "administrador";
-const puedeVer = (m) => !m.soloAdmin || esAdmin();
+const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu);
 
 // Lee el rol de la persona que inició sesión (tabla "perfiles").
 async function cargarRol() {
-  if (!estado.sesion) { estado.rol = null; return; }
+  if (!estado.sesion) { estado.rol = null; estado.esDalu = false; return; }
   try {
-    const { data, error } = await db.from("perfiles").select("rol").eq("id", estado.sesion.user.id).maybeSingle();
+    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug)")
+      .eq("id", estado.sesion.user.id).maybeSingle();
+    if (error && /negocio/i.test(error.message || "")) {
+      // Base sin multinegocio (antes del SQL v11): un solo negocio, como antes.
+      ({ data, error } = await db.from("perfiles").select("rol").eq("id", estado.sesion.user.id).maybeSingle());
+      if (!error) estado.negocio = negocioLegado();
+    } else if (!error) {
+      estado.negocio = data && data.negocios ? data.negocios : null;
+      recordarNegocio(estado.negocio);
+    }
     if (error) throw error;
     estado.rol = data ? data.rol : "empleado";
+    try {
+      const r = await db.rpc("es_dalu");
+      estado.esDalu = !r.error && r.data === true;
+    } catch (e) { estado.esDalu = false; }
   } catch (error) {
     // Solo si la base aún no tiene roles (SQL v8 sin ejecutar) todo sigue como antes.
     // Ante cualquier otro error se entra como empleado (lo más seguro).
@@ -808,6 +873,7 @@ async function cargarRol() {
     if (/perfiles|does not exist|could not find the table|schema cache/i.test(texto) && !/permission|row-level/i.test(texto)) {
       estado.rol = "administrador";
       estado.sinRoles = true;
+      estado.negocio = negocioLegado();
     } else {
       estado.rol = "empleado";
     }
@@ -827,7 +893,7 @@ function htmlConfiguracion() {
   return `<main class="login"><div class="tarjeta">
     <h1>Falta un paso</h1>
     <p>Abre el archivo <strong>config.js</strong> y revisa que tenga tres datos: la URL de Supabase,
-    tu clave pública y el nombre de tu negocio (<strong>NOMBRE_NEGOCIO</strong>). Después guarda el archivo y recarga esta página.</p>
+    y tu clave pública. Después guarda el archivo y recarga esta página.</p>
     <p class="suave">Si ya lo hiciste y ves este mensaje, revisa tu internet: la librería de Supabase no se pudo cargar.</p>
   </div></main>`;
 }
@@ -837,7 +903,7 @@ function htmlLogin() {
     <div class="acceso-caja">
       <section class="acceso-marca">
         <div class="acceso-logo">${htmlLogo("logo-login")}</div>
-        <h1>${esc(NOMBRE_NEGOCIO)}</h1>
+        <h1>${esc(nombreNegocio())}</h1>
         <p>Panel de administración</p>
       </section>
       <section class="acceso-form">
@@ -851,6 +917,7 @@ function htmlLogin() {
           <p id="error-login" class="error" role="alert"></p>
           <button class="btn grande" type="submit">Entrar</button>
           <p class="suave centrado"><button type="button" class="enlace pequeno" id="olvide">¿Olvidaste tu contraseña?</button></p>
+          <p class="suave centrado"><button type="button" class="enlace pequeno" id="crear-cuenta">¿Te invitaron? Crea tu cuenta</button></p>
           <p class="suave centrado"><a href="#/videos">Ver videos de productos</a></p>
         </form>
         <p class="firma-producto">Con tecnología de <strong>${esc(NOMBRE_PRODUCTO)}</strong></p>
@@ -865,7 +932,7 @@ function htmlNuevaClave() {
     <div class="acceso-caja">
       <section class="acceso-marca">
         <div class="acceso-logo">${htmlLogo("logo-login")}</div>
-        <h1>${esc(NOMBRE_NEGOCIO)}</h1>
+        <h1>${esc(nombreNegocio())}</h1>
         <p>Crea tu nueva contraseña</p>
       </section>
       <section class="acceso-form">
@@ -963,9 +1030,59 @@ function pedirRecuperacion() {
   $("#o-correo").focus();
 }
 
+// Crear cuenta: solo funciona si el administrador del negocio (o DALU) invitó ese correo.
+function pedirCrearCuenta() {
+  abrirDialogo(`<form id="form-cuenta">
+    <h2>Crear tu cuenta</h2>
+    <p class="suave">Usa el mismo correo con el que te invitaron. Te llegará un correo para confirmarlo.</p>
+    <label for="cc-nombre">Tu nombre</label>
+    <input id="cc-nombre" maxlength="60" autocomplete="name" required>
+    <label for="cc-correo">Correo</label>
+    <input id="cc-correo" type="email" autocomplete="username" required>
+    <label for="cc-clave">Contraseña (mínimo 6 caracteres)</label>
+    <input id="cc-clave" type="password" autocomplete="new-password" minlength="6" required>
+    <p id="cc-error" class="error" role="alert"></p>
+    <div class="acciones">
+      <button type="button" class="btn alt" id="cc-volver">Volver</button>
+      <button type="submit" class="btn">Crear cuenta</button>
+    </div></form>`);
+  $("#cc-volver").addEventListener("click", () => cerrarDialogo());
+  $("#form-cuenta").addEventListener("submit", async (evento) => {
+    evento.preventDefault();
+    const boton = $("button[type=submit]", evento.target);
+    boton.disabled = true;
+    boton.textContent = "Creando…";
+    try {
+      const { data, error } = await db.auth.signUp({
+        email: $("#cc-correo").value.trim(),
+        password: $("#cc-clave").value,
+        options: { data: { nombre: $("#cc-nombre").value.trim() }, emailRedirectTo: location.origin + location.pathname },
+      });
+      if (error) throw error;
+      cerrarDialogo();
+      if (!data.session) aviso("¡Listo! Revisa tu correo y confirma la cuenta para poder entrar.");
+    } catch (error) {
+      $("#cc-error").textContent = mensajeError(error);
+      boton.disabled = false;
+      boton.textContent = "Crear cuenta";
+    }
+  });
+  $("#cc-nombre").focus();
+}
+
+// Inició sesión pero su usuario no está en ningún negocio (y no es de DALU).
+function htmlSinNegocio() {
+  return `<main class="login"><div class="tarjeta">
+    <h1>Tu usuario aún no tiene negocio</h1>
+    <p>Iniciaste sesión como <strong>${esc(estado.sesion.user.email || "")}</strong>, pero todavía no estás en ningún negocio.
+    Pide al administrador de tu negocio que te invite con este correo.</p>
+    <button id="salir" class="btn">Cerrar sesión</button>
+  </div></main>`;
+}
+
 function htmlPublico() {
   return `<div class="publico">
-    <header class="cabecera"><span class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(NOMBRE_NEGOCIO)}</span></span>
+    <header class="cabecera"><span class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(nombreNegocio())}</span></span>
       <a class="btn alt" href="#/hoy">Entrar al panel</a></header>
     <main class="contenido"><section id="pantalla" tabindex="-1"></section></main>
   </div>`;
@@ -978,7 +1095,7 @@ function htmlPanel(clave) {
   return `<div class="app">
     <aside class="lateral">
       <div class="cabeza-lateral">
-        <div class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(NOMBRE_NEGOCIO)}</span></div>
+        <div class="marca-lateral">${htmlLogo("logo-menu")}<span>${esc(nombreNegocio())}</span></div>
         <button type="button" class="menu-movil" id="menu-movil" aria-expanded="false" aria-controls="menu-secciones" aria-label="Abrir menú">
           <span class="actual">${esc((MENU.find((m) => m.clave === clave) || {}).titulo || "")}</span> ☰</button>
       </div>
@@ -1035,6 +1152,7 @@ function montarLogin() {
     }
   });
   $("#olvide").addEventListener("click", pedirRecuperacion);
+  $("#crear-cuenta").addEventListener("click", pedirCrearCuenta);
   // Si el enlace del correo falló o venció, se avisa aquí.
   if (estado.recuperacion) {
     $("#error-login").textContent = estado.recuperacion.texto ||
@@ -1094,13 +1212,26 @@ function pintar() {
     }
     return;
   }
-  // Secciones solo para administrador (Reportes, Usuarios)
+  // Usuario sin negocio: DALU puede seguir a "Negocios"; los demás ven un aviso.
+  if (!estado.negocio && !estado.sinRoles) {
+    if (estado.esDalu) {
+      if (clave !== "negocios") history.replaceState(null, "", location.pathname + location.search + "#/negocios");
+      raiz.innerHTML = htmlPanel("negocios");
+      montarPanel();
+      montarPantalla("negocios");
+    } else {
+      raiz.innerHTML = htmlSinNegocio();
+      $("#salir").addEventListener("click", () => db.auth.signOut());
+    }
+    return;
+  }
+  // Secciones solo para administrador (Reportes, Usuarios) o DALU (Negocios)
   if (!puedeVer(meta)) {
     history.replaceState(null, "", location.pathname + location.search + "#/hoy");
     raiz.innerHTML = htmlPanel("hoy");
     montarPanel();
     montarPantalla("hoy");
-    aviso("Esa sección es solo para el administrador.", true);
+    aviso(meta.soloDalu ? "Esa sección es solo para DALU." : "Esa sección es solo para el administrador.", true);
     return;
   }
   raiz.innerHTML = htmlPanel(clave);
@@ -1108,18 +1239,25 @@ function pintar() {
   montarPantalla(clave);
 }
 
+// Rol y negocio de quien entró (o del visitante), su logo y el título de la pestaña.
+async function prepararNegocio() {
+  if (estado.sesion) await cargarRol();
+  else { estado.rol = null; estado.esDalu = false; await cargarNegocioVisitante(); }
+  // El logo se busca antes de dibujar (máximo 2,5 segundos de espera).
+  await Promise.race([cargarLogo(), new Promise((resolver) => setTimeout(resolver, 2500))]);
+  document.title = estado.negocio ? `${nombreNegocio()} · ${NOMBRE_PRODUCTO}` : NOMBRE_PRODUCTO;
+}
+
 /* ---------- Arranque (se llama desde index.html al final) ---------- */
 async function iniciar() {
-  document.title = typeof NOMBRE_NEGOCIO === "string" ? `${NOMBRE_NEGOCIO} · ${NOMBRE_PRODUCTO}` : NOMBRE_PRODUCTO;
+  document.title = NOMBRE_PRODUCTO;
   vigilarFechas();
   if (configurado && db) {
-    // El logo se busca antes de dibujar (máximo 2,5 segundos de espera).
-    await Promise.race([cargarLogo(), new Promise((resolver) => setTimeout(resolver, 2500))]);
     try {
       const { data } = await db.auth.getSession();
       estado.sesion = data.session;
       estado.usuarioId = data.session ? data.session.user.id : null;
-      await cargarRol();
+      await prepararNegocio();
     } catch (error) {
       aviso(mensajeError(error), true);
     }
@@ -1131,13 +1269,13 @@ async function iniciar() {
       if (evento === "PASSWORD_RECOVERY") {
         estado.recuperacion = { modo: "nueva" };
         estado.usuarioId = nuevoId;
-        setTimeout(async () => { await cargarRol(); pintar(); }, 0);
+        setTimeout(async () => { await prepararNegocio(); pintar(); }, 0);
         return;
       }
       // Solo se vuelve a dibujar si entró o salió alguien (no al renovar el token).
       if (nuevoId !== estado.usuarioId) {
         estado.usuarioId = nuevoId;
-        setTimeout(async () => { await cargarRol(); pintar(); }, 0);
+        setTimeout(async () => { await prepararNegocio(); pintar(); }, 0);
       }
     });
   }

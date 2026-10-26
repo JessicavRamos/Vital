@@ -386,7 +386,7 @@ async function guardarVideo(evento) {
     };
     let nuevoArchivo = null;
     if (archivo) {
-      nuevoArchivo = `${Date.now()}-${nombreSeguro(datos.titulo)}.${extension}`;
+      nuevoArchivo = enCarpeta(`${Date.now()}-${nombreSeguro(datos.titulo)}.${extension}`);
       const { error: fallo } = await db.storage.from(CARPETA_VIDEOS)
         .upload(nuevoArchivo, archivo, { contentType: archivo.type, cacheControl: "31536000" });
       if (fallo) throw fallo;
@@ -414,7 +414,10 @@ async function guardarVideo(evento) {
 }
 
 async function recargarVideos() {
-  V.todos = await q(db.from("videos").select("*").order("id"));
+  // Con sesión, la base ya devuelve solo los del negocio. Sin sesión, se filtra por el negocio de la dirección.
+  let consulta = db.from("videos").select("*").order("id");
+  if (!estado.sesion && estado.negocio && estado.negocio.id) consulta = consulta.eq("negocio_id", estado.negocio.id);
+  V.todos = await q(consulta);
   // Si el video que se estaba viendo se desactivó, se ajusta la posición.
   if (V.categoria && V.indice >= listaActual().length) V.indice = 0;
   pintarVideos();
@@ -427,6 +430,10 @@ PANTALLAS.videos = {
     ${estado.sesion ? '<div id="v-admin"></div>' : ""}`,
   despues: async () => {
     V = estadoVideosInicial();
+    if (!estado.sesion && !estado.negocio) {
+      $("#v-publico").innerHTML = '<p class="aviso-fijo">Abre el enlace de videos que te compartió tu veterinaria.</p>';
+      return;
+    }
     try {
       await recargarVideos();
     } catch (error) {

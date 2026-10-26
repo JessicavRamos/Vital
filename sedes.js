@@ -11,7 +11,7 @@ async function cargarSedesPantalla() {
   const caja = $("#sd-lista");
   if (!caja) return;
   try {
-    const sedes = await q(db.from("sedes").select("id,nombre,activo,creado_en").order("id"));
+    const sedes = await q(db.from("sedes").select("id,nombre,activo,creado_en").eq("negocio_id", estado.negocio.id).order("id"));
     if (!$("#sd-lista")) return;
     const activas = sedes.filter((x) => x.activo).length;
     const max = estado.plan ? estado.plan.max_sedes : null;

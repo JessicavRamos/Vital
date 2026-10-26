@@ -148,11 +148,37 @@ Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustede
 PANTALLAS.hoy = {
   html: () => `<h1>Hoy</h1>
     <p class="suave">Lo que tienes que hacer y a quién escribirle. Haz clic en el nombre de una mascota para ver su ficha.</p>
+    <div id="h-renovacion"></div>
     <div class="stats" id="h-stats"></div>
     <div class="columnas">
       <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas"><p class="suave">Cargando…</p></div></div>
       ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
         <div id="h-descartados" class="descartados"></div></div>` : ""}
     </div>`,
-  despues: cargarHoy,
+  despues: () => { avisoRenovacion(); return cargarHoy(); },
 };
+
+// Recordatorio suave para el administrador: 3 días antes de renovar el plan, o si quedó pendiente.
+// Se puede cerrar (vuelve a salir al otro día si sigue pendiente).
+async function avisoRenovacion() {
+  const caja = $("#h-renovacion");
+  if (!caja || estado.rol !== "administrador") return;
+  let datos = null;
+  try { datos = (await q(db.rpc("mi_suscripcion")))[0] || null; } catch (error) { return; }
+  if (!datos || !datos.proximo_pago || !$("#h-renovacion")) return;
+  const est = estadoPago(datos.proximo_pago);
+  if (!est.aviso) return;
+  const clave = `dalu-vital-renovacion-${estado.negocio ? estado.negocio.id : 0}-${datos.proximo_pago}-${est.dias < 0 ? hoyISO() : ""}`;
+  try { if (localStorage.getItem(clave)) return; } catch (error) { /* sin almacenamiento: se muestra */ }
+  const texto = est.dias > 0 ? `Tu plan ${esc(datos.plan || "")} se renueva el ${esc(fechaPago(datos.proximo_pago))}.`
+    : est.dias === 0 ? `Tu plan ${esc(datos.plan || "")} se renueva hoy.`
+    : `Tu renovación del plan ${esc(datos.plan || "")} está pendiente desde el ${esc(fechaPago(datos.proximo_pago))}.`;
+  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion" role="status">
+    <span>🔔 ${texto}</span>
+    <span class="acciones-tabla"><a class="btn chico" href="#/suscripcion">Ver cómo pagar</a>
+    <button type="button" class="btn alt chico" id="h-renovacion-cerrar" aria-label="Cerrar aviso">✕</button></span></div>`;
+  $("#h-renovacion-cerrar").addEventListener("click", () => {
+    try { localStorage.setItem(clave, "1"); } catch (error) { /* nada */ }
+    caja.innerHTML = "";
+  });
+}

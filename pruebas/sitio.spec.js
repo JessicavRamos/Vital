@@ -249,31 +249,99 @@ test.describe("Multinegocio", () => {
 });
 
 test.describe("Suscripción y pagos", () => {
-  test("el administrador ve estado, último y próximo pago, sin valores pasados ni sumas", async ({ page }) => {
+  test("el administrador ve su plan, renovación y lo logrado, sin valores pasados ni sumas", async ({ page }) => {
     await abrir(page, "suscripcion");
-    const caja = page.locator("#s-estado");
     await expect(page.locator("#s-estado-pago")).toHaveText("Al día");
-    await expect(caja).toContainText("Premium");
-    const [ultimo, proximo] = await page.evaluate(() => [window.__T.pagos[1].fecha, window.__T.pagos[1].proximo_pago]);
-    await expect(page.locator("#s-ultimo")).toHaveText(await page.evaluate((f) => fechaPago(f), ultimo));
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-desde")).toContainText("Cliente desde octubre de 2026");
+    const proximo = await page.evaluate(() => window.__T.pagos[1].proximo_pago);
     await expect(page.locator("#s-proximo")).toHaveText(await page.evaluate((f) => fechaPago(f), proximo));
     await expect(page.locator("#s-valor")).toHaveText("Valor: $180.000");
+    await expect(page.locator("#s-gracias")).toHaveCount(0);
+    await expect(page.locator("#s-resumen")).toContainText("42Citas agendadas");
+    await expect(page.locator("#s-resumen")).toContainText("24Mascotas que regresaron");
+    await expect(page.locator("#s-mes")).toContainText("6 mascotas llegaron por primera vez");
     const texto = await page.locator("body").innerText();
-    expect(texto).not.toMatch(/Total|\$80\.000|\$95\.000|Septiembre|Octubre 2026|Vet Norte/);
+    expect(texto).not.toMatch(/Total pagado|\$95\.000|Septiembre 2026|Octubre 2026|Vet Norte|Último pago/);
     expect(await page.evaluate(() => window.__log.filter((x) => x[1] === "pagos").length)).toBe(0);
   });
 
-  test("pago vencido: muestra pendiente y un aviso", async ({ page }) => {
+  test("después de pagar: agradece y confirma el pago", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "pagoreciente" });
+    await expect(page.locator("#s-gracias")).toContainText("Recibimos tu pago");
+    await expect(page.locator("#s-gracias")).toContainText("¡Gracias por seguir con nosotros!");
+  });
+
+  test("renovación pendiente es amable (amarilla) y vencida es roja", async ({ page }) => {
     await abrir(page, "suscripcion", { extra: "pagopendiente" });
-    await expect(page.locator("#s-estado-pago")).toHaveText("Pago pendiente");
-    await expect(page.locator("#s-estado")).toContainText("Si ya pagaste, avísale a DALU");
+    await expect(page.locator("#s-estado-pago")).toHaveText("Renovación pendiente");
+    await expect(page.locator("#s-estado-pago")).not.toHaveClass(/atrasada/);
+    await expect(page.locator("#s-estado")).toContainText("Si ya pagaste, avísanos");
+    await page.goto("/index.html?pagovencido#/suscripcion");
+    await expect(page.locator("#s-estado-pago")).toHaveText("Renovación vencida");
+    await expect(page.locator("#s-estado-pago")).toHaveClass(/atrasada/);
+  });
+
+  test("cómo pagar: medios de pago, copiar número y avisar por WhatsApp", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-pagar")).toContainText("Nequi 311 212 1501");
+    await expect(page.locator("#s-pagar")).toContainText("Daviplata 311 212 1501");
+    const ya = decodeURIComponent(await page.locator("#s-ya-pague").getAttribute("href"));
+    expect(ya).toContain("wa.me/573223050787");
+    expect(ya).toContain("Ya pagué la renovación");
+    expect(ya).toContain("Pet Garden");
+  });
+
+  test("comparador de planes: marca el tuyo y ofrece subir", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "basico" });
+    const tabla = page.locator("#s-comparar");
+    await expect(tabla.locator("th.plan-actual")).toContainText("Esencial");
+    await expect(tabla.locator("th.plan-actual")).toContainText("Tu plan");
+    await expect(tabla).toContainText("$120.000");
+    await expect(tabla.locator("[data-quiero]")).toHaveCount(2);
+    const quiero = decodeURIComponent(await tabla.locator('[data-quiero="premium"]').getAttribute("href"));
+    expect(quiero).toContain("pasar al plan Premium");
+  });
+
+  test("comparador: no ofrece planes más baratos y en Premium no aparece", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-comparar")).toBeHidden();
+    await expect(page.locator("body")).not.toContainText("$80.000");
+  });
+
+  test("mes vacío: mensaje de ánimo en vez de ceros", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "mesvacio" });
+    await expect(page.locator("#s-mes")).toContainText("Tu mes apenas empieza");
+    await expect(page.locator("#s-resumen")).toHaveCount(0);
+  });
+
+  test("Hoy: aviso de renovación 3 días antes, solo al administrador, y se puede cerrar", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "renuevapronto" });
+    await expect(page.locator("#h-renovacion")).toContainText("se renueva el");
+    await page.locator("#h-renovacion-cerrar").click();
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+    await page.reload();
+    await expect(page.locator("h1")).toHaveText("Hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+  });
+
+  test("Hoy: sin aviso cuando falta más de 3 días o para el colaborador", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+    await page.goto("/index.html?empleado&renuevapronto#/hoy");
+    await expect(page.locator("h1")).toHaveText("Hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
   });
 
   test("estado según los días que faltan", async ({ page }) => {
     await abrir(page, "hoy");
     const r = await page.evaluate(() => [estadoPago(null).texto, estadoPago(masUnMes(hoyISO())).texto,
       estadoPago(hoyISO()).texto, estadoPago("2000-01-01").texto, masUnMes("2026-01-31"), masUnMes("2026-12-04")]);
-    expect(r).toEqual(["Sin pagos registrados", "Al día", "Vence hoy", "Pago pendiente", "2026-02-28", "2027-01-04"]);
+    expect(r).toEqual(["Sin pagos registrados", "Al día", "Se renueva hoy", "Renovación vencida", "2026-02-28", "2027-01-04"]);
   });
 
   test("el colaborador no ve Suscripción", async ({ page }) => {
@@ -286,7 +354,7 @@ test.describe("Suscripción y pagos", () => {
   test("DALU registra un pago: sugiere el próximo pago y el valor del plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
     await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
-    await expect(page.locator("#n-lista")).toContainText("Pago pendiente");
+    await expect(page.locator("#n-lista")).toContainText("Renovación vencida");
     await page.selectOption("#np-negocio", { label: "Vet Norte" });
     const esperado = await page.evaluate(() => masUnMes(window.__T.pagos[2].proximo_pago));
     await expect(page.locator("#np-proximo")).toHaveValue(esperado);
@@ -296,7 +364,7 @@ test.describe("Suscripción y pagos", () => {
     await expect(aviso(page)).toContainText("registrado para Vet Norte");
     const pago = await page.evaluate(() => window.__T.pagos.find((p) => p.nota === "Noviembre 2026"));
     expect(pago).toMatchObject({ negocio_id: 2, valor: 80000, proximo_pago: esperado });
-    await expect(page.locator("#n-lista")).not.toContainText("Pago pendiente");
+    await expect(page.locator("#n-lista")).not.toContainText("Renovación vencida");
   });
 
   test("DALU no puede registrar un próximo pago anterior al pago", async ({ page }) => {
@@ -305,6 +373,15 @@ test.describe("Suscripción y pagos", () => {
     await page.evaluate(() => fijarFecha(document.querySelector("#np-proximo"), "2000-01-01"));
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(page.locator("#np-error")).toContainText("después de la fecha del pago");
+  });
+
+  test("DALU cambia el nombre de un plan", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    const nombre = page.getByLabel("Nombre del plan Esencial");
+    await nombre.fill("Inicial");
+    await nombre.dispatchEvent("change");
+    await expect(aviso(page)).toContainText("Plan actualizado");
+    expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "basico").nombre)).toBe("Inicial");
   });
 
   test("DALU cambia el precio mensual de un plan", async ({ page }) => {
@@ -441,11 +518,15 @@ test.describe("Sedes y planes", () => {
     await expect(page.locator("#sd-lista")).not.toContainText("Pausada");
   });
 
-  test("Sedes: el plan Básico no deja agregar otra sede", async ({ page }) => {
+  test("Sedes: el plan Esencial no deja agregar otra sede", async ({ page }) => {
     await abrir(page, "sedes", { extra: "basico" });
     await expect(page.locator("#sd-plan")).toContainText("permite 1 sede");
     await expect(page.getByRole("button", { name: "Agregar sede" })).toBeDisabled();
     await expect(page.locator("#sd-lleno")).toBeVisible();
+    await expect(page.locator("#sd-lleno")).toContainText("Con Profesional tienes hasta 2");
+    const enlace = await page.locator("#sd-lleno a[data-mejorar-plan]").getAttribute("href");
+    expect(decodeURIComponent(enlace)).toContain("wa.me/573223050787");
+    expect(decodeURIComponent(enlace)).toContain("pasar al plan Profesional");
   });
 
   test("Usuarios: se invita eligiendo sedes y se ve el uso del plan", async ({ page }) => {
@@ -460,13 +541,15 @@ test.describe("Sedes y planes", () => {
     expect(llamada[2]).toMatchObject({ p_correo: "norte@correo.co", p_rol: "empleado", p_sedes: [2] });
   });
 
-  test("Usuarios: el plan Básico se llena en 3 usuarios", async ({ page }) => {
+  test("Usuarios: el plan Esencial se llena en 3 usuarios", async ({ page }) => {
     await abrir(page, "usuarios", { extra: "basico" });
     await page.fill("#i-correo", "tercera@correo.co");
     await page.getByRole("button", { name: "Invitar", exact: true }).click();
     await page.getByRole("button", { name: "Listo" }).click();
     await expect(page.locator("#u-uso")).toContainText("3 de 3");
     await expect(page.getByRole("button", { name: "Invitar", exact: true })).toBeDisabled();
+    await expect(page.locator("#u-lleno")).toContainText("Con Profesional tienes hasta 8");
+    await expect(page.locator("#u-lleno a[data-mejorar-plan]")).toHaveText("Quiero mejorar mi plan");
   });
 
   test("Usuarios: cambiar las sedes de un colaborador", async ({ page }) => {

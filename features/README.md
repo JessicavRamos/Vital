@@ -14,6 +14,8 @@ Cada archivo describe un módulo con: historia de usuario, reglas de negocio y e
 | 07 | [07-videos.md](07-videos.md) | Carrusel público, lista para deslizar, activar/desactivar y administrador | Público / privado |
 | 08 | [08-reportes.md](08-reportes.md) | Resumen por fechas y descarga de Excel | Solo administrador |
 | 09 | [09-usuarios-y-roles.md](09-usuarios-y-roles.md) | Roles (Administrador / Colaborador) y pantalla Usuarios | Solo administrador |
+| 10 | [10-multinegocio.md](10-multinegocio.md) | DALU Vital: varios negocios, invitaciones, enlaces cortos, suscripción y pagos | Administrador / DALU |
+| 11 | [11-sedes-y-planes.md](11-sedes-y-planes.md) | Planes (Esencial, Profesional, Premium), sedes, agenda y precios por sede | Administrador / DALU |
 
 ## Lenguajes y tecnologías
 
@@ -46,7 +48,7 @@ Archivos del sitio:
 | `index.html` | Página base y carga de scripts |
 | `config.js` | URL y clave pública de Supabase, nombre del negocio |
 | `app.js` | Núcleo: login, recuperación de contraseña, roles, menú, utilidades, tablas, calendario, WhatsApp |
-| `hoy.js` · `agendar.js` · `agenda.js` · `clientes.js` · `reportes.js` · `catalogos.js` · `videos.js` · `usuarios.js` | Una pantalla cada uno |
+| `hoy.js` · `agendar.js` · `agenda.js` · `clientes.js` · `reportes.js` · `catalogos.js` · `sedes.js` · `usuarios.js` · `suscripcion.js` · `negocios.js` · `videos.js` (oculto) | Una pantalla cada uno |
 | `estilos.css` | Todos los estilos |
 | `sql-v*.sql` | Cambios de base de datos por versión |
 
@@ -108,7 +110,7 @@ Cómo correrlas en tu computador (una sola vez `npm install` y `npx playwright i
 - **Zona horaria:** todas las fechas se calculan en `America/Bogota`.
 - **Moneda:** pesos colombianos, formato `es-CO` (ej. `$30.000`).
 - **Diseño adaptable:** computador y celular (desde 390 px), tema claro y oscuro según el dispositivo.
-- **Configuración:** `config.js` → `SUPABASE_URL`, `SUPABASE_ANON_KEY` (clave pública), `NOMBRE_NEGOCIO`.
+- **Configuración:** `config.js` → `SUPABASE_URL`, `SUPABASE_ANON_KEY` (clave pública), `NEGOCIO_POR_DEFECTO`, `NOMBRE_NEGOCIO`, `DALU_WHATSAPP` y `DALU_MEDIOS_PAGO` (Suscripción).
 
 ### Objetos de base de datos que usa el frontend
 
@@ -261,6 +263,9 @@ Característica: Uso en celular
 
 ## Historial de versiones
 
+- **v16 · Suscripción de marketing:** Suscripción muestra el valor y no el gasto (plan, cliente desde, renovación, lo logrado en el mes, cómo pagar, comparador para mejorar el plan); estados amables de renovación; aviso en Hoy 3 días antes; aviso con «Quiero mejorar mi plan» al llegar al límite de usuarios o sedes; el plan Básico se llama **Esencial** y los nombres se editan en el panel DALU. SQL: `sql-v16-suscripcion-marketing.sql`.
+- **v15 · Planes, sedes y suscripción:** tres planes con límites y módulos; varias sedes con agenda y precios por sede; Videos oculto; Reportes desplegables y filtro por sede; el administrador ya no ve valores pagados. SQL: `sql-v12` a `sql-v15`.
+- **v14 · DALU Vital:** varios negocios en una sola base, invitaciones, enlaces cortos (`vital.dalu.pro/petgarden`), panel Negocios · DALU y pagos de la suscripción. SQL: `sql-v11-multinegocio.sql`.
 - **v13 (revisión de código):** sin sesión ya no se pueden leer los datos (solo los videos); servicios, recordatorios y logo solo los cambia el administrador (guías siguen para todos); al renombrar un grupo no reaparecen los descartados; todas las pantallas avisan si la base no dejó guardar; sin límites fijos (Agenda → Buscar trae todas las citas, Clientes todas las mascotas, la ficha todo el historial con el total correcto); ventana propia de confirmación en vez de la del navegador; calendario con teclado; fechas en un solo formato (dd/mm/aaaa); videos nuevos solo como archivo; **Registrar visita anterior**; **respaldo completo** en Reportes; título "Pet Garden"; pruebas automáticas en el repositorio. SQL: `sql-v10-seguridad-y-visitas.sql`.
 - **v12:** el rol "empleado" se muestra como "Colaborador".
 - **v11:** solo el administrador cambia razas y precios (el empleado los ve en modo lectura); segundo administrador.

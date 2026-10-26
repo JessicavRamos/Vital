@@ -21,6 +21,7 @@ async function cargarSedesPantalla() {
     const lleno = max !== null && activas >= max;
     $("#form-sede button[type=submit]").disabled = lleno;
     $("#sd-lleno").hidden = !lleno;
+    if (lleno) pintarAvisoLimite($("#sd-lleno"), "max_sedes", "sedes");
     caja.innerHTML = `<div class="tabla-scroll"><table><thead><tr><th>Sede</th><th>Estado</th><th></th></tr></thead>
       <tbody id="tabla-sedes">${sedes.map((x) => `<tr data-id="${x.id}">
         <td><input data-campo="nombre" value="${esc(x.nombre)}" aria-label="Nombre de la sede"></td>

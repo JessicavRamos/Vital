@@ -360,14 +360,50 @@ const diasHasta = (f) => {
   const utc = (x) => { const [a, m, d] = String(x).slice(0, 10).split("-").map(Number); return Date.UTC(a, m - 1, d); };
   return Math.round((utc(f) - utc(hoyISO())) / 86400000);
 };
-// Estado de la suscripción según la fecha del próximo pago
+// Estado de la suscripción según la fecha de renovación (próximo pago).
+// Amable: amarillo cerca de la fecha y en los días de gracia; rojo solo después.
+const DIAS_GRACIA = 5;
 function estadoPago(proximo) {
   if (!proximo) return { texto: "Sin pagos registrados", clase: "gris" };
   const dias = diasHasta(proximo);
-  if (dias < 0) return { texto: "Pago pendiente", clase: "atrasada", dias };
-  if (dias <= 5) return { texto: dias === 0 ? "Vence hoy" : `Vence en ${dias} ${dias === 1 ? "día" : "días"}`, clase: "", dias };
+  if (dias < -DIAS_GRACIA) return { texto: "Renovación vencida", clase: "atrasada", dias, aviso: true };
+  if (dias < 0) return { texto: "Renovación pendiente", clase: "", dias, aviso: true };
+  if (dias === 0) return { texto: "Se renueva hoy", clase: "", dias, aviso: true };
+  if (dias <= DIAS_GRACIA) return { texto: `Se renueva en ${dias} ${dias === 1 ? "día" : "días"}`, clase: "", dias, aviso: dias <= 3 };
   return { texto: "Al día", clase: "ok", dias };
 }
+
+/* ---------- Planes y contacto con DALU (marketing) ---------- */
+let PLANES_CACHE = null;
+async function planesDisponibles() {
+  if (!PLANES_CACHE) PLANES_CACHE = await q(db.from("planes").select("*").order("orden"));
+  return PLANES_CACHE;
+}
+// El plan siguiente que da más de algo ("max_usuarios" o "max_sedes")
+async function siguientePlan(campo) {
+  if (!estado.plan) return null;
+  try {
+    const planes = await planesDisponibles();
+    const actual = planes.find((p) => p.id === estado.plan.id) || estado.plan;
+    return planes.find((p) => p.orden > actual.orden && Number(p[campo]) > Number(actual[campo])) || null;
+  } catch (error) {
+    return null;
+  }
+}
+const enlaceDalu = (mensaje) => enlaceWhatsApp(typeof DALU_WHATSAPP === "string" ? DALU_WHATSAPP : "", mensaje);
+const mensajeMejorarPlan = (plan) =>
+  `Hola DALU 👋 Soy ${nombreUsuario()} de ${nombreNegocio()}. Quiero ${plan ? `pasar al plan ${plan}` : "mejorar mi plan"} de DALU Vital.`;
+const mensajeYaPague = () =>
+  `Hola DALU 👋 Soy ${nombreUsuario()} de ${nombreNegocio()}. Ya pagué la renovación de DALU Vital. Te envío el comprobante.`;
+// Aviso al llegar al límite del plan, con el siguiente plan y un botón para pedirlo
+async function pintarAvisoLimite(caja, campo, sustantivo) {
+  if (!caja) return;
+  const siguiente = await siguientePlan(campo);
+  caja.innerHTML = `Llegaste al máximo de ${sustantivo} de tu plan.
+    ${siguiente ? `Con <strong>${esc(siguiente.nombre)}</strong> tienes hasta <strong>${siguiente[campo]}</strong>.` : "Escríbele a DALU para ampliarlo."}
+    <a class="btn chico" target="_blank" rel="noopener" data-mejorar-plan href="${esc(enlaceDalu(mensajeMejorarPlan(siguiente && siguiente.nombre)))}">Quiero mejorar mi plan</a>`;
+}
+
 const diaSemanaCorto = (fechaISO) =>
   new Date(fechaISO + "T12:00:00").toLocaleDateString("es-CO", { weekday: "short" }).replace(".", "");
 // Celda de fecha y hora de una cita: "18/10/2026" y debajo "dom · 1:00 p. m."

@@ -2,7 +2,7 @@
 // Las pruebas lo cargan en lugar de la librería de Supabase.
 // Parámetros en la dirección: ?empleado (entra como colaborador), ?sinsesion, ?muchas (1.200 mascotas extra),
 // ?dalu (la usuaria es de DALU), ?sinnegocio (su usuario no tiene negocio), ?negocio=slug (negocio del visitante),
-// ?dossedes (Pet Garden con 2 sedes), ?basico (Pet Garden en plan Básico), ?sinrecordatorios / ?sinreportes (plan sin ese módulo),
+// ?dossedes (Pet Garden con 2 sedes), ?basico (Pet Garden en plan Esencial), ?pagopendiente / ?pagovencido / ?pagoreciente / ?renuevapronto (estado de la renovación), ?mesvacio (resumen del mes en ceros), ?sinrecordatorios / ?sinreportes (plan sin ese módulo),
 // ?pausado (DALU pausó a Pet Garden).
 // Multinegocio: las filas con negocio_id se filtran como lo hace la base (RLS) cuando hay sesión.
 (function () {
@@ -36,7 +36,7 @@
     pendientes_descartados: [],
     servicios_anulados: [],
     planes: [
-      { id: "basico", nombre: "Básico", orden: 1, precio_mensual: 80000, max_sedes: 1, max_usuarios: 3, recordatorios: true, reportes: true, respaldo: true, historia_clinica: false },
+      { id: "basico", nombre: "Esencial", orden: 1, precio_mensual: 80000, max_sedes: 1, max_usuarios: 3, recordatorios: true, reportes: true, respaldo: true, historia_clinica: false },
       { id: "profesional", nombre: "Profesional", orden: 2, precio_mensual: 120000, max_sedes: 2, max_usuarios: 8, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
       { id: "premium", nombre: "Premium", orden: 3, precio_mensual: 180000, max_sedes: 5, max_usuarios: 20, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
     ],
@@ -55,8 +55,9 @@
     invitaciones: [],
     pagos: [
       { id: 1, negocio_id: 1, fecha: dia(-50), valor: 80000, nota: "Septiembre 2026", proximo_pago: dia(-20) },
-      { id: 2, negocio_id: 1, fecha: dia(-21), valor: 80000, nota: "Octubre 2026",
-        proximo_pago: location.search.includes("pagopendiente") ? dia(-3) : dia(10) },
+      { id: 2, negocio_id: 1, fecha: location.search.includes("pagoreciente") ? dia(-2) : dia(-21), valor: 80000, nota: "Octubre 2026",
+        proximo_pago: location.search.includes("pagopendiente") ? dia(-3) : location.search.includes("pagovencido") ? dia(-8)
+          : location.search.includes("renuevapronto") ? dia(2) : location.search.includes("pagoreciente") ? dia(28) : dia(10) },
       { id: 3, negocio_id: 2, fecha: dia(-40), valor: 95000, nota: "Pago de Vet Norte", proximo_pago: dia(-10) },
     ],
     perfiles: [
@@ -252,7 +253,13 @@
           const plan = T.planes.find((x) => x.id === ng.plan_id);
           const ultimo = T.pagos.filter((x) => x.negocio_id === ng.id).sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
           return Promise.resolve({ data: [{ plan: plan.nombre, precio_mensual: plan.precio_mensual,
-            ultimo_pago: ultimo ? ultimo.fecha : null, proximo_pago: ultimo ? ultimo.proximo_pago : null }], error: null });
+            ultimo_pago: ultimo ? ultimo.fecha : null, proximo_pago: ultimo ? ultimo.proximo_pago : null,
+            cliente_desde: ng.creado_en.slice(0, 10) }], error: null });
+        }
+        if (n === "resumen_mes") {
+          const cero = location.search.includes("mesvacio");
+          return Promise.resolve({ data: [cero ? { citas_agendadas: 0, servicios: 0, mascotas_atendidas: 0, mascotas_nuevas: 0, mascotas_regresaron: 0 }
+            : { citas_agendadas: 42, servicios: 38, mascotas_atendidas: 30, mascotas_nuevas: 6, mascotas_regresaron: 24 }], error: null });
         }
         if (n === "uso_negocios") return Promise.resolve({ data: T.negocios.map((ng) => ({
           negocio_id: ng.id,

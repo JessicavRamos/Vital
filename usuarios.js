@@ -78,7 +78,10 @@ function pintarUsoUsuarios(cuentas, invitaciones) {
   const boton = $("#form-invitar button[type=submit]");
   if (boton) boton.disabled = lleno;
   const alerta = $("#u-lleno");
-  if (alerta) alerta.hidden = !lleno;
+  if (alerta) {
+    alerta.hidden = !lleno;
+    if (lleno && !alerta.dataset.pintado) { alerta.dataset.pintado = "1"; pintarAvisoLimite(alerta, "max_usuarios", "usuarios"); }
+  }
 }
 
 // Casillas de sedes (para invitar o cambiar las sedes de alguien)

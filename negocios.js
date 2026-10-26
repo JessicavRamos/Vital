@@ -148,6 +148,7 @@ function pintarPlanes() {
   if (!PLANES.length) { caja.innerHTML = '<p class="suave">Falta ejecutar el SQL v13 para tener planes.</p>'; return; }
   caja.innerHTML = `<div class="tabla-scroll"><table class="tabla-planes"><thead><tr><th></th>${PLANES.map((p) => `<th>${esc(p.nombre)}</th>`).join("")}</tr></thead>
     <tbody>
+      <tr><td>Nombre</td>${PLANES.map((p) => `<td><input type="text" maxlength="30" data-plan-id="${esc(p.id)}" data-campo="nombre" value="${esc(p.nombre)}" aria-label="Nombre del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       <tr><td>Precio mensual</td>${PLANES.map((p) => `<td><input type="number" min="0" step="1000" inputmode="numeric" data-plan-id="${esc(p.id)}" data-campo="precio_mensual" value="${Number(p.precio_mensual || 0)}" aria-label="Precio mensual del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       <tr><td>Sedes</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_sedes" value="${p.max_sedes}" aria-label="Sedes del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       <tr><td>Usuarios</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_usuarios" value="${p.max_usuarios}" aria-label="Usuarios del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
@@ -157,9 +158,11 @@ function pintarPlanes() {
   caja.querySelector("table").addEventListener("change", async (evento) => {
     const entrada = evento.target;
     if (!entrada.dataset.planId) return;
-    const valor = entrada.type === "checkbox" ? entrada.checked : Number(entrada.value);
+    const esTexto = entrada.type === "text";
+    const valor = entrada.type === "checkbox" ? entrada.checked : esTexto ? entrada.value.trim() : Number(entrada.value);
+    if (esTexto && !valor) { aviso("El nombre del plan no puede quedar vacío.", true); return cargarNegocios(); }
     const minimo = entrada.dataset.campo === "precio_mensual" ? 0 : 1;
-    if (entrada.type !== "checkbox" && !(valor >= minimo)) {
+    if (!esTexto && entrada.type !== "checkbox" && !(valor >= minimo)) {
       aviso(minimo ? "Debe ser un número mayor que 0." : "El precio no puede ser negativo.", true);
       return cargarNegocios();
     }
@@ -360,7 +363,8 @@ PANTALLAS.negocios = {
     </div>
     <div class="tarjeta">
       <h2>Planes</h2>
-      <p class="suave">Límites y módulos de cada plan. Un cambio aquí aplica a todas las empresas de ese plan.
+      <p class="suave">Nombre, precio, límites y módulos de cada plan. Un cambio aquí aplica a todas las empresas de ese plan
+      y es lo que ven en «Suscripción» (incluido el comparador de planes).
       La base no deja pasar de los límites de sedes y usuarios.</p>
       <div id="np-planes"><p class="suave">Cargando…</p></div>
     </div>

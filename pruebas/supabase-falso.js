@@ -1,7 +1,9 @@
 // Supabase falso en memoria para las pruebas automáticas (no toca tu base real).
 // Las pruebas lo cargan en lugar de la librería de Supabase.
 // Parámetros en la dirección: ?empleado (entra como colaborador), ?sinsesion, ?muchas (1.200 mascotas extra),
-// ?dalu (la usuaria es de DALU), ?sinnegocio (su usuario no tiene negocio), ?negocio=slug (negocio del visitante).
+// ?dalu (la usuaria es de DALU), ?sinnegocio (su usuario no tiene negocio), ?negocio=slug (negocio del visitante),
+// ?dossedes (Pet Garden con 2 sedes), ?basico (Pet Garden en plan Básico), ?sinrecordatorios / ?sinreportes (plan sin ese módulo),
+// ?pausado (DALU pausó a Pet Garden).
 // Multinegocio: las filas con negocio_id se filtran como lo hace la base (RLS) cuando hay sesión.
 (function () {
   const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
@@ -33,10 +35,23 @@
     ],
     pendientes_descartados: [],
     servicios_anulados: [],
-    negocios: [
-      { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: true, creado_en: "2026-10-01T15:00:00Z" },
-      { id: 2, nombre: "Vet Norte", slug: "vet-norte", activo: true, creado_en: "2026-10-20T15:00:00Z" },
+    planes: [
+      { id: "basico", nombre: "Básico", orden: 1, max_sedes: 1, max_usuarios: 3, recordatorios: true, reportes: true, respaldo: true, historia_clinica: false },
+      { id: "profesional", nombre: "Profesional", orden: 2, max_sedes: 2, max_usuarios: 8, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
+      { id: "premium", nombre: "Premium", orden: 3, max_sedes: 5, max_usuarios: 20, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
     ],
+    negocios: [
+      { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: !location.search.includes("pausado"), creado_en: "2026-10-01T15:00:00Z",
+        plan_id: location.search.includes("basico") ? "basico" : "premium" },
+      { id: 2, nombre: "Vet Norte", slug: "vet-norte", activo: true, creado_en: "2026-10-20T15:00:00Z", plan_id: "basico" },
+    ],
+    sedes: [
+      { id: 1, negocio_id: 1, nombre: "Sede principal", activo: true, creado_en: "2026-10-01T15:00:00Z" },
+      ...(location.search.includes("dossedes") ? [{ id: 2, negocio_id: 1, nombre: "Sede Norte", activo: true, creado_en: "2026-10-25T15:00:00Z" }] : []),
+      { id: 3, negocio_id: 2, nombre: "Sede principal", activo: true, creado_en: "2026-10-20T15:00:00Z" },
+    ],
+    usuarios_sedes: [{ usuario_id: "u1", sede_id: 1 }, { usuario_id: "u2", sede_id: 1 }],
+    precios_sede: [],
     invitaciones: [],
     pagos: [
       { id: 1, negocio_id: 1, fecha: "2026-09-05", valor: 80000, nota: "Septiembre 2026" },
@@ -91,6 +106,16 @@
   const SOLO_ADMIN = { pagos: ["insert", "update", "delete"], razas: ["insert", "update", "delete"], grupos_recordatorio: ["insert", "update", "delete"], tipos_servicio: ["insert", "update", "delete"], videos: ["delete"] };
   // Los videos de prueba sin negocio son de Pet Garden (negocio 1).
   T.videos.forEach((v) => { if (v.negocio_id === undefined) v.negocio_id = 1; });
+  // Planes con módulos apagados (para probar los límites del plan)
+  if (location.search.includes("sinrecordatorios")) T.planes.forEach((p) => { p.recordatorios = false; });
+  if (location.search.includes("sinreportes")) T.planes.forEach((p) => { p.reportes = false; });
+  // Todo lo que ya existe es de la sede principal; los precios de las razas quedan en la sede 1 (y en la 2 si existe)
+  ["agenda", "citas", "servicios", "historial"].forEach((t) => T[t].forEach((r) => { if (r.sede_id === undefined) { r.sede_id = 1; r.sede = "Sede principal"; } }));
+  T.pendientes.forEach((p) => { p.ultima_sede_id = 1; });
+  T.sedes.filter((x) => x.negocio_id === 1).forEach((sd) => T.razas.forEach((r) => T.precios_sede.push({
+    negocio_id: 1, sede_id: sd.id, raza_id: r.id, precio_bano: r.precio_bano, precio_corte: r.precio_corte,
+    precio_corte_bano: r.precio_corte_bano, precio_unas: r.precio_unas ?? null, recargo_medicado: r.recargo_medicado })));
+  T.razas.forEach((r) => { r.negocio_id = 1; });
   window.__T = T;
   window.__log = [];
 
@@ -110,24 +135,53 @@
     single() { this.one = true; return this; }
     maybeSingle() { this.one = true; this.maybe = true; return this; }
     insert(d) { this.op = "insert"; this.d = d; return this; }
+    upsert(d, o) { this.op = "upsert"; this.d = d; this.conflicto = ((o && o.onConflict) || "id").split(","); return this; }
     update(d) { this.op = "update"; this.d = d; return this; }
     delete() { this.op = "delete"; return this; }
     then(ok, ko) { return Promise.resolve(this.run()).then(ok, ko); }
     run() {
       window.__log.push([this.op, this.t, this.d]);
+      if (this.t === "razas_sede") {
+        T.razas_sede = [];
+        T.sedes.forEach((sd) => T.razas.filter((r) => r.negocio_id === sd.negocio_id).forEach((r) => {
+          const p = T.precios_sede.find((x) => x.sede_id === sd.id && x.raza_id === r.id) || {};
+          T.razas_sede.push({ sede_id: sd.id, id: r.id, nombre: r.nombre, especie: r.especie, negocio_id: r.negocio_id,
+            precio_bano: p.precio_bano ?? null, precio_corte: p.precio_corte ?? null, precio_corte_bano: p.precio_corte_bano ?? null,
+            precio_unas: p.precio_unas ?? null, recargo_medicado: p.recargo_medicado ?? null });
+        }));
+      }
       if (!T[this.t]) return { data: null, error: { message: `relation "public.${this.t}" does not exist` } };
       const tabla = T[this.t];
       const mi = miNegocio();
       // Como la base: con sesión solo se ven las filas del propio negocio (DALU ve todos los perfiles y negocios).
       const deMiNegocio = (r) => !sesion || r.negocio_id === undefined || r.negocio_id === mi ||
         (esDalu && ["perfiles", "invitaciones", "pagos"].includes(this.t));
-      const pasa = (r) => (this.t === "negocios" || deMiNegocio(r)) && this.f.every((fn) => fn(r));
+      const pausado = sesion && !esDalu && !(T.negocios.find((n) => n.id === mi) || {}).activo;
+      const pasa = (r) => (this.t === "negocios" || this.t === "planes" || (deMiNegocio(r) && !(pausado && r.negocio_id !== undefined && this.t !== "perfiles")))
+        && this.f.every((fn) => fn(r));
       if (esEmpleado && (SOLO_ADMIN[this.t] || []).includes(this.op)) {
         if (this.op === "insert") return { data: null, error: { message: 'new row violates row-level security policy for table "' + this.t + '"' } };
         return { data: [], error: null };
       }
+      if (this.op === "upsert") {
+        const filas = (Array.isArray(this.d) ? this.d : [this.d]).map((x) => {
+          const existe = tabla.find((r) => this.conflicto.every((k) => r[k] === x[k]));
+          if (existe) return Object.assign(existe, x);
+          const nueva = { negocio_id: mi, ...x };
+          tabla.push(nueva);
+          return nueva;
+        });
+        return { data: this.ret ? filas : null, error: null };
+      }
+      if (this.t === "sedes" && this.op === "insert") {
+        const plan = T.planes.find((p) => p.id === (T.negocios.find((n) => n.id === mi) || {}).plan_id);
+        if (T.sedes.filter((x) => x.negocio_id === mi && x.activo).length >= plan.max_sedes) {
+          return { data: null, error: { message: `Tu plan permite ${plan.max_sedes} sede(s). Para agregar más, cambia de plan con DALU.` } };
+        }
+      }
       if (this.op === "insert") {
-        const filas = (Array.isArray(this.d) ? this.d : [this.d]).map((x) => ({ id: Math.floor(Math.random() * 1e6), negocio_id: mi, ...x }));
+        const base = this.t === "sedes" ? { activo: true, creado_en: new Date().toISOString() } : {};
+        const filas = (Array.isArray(this.d) ? this.d : [this.d]).map((x) => ({ id: Math.floor(Math.random() * 1e6), negocio_id: mi, ...base, ...x }));
         tabla.push(...filas); return { data: this.ret ? filas : null, error: null };
       }
       if (this.op === "update") { const fs = tabla.filter(pasa); fs.forEach((r) => Object.assign(r, this.d)); return { data: this.ret ? fs : null, error: null }; }
@@ -142,7 +196,10 @@
       if (this.rg) fs = fs.slice(this.rg[0], this.rg[1] + 1);
       if (this.lim) fs = fs.slice(0, this.lim);
       if (this.cnt) return { count: fs.length, data: null, error: null };
-      if (this.t === "perfiles") fs = fs.map((p) => ({ ...p, negocios: T.negocios.find((n) => n.id === p.negocio_id) || null }));
+      if (this.t === "perfiles") fs = fs.map((p) => {
+        const n = T.negocios.find((x) => x.id === p.negocio_id && (x.activo || esDalu));
+        return { ...p, negocios: n ? { ...n, planes: T.planes.find((pl) => pl.id === n.plan_id) || null } : null };
+      });
       if (this.one) return { data: fs[0] || null, error: fs[0] || this.maybe ? null : { message: "no rows" } };
       return { data: JSON.parse(JSON.stringify(fs)), error: null };
     }
@@ -178,19 +235,37 @@
           return Promise.resolve({ data: null, error: null });
         }
         if (n === "es_dalu") return Promise.resolve({ data: esDalu, error: null });
+        if (n === "mis_sedes") {
+          const perfil = T.perfiles.find((x) => x.id === sesion.user.id) || {};
+          const ids = perfil.rol === "administrador"
+            ? T.sedes.filter((x) => x.negocio_id === miNegocio()).map((x) => x.id)
+            : T.usuarios_sedes.filter((x) => x.usuario_id === sesion.user.id).map((x) => x.sede_id);
+          return Promise.resolve({ data: ids, error: null });
+        }
+        if (n === "uso_negocios") return Promise.resolve({ data: T.negocios.map((ng) => ({
+          negocio_id: ng.id,
+          sedes: T.sedes.filter((x) => x.negocio_id === ng.id && x.activo).length,
+          usuarios: T.perfiles.filter((x) => x.negocio_id === ng.id).length,
+          invitaciones: T.invitaciones.filter((x) => x.negocio_id === ng.id).length })), error: null });
         if (n === "invitar_usuario") {
           const correo = String(d.p_correo || "").toLowerCase();
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return Promise.resolve({ data: null, error: { message: "Escribe un correo válido." } });
           if (T.perfiles.some((p) => p.correo === correo && p.negocio_id)) return Promise.resolve({ data: null, error: { message: "Ese correo ya tiene acceso a un negocio y no se puede invitar." } });
+          const negocioId = d.p_negocio_id || miNegocio();
+          const plan = T.planes.find((pl) => pl.id === (T.negocios.find((x) => x.id === negocioId) || {}).plan_id);
+          if (plan && T.perfiles.filter((x) => x.negocio_id === negocioId).length
+              + T.invitaciones.filter((x) => x.negocio_id === negocioId && x.correo !== correo).length >= plan.max_usuarios) {
+            return Promise.resolve({ data: null, error: { message: `Tu plan permite ${plan.max_usuarios} usuarios. Para agregar más, cambia de plan con DALU.` } });
+          }
           T.invitaciones = T.invitaciones.filter((i) => i.correo !== correo);
-          T.invitaciones.push({ correo, rol: d.p_rol, negocio_id: d.p_negocio_id || miNegocio(), creado_en: ahora });
+          T.invitaciones.push({ correo, rol: d.p_rol, negocio_id: negocioId, creado_en: ahora, sedes: d.p_sedes || null });
           return Promise.resolve({ data: "invitado", error: null });
         }
         if (n === "crear_negocio") {
           if (!esDalu) return Promise.resolve({ data: null, error: { message: "Solo DALU puede crear negocios." } });
           if (T.negocios.some((x) => x.slug === d.p_slug)) return Promise.resolve({ data: null, error: { message: 'duplicate key value violates unique constraint "negocios_slug_key"' } });
           const id = T.negocios.length + 1;
-          T.negocios.push({ id, nombre: d.p_nombre, slug: d.p_slug, activo: true, creado_en: ahora });
+          T.negocios.push({ id, nombre: d.p_nombre, slug: d.p_slug, activo: true, creado_en: ahora, plan_id: d.p_plan || "basico" });
           T.invitaciones.push({ correo: d.p_correo_admin, rol: "administrador", negocio_id: id, creado_en: ahora });
           return Promise.resolve({ data: id, error: null });
         }

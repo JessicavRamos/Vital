@@ -297,7 +297,7 @@ function conectarCitas(caja, citas) {
 }
 
 async function traerCitas(desde, hastaExclusivo) {
-  const citas = await q(db.from("agenda").select("*")
+  const citas = await q(conSede(db.from("agenda").select("*"))
     .gte("fecha_hora", inicioDiaBogota(desde)).lt("fecha_hora", inicioDiaBogota(hastaExclusivo))
     .order("fecha_hora", { ascending: true }));
   await completarAuditoria(citas);
@@ -338,7 +338,7 @@ async function cargarAgenda() {
     } else {
       pintarCabecera("Buscar en todas las citas");
       // Trae todas las citas (de a 1.000 por vez), no solo las últimas.
-      const citas = await traerTodo(() => db.from("agenda").select("*").order("fecha_hora", { ascending: false }).order("id"));
+      const citas = await traerTodo(() => conSede(db.from("agenda").select("*")).order("fecha_hora", { ascending: false }).order("id"));
       await completarAuditoria(citas);
       if (!$("#lista-agenda")) return;
       tablaInteractiva(caja, {

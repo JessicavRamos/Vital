@@ -39,11 +39,13 @@ async function cargarHoy() {
   let citas, todosPendientes, serviciosMes, descartes = [];
   try {
     [citas, todosPendientes, serviciosMes] = await Promise.all([
-      q(db.from("agenda").select("*")
+      q(conSede(db.from("agenda").select("*"))
         .gte("fecha_hora", inicioDiaBogota(hoy)).lt("fecha_hora", inicioDiaBogota(sumarDias(hoy, 1)))
         .neq("estado", "cancelada").order("fecha_hora")),
-      q(db.from("pendientes").select("*").order("dias_de_retraso", { ascending: false })),
-      contar(db.from("servicios").select("id", { count: "exact", head: true }).gte("fecha", mes)),
+      moduloActivo("recordatorios")
+        ? q(db.from("pendientes").select("*").order("dias_de_retraso", { ascending: false }))
+        : Promise.resolve([]),
+      contar(conSede(db.from("servicios").select("id", { count: "exact", head: true })).gte("fecha", mes)),
     ]);
   } catch (error) {
     mostrarError($("#h-citas"), error);
@@ -54,6 +56,8 @@ async function cargarHoy() {
   } catch (error) { /* si la tabla aún no existe, se muestran todos */ }
   if (!$("#h-citas")) return; // cambiaste de pantalla
 
+  // Con sedes: cada sede busca a los clientes cuyo último servicio fue en ella.
+  if (estado.conSedes && estado.sede) todosPendientes = todosPendientes.filter((p) => p.ultima_sede_id == null || p.ultima_sede_id === estado.sede.id);
   const idDescarte = new Map(descartes.map((d) => [claveDescarte(d), d.id]));
   const pendientes = todosPendientes.filter((p) => !idDescarte.has(claveDescarte(p)));
   const descartados = todosPendientes.filter((p) => idDescarte.has(claveDescarte(p)));
@@ -85,6 +89,7 @@ async function cargarHoy() {
   $$("[data-menu]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirMenu(b, opcionesCita(citas.find((c) => c.id === Number(b.dataset.menu)), cargarHoy))));
 
+  if (!$("#h-pendientes")) return; // el plan no incluye recordatorios
   $("#h-pendientes").innerHTML = pendientes.length ? pendientes.map((p, i) => {
     const retraso = p.dias_de_retraso;
     return `<div class="item">
@@ -146,8 +151,8 @@ PANTALLAS.hoy = {
     <div class="stats" id="h-stats"></div>
     <div class="columnas">
       <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas"><p class="suave">Cargando…</p></div></div>
-      <div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
-        <div id="h-descartados" class="descartados"></div></div>
+      ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
+        <div id="h-descartados" class="descartados"></div></div>` : ""}
     </div>`,
   despues: cargarHoy,
 };

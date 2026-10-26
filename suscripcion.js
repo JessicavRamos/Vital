@@ -16,6 +16,18 @@ async function cargarSuscripcion() {
     if (!$("#s-pagos")) return;
     const ultimo = pagos[0];
     const total = pagos.reduce((suma, p) => suma + Number(p.valor || 0), 0);
+    const plan = estado.plan;
+    if (plan) {
+      const sedesActivas = estado.sedes.filter((x) => x.activo).length;
+      $("#s-plan").innerHTML = `<h2>Plan ${esc(plan.nombre)}</h2>
+        <ul class="lista-plan">
+          <li>Sedes: <strong>${sedesActivas} de ${plan.max_sedes}</strong></li>
+          <li>Usuarios: <strong>hasta ${plan.max_usuarios}</strong></li>
+          ${[["recordatorios", "Recordatorios (A quién buscar + WhatsApp)"], ["reportes", "Reportes y Excel"], ["respaldo", "Respaldo completo"], ["historia_clinica", "Historia clínica"]]
+            .map(([campo, texto]) => `<li>${plan[campo] ? "✔" : "✖"} ${esc(texto)}</li>`).join("")}
+        </ul>
+        <p class="suave">Para cambiar de plan, escríbele a DALU.</p>`;
+    }
     $("#s-resumen").innerHTML = `
       <div class="stat"><b>${ultimo ? esc(fechaCorta(ultimo.fecha)) : "—"}</b>Último pago</div>
       <div class="stat"><b>${ultimo ? esc(dinero(ultimo.valor)) : "—"}</b>Valor del último pago</div>
@@ -43,6 +55,7 @@ async function cargarSuscripcion() {
 PANTALLAS.suscripcion = {
   html: () => `<h1>Suscripción</h1>
     <p class="suave">Pagos de ${esc(nombreNegocio())} a ${esc(NOMBRE_PRODUCTO)}. Solo informativo: si ves algo raro, escríbele a DALU.</p>
+    <div class="tarjeta" id="s-plan"></div>
     <div class="stats" id="s-resumen"></div>
     <div class="tarjeta"><div id="s-pagos"><p class="suave">Cargando…</p></div></div>`,
   despues: cargarSuscripcion,

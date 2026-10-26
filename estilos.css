@@ -544,3 +544,36 @@ td select[data-rol]{min-width:150px}
 .enlaces-negocio a{overflow-wrap:anywhere}
 .fila-form.pagos-form{grid-template-columns:1.3fr 1fr .8fr 1.3fr auto}
 @media (max-width:860px){.fila-form,.fila-form.pagos-form{grid-template-columns:1fr}}
+
+/* Reportes: tablas desplegables con encabezados fijos */
+details.plegable>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}
+details.plegable>summary::-webkit-details-marker{display:none}
+details.plegable>summary h2{margin:0}
+details.plegable>summary::before{content:"▸";font-size:1.1rem;color:var(--marca);transition:transform .15s}
+details.plegable[open]>summary::before{transform:rotate(90deg)}
+details.plegable .abrir-cerrar::after{content:"Ver tabla"}
+details.plegable[open] .abrir-cerrar::after{content:"Ocultar"}
+details.plegable>summary .abrir-cerrar{margin-left:auto}
+details.plegable .tabla-scroll{max-height:70vh;overflow:auto}
+details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;background:var(--tarjeta);box-shadow:0 1px 0 var(--linea)}
+@media (max-width:860px){details.plegable .tabla-scroll{max-height:75vh;overflow:auto}}
+/* Invitaciones: mensaje para enviar */
+.mensaje-invitacion{white-space:pre-wrap;background:var(--realce);border-radius:10px;padding:12px;font:inherit;margin:10px 0}
+.envio-invitacion{flex-wrap:wrap}
+.acciones-invitacion{display:flex;gap:6px}
+
+/* Sedes y planes */
+.oculto-visual{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sede-actual{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--marca);white-space:nowrap}
+.sede-actual select{font-weight:700;padding:6px 8px;border-radius:10px}
+.casillas{display:flex;flex-wrap:wrap;gap:6px 16px;border:0;padding:0;margin:8px 0}
+.casillas legend{font-weight:700;margin-bottom:4px;padding:0}
+.fila-sede{display:flex;align-items:center;gap:10px;margin:6px 0 12px;flex-wrap:wrap}
+.fila-sede label{margin:0}
+.tabla-planes input[type=number]{width:80px}
+.tabla-planes td,.tabla-planes th{text-align:center}
+.tabla-planes td:first-child{text-align:left}
+.lista-plan{list-style:none;padding:0;margin:6px 0;display:grid;gap:4px}
+
+.sel-plan{min-width:7.5rem;width:auto}
+.uso-negocio{white-space:nowrap;font-size:.85rem}

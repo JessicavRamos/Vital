@@ -734,7 +734,53 @@ function cerrarDialogo(id = "dialogo") {
 
 /* ---------- Estado, logo, usuario, menú y pantallas ---------- */
 const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null,
-  logoUrl: null, recuperacion: RECUPERACION, negocio: null, esDalu: false };
+  logoUrl: null, recuperacion: RECUPERACION, negocio: null, esDalu: false,
+  plan: null, sedes: [], sedesMias: [], sede: null, conSedes: false };
+
+/* ---------- Sedes y plan ---------- */
+// La agenda es de cada sede. Clientes, mascotas e historial son de toda la empresa.
+// estado.sede = sede en la que se está trabajando (se elige arriba si tienes más de una).
+const sedeActualId = () => (estado.sede ? estado.sede.id : null);
+// Filtra una consulta por la sede actual (si la base aún no tiene sedes, no filtra).
+const conSede = (consulta, columna = "sede_id") => (estado.conSedes && estado.sede ? consulta.eq(columna, estado.sede.id) : consulta);
+const nombreSede = (id) => (estado.sedes.find((s) => s.id === id) || {}).nombre || "";
+// ¿El plan incluye este módulo? (sin plan, todo queda disponible)
+const moduloActivo = (modulo) => !modulo || !estado.plan || estado.plan[modulo] !== false;
+const claveSede = () => `dalu-vital-sede-${estado.usuarioId || ""}`;
+
+async function cargarSedes() {
+  estado.sedes = []; estado.sedesMias = []; estado.sede = null; estado.conSedes = false;
+  if (!estado.sesion || !estado.negocio || !estado.negocio.id) return;
+  try {
+    const [sedes, mias] = await Promise.all([
+      q(db.from("sedes").select("id,nombre,activo").eq("negocio_id", estado.negocio.id).order("id")),
+      q(db.rpc("mis_sedes")),
+    ]);
+    estado.conSedes = true;
+    estado.sedes = sedes;
+    const ids = (mias || []).map(Number);
+    estado.sedesMias = sedes.filter((s) => ids.includes(s.id) && s.activo);
+    let guardada = null;
+    try { guardada = Number(localStorage.getItem(claveSede())); } catch (error) { /* sin almacenamiento */ }
+    estado.sede = estado.sedesMias.find((s) => s.id === guardada) || estado.sedesMias[0] || null;
+  } catch (error) {
+    // Base sin sedes (antes del SQL v13): una sola agenda, como antes.
+    estado.conSedes = false;
+  }
+}
+function cambiarSede(id) {
+  estado.sede = estado.sedesMias.find((s) => s.id === Number(id)) || estado.sede;
+  try { localStorage.setItem(claveSede(), String(estado.sede.id)); } catch (error) { /* sin almacenamiento */ }
+  aviso(`Estás en ${estado.sede.nombre}.`);
+  montarPantalla(claveActual());
+}
+function htmlSelectorSede() {
+  if (!estado.conSedes || !estado.sede) return "";
+  if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">📍 ${esc(estado.sede.nombre)}</span>`;
+  return `<label class="sede-actual">📍 <span class="oculto-visual">Sede</span>
+    <select id="sede-actual" aria-label="Sede en la que estás trabajando">${estado.sedesMias.map((s) =>
+      `<option value="${s.id}"${s.id === estado.sede.id ? " selected" : ""}>${esc(s.nombre)}</option>`).join("")}</select></label>`;
+}
 
 /* ---------- Negocio (cada cliente de DALU Vital) ---------- */
 // Con sesión: el negocio del usuario. Sin sesión (entrada y videos públicos): el de la dirección
@@ -755,11 +801,28 @@ function recordarNegocio(negocio) {
 function negocioRecordado() {
   try { return JSON.parse(localStorage.getItem(CLAVE_NEGOCIO) || "null"); } catch (error) { return null; }
 }
-const enlacePublico = (slug, ruta = "") =>
-  `${location.origin}${location.pathname}?negocio=${encodeURIComponent(slug)}${ruta ? "#/" + ruta : ""}`;
+// Enlace de cada negocio: https://vital.dalu.pro/petgarden (y /petgarden#/videos).
+// GitHub Pages no conoce "/petgarden": muestra 404.html, que vuelve a la página con ?negocio=petgarden
+// y aquí se deja otra vez la dirección bonita.
+const SLUG_VALIDO = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const enlacePublico = (slug, ruta = "") => `${location.origin}/${encodeURIComponent(slug)}${ruta ? "#/" + ruta : ""}`;
+function negocioPedido() {
+  const porParametro = new URLSearchParams(location.search).get("negocio");
+  const porRuta = location.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
+  const slug = String(porParametro || (SLUG_VALIDO.test(porRuta) && porRuta !== "index" ? porRuta : "")).trim().toLowerCase();
+  return SLUG_VALIDO.test(slug) ? slug : null;
+}
+// ?negocio=petgarden → /petgarden (sin recargar), para que el enlace se vea limpio.
+function direccionBonita(slug) {
+  if (!slug || !new URLSearchParams(location.search).has("negocio") || !/^\/(index\.html)?$/.test(location.pathname)) return;
+  const resto = new URLSearchParams(location.search);
+  resto.delete("negocio");
+  const extra = resto.toString();
+  try { history.replaceState(null, "", `/${slug}${extra ? "?" + extra : ""}${location.hash}`); } catch (error) { /* sin cambios */ }
+}
 
 async function cargarNegocioVisitante() {
-  const pedido = new URLSearchParams(location.search).get("negocio");
+  const pedido = negocioPedido();
   const recordado = negocioRecordado();
   const slug = (pedido || (recordado && recordado.slug) ||
     (typeof NEGOCIO_POR_DEFECTO === "string" ? NEGOCIO_POR_DEFECTO : "")).trim().toLowerCase();
@@ -768,7 +831,7 @@ async function cargarNegocioVisitante() {
     const { data, error } = await db.from("negocios").select("id,nombre,slug").eq("slug", slug).maybeSingle();
     if (error) throw error;
     estado.negocio = data || null;
-    if (data && pedido) recordarNegocio(data);
+    if (data && pedido) { recordarNegocio(data); direccionBonita(data.slug); }
   } catch (error) {
     // Base sin la tabla "negocios" (antes del v11): todo funciona como antes.
     estado.negocio = /negocios|does not exist|schema cache/i.test((error && error.message) || "") ? negocioLegado() : recordado;
@@ -829,14 +892,15 @@ function pedirNombre() {
   });
 }
 
+// Videos quedó oculto (su pantalla sigue en videos.js por si algún día se vuelve a usar).
 const MENU = [
   { clave: "hoy", titulo: "Hoy", publica: false },
   { clave: "agendar", titulo: "Agendar", publica: false },
   { clave: "agenda", titulo: "Agenda", publica: false },
   { clave: "clientes", titulo: "Clientes y mascotas", publica: false },
-  { clave: "reportes", titulo: "Reportes", publica: false, soloAdmin: true },
+  { clave: "reportes", titulo: "Reportes", publica: false, soloAdmin: true, modulo: "reportes" },
   { clave: "catalogos", titulo: "Catálogos", publica: false },
-  { clave: "videos", titulo: "Videos", publica: true }, // se ve sin iniciar sesión
+  { clave: "sedes", titulo: "Sedes", publica: false, soloAdmin: true },
   { clave: "usuarios", titulo: "Usuarios", publica: false, soloAdmin: true },
   { clave: "suscripcion", titulo: "Suscripción", publica: false, soloAdmin: true },
   { clave: "negocios", titulo: "Negocios · DALU", publica: false, soloDalu: true },
@@ -844,20 +908,30 @@ const MENU = [
 
 /* ---------- Roles: administrador y empleado ---------- */
 const esAdmin = () => estado.rol === "administrador";
-const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu);
+const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu) && moduloActivo(m.modulo);
 
 // Lee el rol de la persona que inició sesión (tabla "perfiles").
 async function cargarRol() {
+  estado.plan = null;
   if (!estado.sesion) { estado.rol = null; estado.esDalu = false; return; }
   try {
-    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug)")
+    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,planes(*))")
       .eq("id", estado.sesion.user.id).maybeSingle();
+    if (error && /plan/i.test(error.message || "")) {
+      // Base sin planes (antes del SQL v13)
+      ({ data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug)")
+        .eq("id", estado.sesion.user.id).maybeSingle());
+    }
     if (error && /negocio/i.test(error.message || "")) {
       // Base sin multinegocio (antes del SQL v11): un solo negocio, como antes.
       ({ data, error } = await db.from("perfiles").select("rol").eq("id", estado.sesion.user.id).maybeSingle());
       if (!error) estado.negocio = negocioLegado();
     } else if (!error) {
-      estado.negocio = data && data.negocios ? data.negocios : null;
+      const negocio = data && data.negocios ? data.negocios : null;
+      // Tiene empresa pero no se ve: DALU la pausó.
+      estado.negocioPausado = !!(data && data.negocio_id && !negocio);
+      estado.plan = negocio && negocio.planes ? negocio.planes : null;
+      estado.negocio = negocio ? { id: negocio.id, nombre: negocio.nombre, slug: negocio.slug } : null;
       recordarNegocio(estado.negocio);
     }
     if (error) throw error;
@@ -918,7 +992,6 @@ function htmlLogin() {
           <button class="btn grande" type="submit">Entrar</button>
           <p class="suave centrado"><button type="button" class="enlace pequeno" id="olvide">¿Olvidaste tu contraseña?</button></p>
           <p class="suave centrado"><button type="button" class="enlace pequeno" id="crear-cuenta">¿Te invitaron? Crea tu cuenta</button></p>
-          <p class="suave centrado"><a href="#/videos">Ver videos de productos</a></p>
         </form>
         <p class="firma-producto">Con tecnología de <strong>${esc(NOMBRE_PRODUCTO)}</strong></p>
       </section>
@@ -1015,7 +1088,7 @@ function pedirRecuperacion() {
     boton.textContent = "Enviando…";
     try {
       const { error } = await db.auth.resetPasswordForEmail($("#o-correo").value.trim(), {
-        redirectTo: location.origin + location.pathname,
+        redirectTo: location.origin + "/",
       });
       if (error) throw error;
       caja.className = "bien";
@@ -1056,7 +1129,7 @@ function pedirCrearCuenta() {
       const { data, error } = await db.auth.signUp({
         email: $("#cc-correo").value.trim(),
         password: $("#cc-clave").value,
-        options: { data: { nombre: $("#cc-nombre").value.trim() }, emailRedirectTo: location.origin + location.pathname },
+        options: { data: { nombre: $("#cc-nombre").value.trim() }, emailRedirectTo: location.origin + "/" },
       });
       if (error) throw error;
       cerrarDialogo();
@@ -1072,6 +1145,12 @@ function pedirCrearCuenta() {
 
 // Inició sesión pero su usuario no está en ningún negocio (y no es de DALU).
 function htmlSinNegocio() {
+  if (estado.negocioPausado) return `<main class="login"><div class="tarjeta">
+    <h1>Tu empresa está pausada</h1>
+    <p>El acceso de tu empresa a ${esc(NOMBRE_PRODUCTO)} está pausado por el momento. Tus datos están guardados y no se perdió nada.
+    Comunícate con DALU para reactivarlo.</p>
+    <button id="salir" class="btn">Cerrar sesión</button>
+  </div></main>`;
   return `<main class="login"><div class="tarjeta">
     <h1>Tu usuario aún no tiene negocio</h1>
     <p>Iniciaste sesión como <strong>${esc(estado.sesion.user.email || "")}</strong>, pero todavía no estás en ningún negocio.
@@ -1110,6 +1189,7 @@ function htmlPanel(clave) {
     <div class="principal">
       <div class="barra">
         <input id="buscador" type="search" placeholder="Buscar mascota, dueño o teléfono… (Enter)" aria-label="Búsqueda general">
+        ${htmlSelectorSede()}
         <span class="suave">${esc(fechaLarga())}</span>
       </div>
       <section id="pantalla" tabindex="-1"></section>
@@ -1168,6 +1248,8 @@ function montarPanel() {
     location.hash = "#/hoy";
   });
   $("#perfil").addEventListener("click", pedirNombre);
+  const selectorSede = $("#sede-actual");
+  if (selectorSede) selectorSede.addEventListener("change", () => cambiarSede(selectorSede.value));
   // Celular: el menú se abre y se cierra con el botón ☰
   const lateral = $(".lateral"), botonMenuMovil = $("#menu-movil");
   botonMenuMovil.addEventListener("click", () => {
@@ -1225,24 +1307,118 @@ function pintar() {
     }
     return;
   }
-  // Secciones solo para administrador (Reportes, Usuarios) o DALU (Negocios)
+  // Colaborador sin sedes asignadas: no tiene agenda que ver.
+  if (estado.conSedes && !estado.sede && !esAdmin()) {
+    raiz.innerHTML = `<main class="login"><div class="tarjeta">
+      <h1>Aún no tienes sede asignada</h1>
+      <p>Tu usuario está en <strong>${esc(nombreNegocio())}</strong>, pero todavía no tiene ninguna sede.
+      Pide al administrador que te asigne una en <strong>Usuarios</strong>.</p>
+      <button id="salir" class="btn">Cerrar sesión</button></div></main>`;
+    $("#salir").addEventListener("click", () => db.auth.signOut());
+    return;
+  }
+  // Secciones solo para administrador (Reportes, Usuarios), DALU (Negocios) o fuera del plan
   if (!puedeVer(meta)) {
     history.replaceState(null, "", location.pathname + location.search + "#/hoy");
     raiz.innerHTML = htmlPanel("hoy");
     montarPanel();
     montarPantalla("hoy");
-    aviso(meta.soloDalu ? "Esa sección es solo para DALU." : "Esa sección es solo para el administrador.", true);
+    aviso(meta.soloDalu ? "Esa sección es solo para DALU."
+      : !moduloActivo(meta.modulo) ? "Esa sección no está incluida en tu plan."
+        : "Esa sección es solo para el administrador.", true);
     return;
   }
   raiz.innerHTML = htmlPanel(clave);
   montarPanel();
   montarPantalla(clave);
+  if (estado.otroNegocio) avisarOtroNegocio();
+}
+
+// Tiene sesión en un negocio y abrió el enlace de OTRO: la base solo le muestra su propio negocio
+// (no hay forma de ver datos ajenos); aquí se le explica y se le ofrece cambiar de cuenta.
+function avisarOtroNegocio() {
+  const otro = estado.otroNegocio;
+  estado.otroNegocio = null;
+  abrirDialogo(`<div>
+    <h2>Este enlace es de ${esc(otro.nombre)}</h2>
+    <p>Entraste con una cuenta de <strong>${esc(nombreNegocio())}</strong>, así que solo puedes ver ${esc(nombreNegocio())}.
+    Para entrar a ${esc(otro.nombre)}, cierra sesión e inicia con tu cuenta de ese negocio.</p>
+    <div class="acciones">
+      <button type="button" class="btn alt" id="on-seguir">Seguir en ${esc(nombreNegocio())}</button>
+      <button type="button" class="btn" id="on-salir">Cerrar sesión</button>
+    </div></div>`);
+  const seguir = () => {
+    try { history.replaceState(null, "", `/${estado.negocio.slug}${location.hash}`); } catch (error) { /* sin cambios */ }
+    cerrarDialogo();
+  };
+  $("#on-seguir").addEventListener("click", seguir);
+  $("#on-salir").addEventListener("click", async () => { cerrarDialogo(); await db.auth.signOut(); });
+}
+
+/* ---------- Invitaciones: mensaje para enviar por WhatsApp o correo ---------- */
+function mensajeInvitacion(correo, negocio) {
+  const enlace = negocio && negocio.slug ? enlacePublico(negocio.slug) : location.origin + "/";
+  return `¡Hola! Te invité a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}.
+1. Entra a ${enlace}
+2. Toca «¿Te invitaron? Crea tu cuenta».
+3. Usa este correo: ${correo}`;
+}
+function abrirEnvioInvitacion(correo, negocio, titulo = "Envía la invitación") {
+  const texto = mensajeInvitacion(correo, negocio);
+  const asunto = `Invitación a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}`;
+  abrirDialogo(`<div>
+    <h2>${esc(titulo)}</h2>
+    <p class="suave">El sistema no envía correos solo: compártele este mensaje a <strong>${esc(correo)}</strong>.</p>
+    <pre class="mensaje-invitacion">${esc(texto)}</pre>
+    <div class="acciones envio-invitacion">
+      <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">Enviar por WhatsApp</a>
+      <a class="btn alt" href="mailto:${encodeURIComponent(correo)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}">Enviar por correo</a>
+      <button type="button" class="btn alt" id="ei-copiar">Copiar mensaje</button>
+      <button type="button" class="btn alt" id="ei-cerrar">Listo</button>
+    </div></div>`);
+  $("#ei-cerrar").addEventListener("click", () => cerrarDialogo());
+  $("#ei-copiar").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(texto); aviso("Mensaje copiado."); } catch (error) { aviso("No se pudo copiar: selecciónalo y cópialo.", true); }
+  });
+}
+
+/* ---------- Aviso de versión nueva ---------- */
+// index.html carga los archivos con ?v=NÚMERO. Al publicar cambios se sube ese número;
+// la página abierta lo revisa cada 5 minutos (y al volver a la pestaña) y ofrece recargar.
+const VERSION_CARGADA = (() => {
+  const script = document.querySelector('script[src*="app.js"]');
+  const m = script && script.src.match(/[?&]v=([\w.-]+)/);
+  return m ? m[1] : null;
+})();
+async function revisarVersionNueva() {
+  if (!VERSION_CARGADA || document.hidden) return;
+  try {
+    const html = await fetch(`${location.origin}/index.html?buscar-version=${Date.now()}`, { cache: "no-store" }).then((r) => r.text());
+    const m = html.match(/app\.js\?v=([\w.-]+)/);
+    if (m && m[1] !== VERSION_CARGADA) {
+      aviso("Hay una versión nueva del sistema.", false, { texto: "Recargar", alHacer: () => location.reload() });
+    }
+  } catch (error) { /* sin internet: se revisa en la próxima vuelta */ }
 }
 
 // Rol y negocio de quien entró (o del visitante), su logo y el título de la pestaña.
 async function prepararNegocio() {
-  if (estado.sesion) await cargarRol();
-  else { estado.rol = null; estado.esDalu = false; await cargarNegocioVisitante(); }
+  estado.otroNegocio = null;
+  if (estado.sesion) {
+    await cargarRol();
+    await cargarSedes();
+    const pedido = negocioPedido();
+    if (pedido && estado.negocio && estado.negocio.slug && pedido !== estado.negocio.slug) {
+      let nombre = pedido;
+      try {
+        const { data } = await db.from("negocios").select("nombre").eq("slug", pedido).maybeSingle();
+        if (data) nombre = data.nombre;
+      } catch (error) { /* se muestra la dirección corta */ }
+      estado.otroNegocio = { slug: pedido, nombre };
+    } else if (pedido) {
+      direccionBonita(pedido);
+    }
+  } else { estado.rol = null; estado.esDalu = false; await cargarNegocioVisitante(); }
   // El logo se busca antes de dibujar (máximo 2,5 segundos de espera).
   await Promise.race([cargarLogo(), new Promise((resolver) => setTimeout(resolver, 2500))]);
   document.title = estado.negocio ? `${nombreNegocio()} · ${NOMBRE_PRODUCTO}` : NOMBRE_PRODUCTO;
@@ -1281,4 +1457,6 @@ async function iniciar() {
   }
   window.addEventListener("hashchange", pintar);
   pintar();
+  setInterval(revisarVersionNueva, 5 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) revisarVersionNueva(); });
 }

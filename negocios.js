@@ -17,14 +17,32 @@ function slugDe(texto) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
-let NEG = [];
+let NEG = [], PLANES = [], USO = new Map();
+const MODULOS_PLAN = { recordatorios: "Recordatorios", reportes: "Reportes y Excel", respaldo: "Respaldo completo", historia_clinica: "Historia clínica" };
 
 async function cargarNegocios() {
   const caja = $("#n-lista");
   if (!caja) return;
   try {
-    NEG = await q(db.from("negocios").select("id,nombre,slug,activo,creado_en").order("id"));
+    try {
+      [NEG, PLANES] = await Promise.all([
+        q(db.from("negocios").select("id,nombre,slug,activo,creado_en,plan_id").order("id")),
+        q(db.from("planes").select("*").order("orden")),
+      ]);
+      USO = new Map((await q(db.rpc("uso_negocios"))).map((u) => [u.negocio_id, u]));
+    } catch (error) {
+      // Base sin planes (antes del SQL v13)
+      NEG = await q(db.from("negocios").select("id,nombre,slug,activo,creado_en").order("id"));
+      PLANES = []; USO = new Map();
+    }
     if (!$("#n-lista")) return;
+    const planDe = (n) => PLANES.find((p) => p.id === n.plan_id);
+    const textoUso = (n) => {
+      const u = USO.get(n.id), p = planDe(n);
+      if (!u || !p) return "";
+      const excede = u.sedes > p.max_sedes || u.usuarios + u.invitaciones > p.max_usuarios;
+      return `<span class="uso-negocio ${excede ? "mal" : "suave"}">${u.sedes}/${p.max_sedes} sedes<br>${u.usuarios + u.invitaciones}/${p.max_usuarios} usuarios</span>`;
+    };
     tablaInteractiva(caja, {
       id: "negocios",
       filas: NEG,
@@ -32,18 +50,32 @@ async function cargarNegocios() {
       columnas: [
         { titulo: "Negocio", valor: (n) => n.nombre, filtro: "texto" },
         { titulo: "Enlace", valor: (n) => n.slug, filtro: "texto" },
+        ...(PLANES.length ? [{ titulo: "Plan", valor: (n) => (planDe(n) || {}).nombre || "", filtro: "lista" },
+          { titulo: "Uso", valor: (n) => { const u = USO.get(n.id); return u ? u.usuarios : 0; }, filtro: false }] : []),
         { titulo: "Estado", valor: (n) => (n.activo ? "Activo" : "Pausado"), filtro: "lista" },
         { titulo: "", valor: () => "", filtro: false },
       ],
       fila: (n) => `<tr>
         <td><strong>${esc(n.nombre)}</strong>${estado.negocio && n.id === estado.negocio.id ? ' <span class="etiqueta">el tuyo</span>' : ""}</td>
-        <td><a href="${esc(enlacePublico(n.slug))}" target="_blank" rel="noopener">?negocio=${esc(n.slug)}</a></td>
+        <td><a href="${esc(enlacePublico(n.slug))}" target="_blank" rel="noopener">/${esc(n.slug)}</a></td>
+        ${PLANES.length ? `<td><select class="sel-plan" data-plan="${n.id}" aria-label="Plan de ${esc(n.nombre)}">${PLANES.map((p) =>
+          `<option value="${esc(p.id)}"${p.id === n.plan_id ? " selected" : ""}>${esc(p.nombre)}</option>`).join("")}</select></td>
+        <td>${textoUso(n)}</td>` : ""}
         <td>${n.activo ? '<span class="etiqueta ok">Activo</span>' : '<span class="etiqueta gris">Pausado</span>'}</td>
         <td><button type="button" class="btn alt chico" data-activo="${n.id}">${n.activo ? "Pausar" : "Activar"}</button></td>
       </tr>`,
-      alPintar: (tbody) => $$("[data-activo]", tbody).forEach((b) =>
-        b.addEventListener("click", () => cambiarActivoNegocio(NEG.find((n) => n.id === Number(b.dataset.activo))))),
+      alPintar: (tbody) => {
+        $$("[data-activo]", tbody).forEach((b) =>
+          b.addEventListener("click", () => cambiarActivoNegocio(NEG.find((n) => n.id === Number(b.dataset.activo)))));
+        $$("[data-plan]", tbody).forEach((sel) =>
+          sel.addEventListener("change", () => cambiarPlanNegocio(NEG.find((n) => n.id === Number(sel.dataset.plan)), sel)));
+      },
     });
+    pintarPlanes();
+    const selectorPlan = $("#nn-plan");
+    if (selectorPlan && PLANES.length && !selectorPlan.options.length) {
+      selectorPlan.innerHTML = PLANES.map((p) => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join("");
+    }
     const opciones = NEG.map((n) => `<option value="${n.id}">${esc(n.nombre)}</option>`).join("");
     ["#ni-negocio", "#np-negocio"].forEach((id) => { const lista = $(id); if (lista) lista.innerHTML = opciones; });
   } catch (error) {
@@ -56,7 +88,8 @@ async function cambiarActivoNegocio(negocio) {
   const pausar = negocio.activo;
   if (!(await confirmar({
     titulo: pausar ? `¿Pausar ${negocio.nombre}?` : `¿Activar ${negocio.nombre}?`,
-    texto: pausar ? "Su página pública de videos deja de verse. Sus datos no se borran." : "Su página pública vuelve a verse.",
+    texto: pausar ? "Sus usuarios no podrán entrar hasta que la actives (por ejemplo, por falta de pago). Sus datos no se borran."
+      : "Sus usuarios vuelven a poder entrar.",
     boton: pausar ? "Sí, pausar" : "Sí, activar",
   }))) return;
   try {
@@ -67,6 +100,56 @@ async function cambiarActivoNegocio(negocio) {
   } catch (error) {
     aviso(mensajeError(error), true);
   }
+}
+
+async function cambiarPlanNegocio(negocio, select) {
+  const plan = PLANES.find((p) => p.id === select.value);
+  const u = USO.get(negocio.id);
+  const excede = u && plan && (u.sedes > plan.max_sedes || u.usuarios + u.invitaciones > plan.max_usuarios);
+  if (!(await confirmar({
+    titulo: `¿Pasar ${negocio.nombre} al plan ${plan.nombre}?`,
+    texto: `Permite ${plan.max_sedes} ${plan.max_sedes === 1 ? "sede" : "sedes"} y ${plan.max_usuarios} usuarios.` +
+      (excede ? " Ojo: hoy usa más de eso. No se borra nada, pero no podrá agregar sedes ni usuarios hasta quedar dentro del límite." : ""),
+    boton: "Sí, cambiar",
+  }))) { select.value = negocio.plan_id; return; }
+  try {
+    const filas = await q(db.from("negocios").update({ plan_id: plan.id }).eq("id", negocio.id).select("id"));
+    if (!filas.length) throw new Error("permission denied");
+    aviso(`${negocio.nombre} quedó en el plan ${plan.nombre}.`);
+    cargarNegocios();
+  } catch (error) {
+    select.value = negocio.plan_id;
+    aviso(mensajeError(error), true);
+  }
+}
+
+// Editor de planes: límites y módulos de cada plan (aplica a todas las empresas en ese plan)
+function pintarPlanes() {
+  const caja = $("#np-planes");
+  if (!caja) return;
+  if (!PLANES.length) { caja.innerHTML = '<p class="suave">Falta ejecutar el SQL v13 para tener planes.</p>'; return; }
+  caja.innerHTML = `<div class="tabla-scroll"><table class="tabla-planes"><thead><tr><th></th>${PLANES.map((p) => `<th>${esc(p.nombre)}</th>`).join("")}</tr></thead>
+    <tbody>
+      <tr><td>Sedes</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_sedes" value="${p.max_sedes}" aria-label="Sedes del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
+      <tr><td>Usuarios</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_usuarios" value="${p.max_usuarios}" aria-label="Usuarios del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
+      ${Object.entries(MODULOS_PLAN).map(([campo, texto]) => `<tr><td>${esc(texto)}</td>${PLANES.map((p) =>
+        `<td><input type="checkbox" data-plan-id="${esc(p.id)}" data-campo="${campo}"${p[campo] ? " checked" : ""} aria-label="${esc(texto)} en ${esc(p.nombre)}"></td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>`;
+  caja.querySelector("table").addEventListener("change", async (evento) => {
+    const entrada = evento.target;
+    if (!entrada.dataset.planId) return;
+    const valor = entrada.type === "checkbox" ? entrada.checked : Number(entrada.value);
+    if (entrada.type !== "checkbox" && !(valor >= 1)) { aviso("Debe ser un número mayor que 0.", true); return cargarNegocios(); }
+    try {
+      const filas = await q(db.from("planes").update({ [entrada.dataset.campo]: valor }).eq("id", entrada.dataset.planId).select("id"));
+      if (!filas.length) throw new Error("permission denied");
+      aviso("Plan actualizado.");
+      cargarNegocios();
+    } catch (error) {
+      aviso(mensajeError(error), true);
+      cargarNegocios();
+    }
+  });
 }
 
 async function crearNegocio(evento) {
@@ -81,18 +164,11 @@ async function crearNegocio(evento) {
   boton.disabled = true;
   boton.textContent = "Creando…";
   try {
-    await q(db.rpc("crear_negocio", { p_nombre: nombre, p_slug: slug, p_correo_admin: correo }));
+    const datos = { p_nombre: nombre, p_slug: slug, p_correo_admin: correo };
+    if ($("#nn-plan") && $("#nn-plan").value) datos.p_plan = $("#nn-plan").value;
+    await q(db.rpc("crear_negocio", datos));
     evento.target.reset();
-    abrirDialogo(`<div>
-      <h2>¡${esc(nombre)} quedó creado!</h2>
-      <p>Envíale esto a su administrador (${esc(correo)}):</p>
-      <ol class="pasos">
-        <li>Entra a <a href="${esc(enlacePublico(slug))}" target="_blank" rel="noopener">${esc(enlacePublico(slug))}</a></li>
-        <li>Toca <strong>«¿Te invitaron? Crea tu cuenta»</strong> con el correo ${esc(correo)}.</li>
-        <li>Confirma el correo que te llega, entra y sube tu logo en Catálogos → Negocio.</li>
-      </ol>
-      <div class="acciones"><button type="button" class="btn" id="nn-cerrar">Listo</button></div></div>`);
-    $("#nn-cerrar").addEventListener("click", () => cerrarDialogo());
+    abrirEnvioInvitacion(correo, { nombre, slug }, `¡${nombre} quedó creado! Envíale la invitación a su administrador`);
     cargarNegocios();
   } catch (fallo) {
     error.textContent = mensajeError(fallo);
@@ -115,9 +191,8 @@ async function invitarANegocio(evento) {
       p_correo: correo, p_rol: $("#ni-rol").value, p_negocio_id: negocio ? negocio.id : null,
     }));
     $("#ni-correo").value = "";
-    aviso(resultado === "asignado"
-      ? `${correo} ya tenía cuenta: quedó en ${negocio ? negocio.nombre : "el negocio"}.`
-      : `Invitación lista para ${correo} en ${negocio ? negocio.nombre : "el negocio"}.`);
+    if (resultado === "asignado") aviso(`${correo} ya tenía cuenta: quedó en ${negocio ? negocio.nombre : "el negocio"}.`);
+    else abrirEnvioInvitacion(correo, negocio, `Invitación lista para ${negocio ? negocio.nombre : "el negocio"}`);
   } catch (fallo) {
     error.textContent = mensajeError(fallo);
   } finally {
@@ -202,9 +277,8 @@ async function quitarPago(pago, nombreDe) {
 PANTALLAS.negocios = {
   html: () => `<h1>Negocios · DALU</h1>
     <p class="suave">Los clientes que usan ${esc(NOMBRE_PRODUCTO)}. Solo DALU ve esta pantalla y no ve los datos de sus clientes.</p>
-    <div class="columnas derecha">
-      <div class="tarjeta"><div id="n-lista"><p class="suave">Cargando…</p></div></div>
-      <div>
+    <div class="tarjeta"><div id="n-lista"><p class="suave">Cargando…</p></div></div>
+    <div class="columnas">
         <div class="tarjeta">
           <h2>Crear un negocio</h2>
           <form id="form-negocio">
@@ -216,6 +290,8 @@ PANTALLAS.negocios = {
             <p class="suave" id="nn-vista"></p>
             <label for="nn-correo">Correo de su administrador</label>
             <input id="nn-correo" type="email" required>
+            <label for="nn-plan">Plan</label>
+            <select id="nn-plan"></select>
             <p id="nn-error" class="error" role="alert"></p>
             <button class="btn" type="submit">Crear negocio</button>
           </form>
@@ -233,7 +309,12 @@ PANTALLAS.negocios = {
             <button class="btn" type="submit">Invitar</button>
           </form>
         </div>
-      </div>
+    </div>
+    <div class="tarjeta">
+      <h2>Planes</h2>
+      <p class="suave">Límites y módulos de cada plan. Un cambio aquí aplica a todas las empresas de ese plan.
+      La base no deja pasar de los límites de sedes y usuarios.</p>
+      <div id="np-planes"><p class="suave">Cargando…</p></div>
     </div>
     <div class="tarjeta">
       <h2>Pagos de la suscripción</h2>

@@ -1,7 +1,7 @@
 "use strict";
 
 /* =====================================================================
-   CATÁLOGOS: razas con precios, guías, servicios y logo del negocio
+   CATÁLOGOS: razas con precios (por sede), guías, servicios y logo del negocio
    ===================================================================== */
 
 let pestanaCat = "razas";
@@ -76,20 +76,58 @@ async function agregar(tabla, datos, formulario) {
 
 const numeroONulo = (id) => ($(id).value === "" ? null : Number($(id).value));
 
-/* ---------- Razas ---------- */
+/* ---------- Razas y precios ---------- */
+// La lista de razas es de toda la empresa; los PRECIOS son de cada sede (tabla precios_sede).
+const CAMPOS_PRECIO = ["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"];
+let sedePrecios = null; // sede cuyos precios se están viendo en Catálogos
+
+// Guarda un precio de una raza en una sede (crea la fila si no existía).
+async function guardarPrecioSede(razaId, entrada) {
+  const valor = entrada.value.trim() === "" ? null : Number(entrada.value);
+  try {
+    const filas = await q(db.from("precios_sede")
+      .upsert({ sede_id: sedePrecios, raza_id: razaId, [entrada.dataset.campo]: valor }, { onConflict: "sede_id,raza_id" })
+      .select("raza_id"));
+    if (!filas.length) throw new Error("permission denied");
+    aviso("Guardado.");
+  } catch (error) {
+    aviso(mensajeError(error), true);
+    await cargarCatalogos();
+  }
+}
+
 async function pestanaRazas(caja) {
-  const razas = await q(db.from("razas").select("*").order("especie").order("nombre"));
-  // Empleado: solo puede ver la lista de precios (no agregar, cambiar ni quitar razas).
+  const porSede = estado.conSedes && estado.sedes.length;
+  if (porSede) {
+    const opciones = esAdmin() ? estado.sedes.filter((x) => x.activo) : estado.sedesMias;
+    if (!opciones.some((x) => x.id === sedePrecios)) sedePrecios = (estado.sede || opciones[0] || {}).id ?? null;
+  }
+  const razas = await q(porSede
+    ? db.from("razas_sede").select("*").eq("sede_id", sedePrecios).order("especie").order("nombre")
+    : db.from("razas").select("*").order("especie").order("nombre"));
+  const selector = porSede && (esAdmin() ? estado.sedes.filter((x) => x.activo) : estado.sedesMias).length > 1
+    ? `<div class="fila-sede"><label for="cat-sede">Precios de la sede</label>
+        <select id="cat-sede">${(esAdmin() ? estado.sedes.filter((x) => x.activo) : estado.sedesMias).map((x) =>
+          `<option value="${x.id}"${x.id === sedePrecios ? " selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div>`
+    : porSede ? `<p class="suave">Precios de <strong>${esc(nombreSede(sedePrecios))}</strong>.</p>` : "";
+  const conectarSelector = () => {
+    const sel = $("#cat-sede");
+    if (sel) sel.addEventListener("change", () => { sedePrecios = Number(sel.value); cargarCatalogos(); });
+  };
+  // Colaborador: solo puede ver la lista de precios (no agregar, cambiar ni quitar razas).
   if (!esAdmin()) {
-    caja.innerHTML = `<p class="aviso-fijo">Solo el administrador puede cambiar los precios y las razas.</p>
+    caja.innerHTML = `<p class="aviso-fijo">Solo el administrador puede cambiar los precios y las razas.</p>${selector}
       <div class="tabla-scroll"><table><thead><tr><th>Raza</th><th>Especie</th><th class="num">Baño</th><th class="num">Corte</th><th class="num">Corte y baño</th><th class="num">Uñas</th></tr></thead>
       <tbody>${razas.map((r) => `<tr><td>${esc(r.nombre)}</td><td>${esc(r.especie)}</td>
-        ${["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"].map((c) => `<td class="num">${dinero(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+        ${CAMPOS_PRECIO.map((c) => `<td class="num">${dinero(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    conectarSelector();
     return;
   }
   caja.innerHTML = `
-    <p class="suave">Escribe aquí tus precios. Al cambiar una celda se guarda sola. El recargo del baño medicado
-    ($8.000 o $16.000 según el tamaño) se elige al agendar o al terminar la cita.</p>
+    <p class="suave">Escribe aquí tus precios. Al cambiar una celda se guarda sola.${porSede && estado.sedes.length > 1
+      ? " <strong>Cada sede tiene sus propios precios</strong>; el nombre de la raza es el mismo para todas." : ""}
+    El recargo del baño medicado se elige al agendar o al terminar la cita.</p>
+    ${selector}
     <form id="nueva-raza" class="fila-nueva">
       <div><label for="r-nombre">Raza</label><input id="r-nombre" required></div>
       <div><label for="r-especie">Especie</label><select id="r-especie"><option value="perro">Perro</option><option value="gato">Gato</option></select></div>
@@ -104,23 +142,41 @@ async function pestanaRazas(caja) {
     <tbody id="tabla-razas">${razas.map((r) => `<tr data-id="${r.id}">
       <td><input data-campo="nombre" value="${esc(r.nombre)}" aria-label="Nombre de la raza"></td>
       <td>${esc(r.especie)}</td>
-      ${["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"].map((c) =>
-        `<td><input data-campo="${c}" type="number" min="0" step="any" value="${esc(r[c])}" aria-label="${c}"></td>`).join("")}
+      ${CAMPOS_PRECIO.map((c) =>
+        `<td><input data-campo="${c}" data-precio type="number" min="0" step="any" value="${esc(r[c])}" aria-label="${c}"></td>`).join("")}
       <td><button class="btn alt" data-quitar="${r.id}">Quitar</button></td></tr>`).join("")}</tbody></table></div>`;
 
-  conectarEdicion($("#tabla-razas"), "razas");
+  conectarSelector();
+  // El nombre se guarda en la raza (toda la empresa); los precios, en la sede elegida.
+  $("#tabla-razas").addEventListener("change", (evento) => {
+    const entrada = evento.target;
+    const fila = entrada.closest("tr[data-id]");
+    if (!fila || !entrada.dataset.campo) return;
+    if (porSede && entrada.dataset.precio !== undefined) guardarPrecioSede(Number(fila.dataset.id), entrada);
+    else guardarCampo("razas", Number(fila.dataset.id), entrada);
+  });
   $$("[data-quitar]", caja).forEach((b) => b.addEventListener("click", () =>
-    quitarFila("razas", Number(b.dataset.quitar), "¿Quitar esta raza? Las mascotas que la tengan quedarán sin raza.")));
-  $("#nueva-raza").addEventListener("submit", (evento) => {
+    quitarFila("razas", Number(b.dataset.quitar), "¿Quitar esta raza de TODAS las sedes? Las mascotas que la tengan quedarán sin raza.")));
+  $("#nueva-raza").addEventListener("submit", async (evento) => {
     evento.preventDefault();
-    agregar("razas", {
-      nombre: $("#r-nombre").value.trim(),
-      especie: $("#r-especie").value,
+    const precios = {
       precio_bano: numeroONulo("#r-bano"),
       precio_corte: numeroONulo("#r-corte"),
       precio_corte_bano: numeroONulo("#r-cb"),
       precio_unas: numeroONulo("#r-unas"),
-    }, evento.target);
+    };
+    const datos = { nombre: $("#r-nombre").value.trim(), especie: $("#r-especie").value };
+    if (!porSede) return agregar("razas", { ...datos, ...precios }, evento.target);
+    const caja = $(".error", evento.target);
+    caja.textContent = "";
+    try {
+      const [raza] = await q(db.from("razas").insert(datos).select("id"));
+      await q(db.from("precios_sede").upsert({ sede_id: sedePrecios, raza_id: raza.id, ...precios }, { onConflict: "sede_id,raza_id" }));
+      aviso("Agregado.");
+      cargarCatalogos();
+    } catch (error) {
+      caja.textContent = mensajeError(error);
+    }
   });
 }
 
@@ -259,10 +315,9 @@ async function pestanaNegocio(caja) {
       <p id="l-error" class="error" role="alert"></p>
       <button class="btn" type="submit">Subir logo</button>
     </form>
-    ${estado.negocio && estado.negocio.slug ? `<h3>Enlaces de ${esc(nombreNegocio())}</h3>
-    <p class="suave">Compártelos con tus clientes y tu equipo: abren el sistema con tu nombre y tu logo.</p>
+    ${estado.negocio && estado.negocio.slug ? `<h3>Enlace de ${esc(nombreNegocio())}</h3>
+    <p class="suave">Compártelo con tu equipo: abre el sistema con tu nombre y tu logo.</p>
     <ul class="enlaces-negocio">
-      <li>Videos de productos: <a href="${esc(enlacePublico(estado.negocio.slug, "videos"))}" target="_blank" rel="noopener">${esc(enlacePublico(estado.negocio.slug, "videos"))}</a></li>
       <li>Entrada para tu equipo: <a href="${esc(enlacePublico(estado.negocio.slug))}" target="_blank" rel="noopener">${esc(enlacePublico(estado.negocio.slug))}</a></li>
     </ul>` : ""}`;
   if (esAdmin()) $("#form-logo").addEventListener("submit", subirLogo);

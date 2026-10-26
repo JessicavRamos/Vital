@@ -36,9 +36,9 @@
     pendientes_descartados: [],
     servicios_anulados: [],
     planes: [
-      { id: "basico", nombre: "Básico", orden: 1, max_sedes: 1, max_usuarios: 3, recordatorios: true, reportes: true, respaldo: true, historia_clinica: false },
-      { id: "profesional", nombre: "Profesional", orden: 2, max_sedes: 2, max_usuarios: 8, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
-      { id: "premium", nombre: "Premium", orden: 3, max_sedes: 5, max_usuarios: 20, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
+      { id: "basico", nombre: "Básico", orden: 1, precio_mensual: 80000, max_sedes: 1, max_usuarios: 3, recordatorios: true, reportes: true, respaldo: true, historia_clinica: false },
+      { id: "profesional", nombre: "Profesional", orden: 2, precio_mensual: 120000, max_sedes: 2, max_usuarios: 8, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
+      { id: "premium", nombre: "Premium", orden: 3, precio_mensual: 180000, max_sedes: 5, max_usuarios: 20, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
     ],
     negocios: [
       { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: !location.search.includes("pausado"), creado_en: "2026-10-01T15:00:00Z",
@@ -54,9 +54,10 @@
     precios_sede: [],
     invitaciones: [],
     pagos: [
-      { id: 1, negocio_id: 1, fecha: "2026-09-05", valor: 80000, nota: "Septiembre 2026" },
-      { id: 2, negocio_id: 1, fecha: "2026-10-05", valor: 80000, nota: "Octubre 2026" },
-      { id: 3, negocio_id: 2, fecha: "2026-10-20", valor: 95000, nota: "Pago de Vet Norte" },
+      { id: 1, negocio_id: 1, fecha: dia(-50), valor: 80000, nota: "Septiembre 2026", proximo_pago: dia(-20) },
+      { id: 2, negocio_id: 1, fecha: dia(-21), valor: 80000, nota: "Octubre 2026",
+        proximo_pago: location.search.includes("pagopendiente") ? dia(-3) : dia(10) },
+      { id: 3, negocio_id: 2, fecha: dia(-40), valor: 95000, nota: "Pago de Vet Norte", proximo_pago: dia(-10) },
     ],
     perfiles: [
       { id: 'u1', correo: 'a@b.co', nombre: 'Jessica', rol: (location.search.includes('empleado') ? 'empleado' : 'administrador'), creado_en: '2026-10-01T15:00:00Z',
@@ -157,6 +158,8 @@
       const deMiNegocio = (r) => !sesion || r.negocio_id === undefined || r.negocio_id === mi ||
         (esDalu && ["perfiles", "invitaciones", "pagos"].includes(this.t));
       const pausado = sesion && !esDalu && !(T.negocios.find((n) => n.id === mi) || {}).activo;
+      if (this.t === "pagos" && sesion && !esDalu) return { data: this.op === "select" ? [] : null,
+        error: this.op === "select" ? null : { message: 'new row violates row-level security policy for table "pagos"' } };
       const pasa = (r) => (this.t === "negocios" || this.t === "planes" || (deMiNegocio(r) && !(pausado && r.negocio_id !== undefined && this.t !== "perfiles")))
         && this.f.every((fn) => fn(r));
       if (esEmpleado && (SOLO_ADMIN[this.t] || []).includes(this.op)) {
@@ -241,6 +244,15 @@
             ? T.sedes.filter((x) => x.negocio_id === miNegocio()).map((x) => x.id)
             : T.usuarios_sedes.filter((x) => x.usuario_id === sesion.user.id).map((x) => x.sede_id);
           return Promise.resolve({ data: ids, error: null });
+        }
+        if (n === "mi_suscripcion") {
+          const perfil = T.perfiles.find((x) => x.id === sesion.user.id);
+          if (!perfil || perfil.rol !== "administrador") return Promise.resolve({ data: [], error: null });
+          const ng = T.negocios.find((x) => x.id === miNegocio());
+          const plan = T.planes.find((x) => x.id === ng.plan_id);
+          const ultimo = T.pagos.filter((x) => x.negocio_id === ng.id).sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
+          return Promise.resolve({ data: [{ plan: plan.nombre, precio_mensual: plan.precio_mensual,
+            ultimo_pago: ultimo ? ultimo.fecha : null, proximo_pago: ultimo ? ultimo.proximo_pago : null }], error: null });
         }
         if (n === "uso_negocios") return Promise.resolve({ data: T.negocios.map((ng) => ({
           negocio_id: ng.id,

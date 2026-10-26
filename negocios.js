@@ -6,8 +6,9 @@
      de su administrador. La base le copia los servicios y recordatorios base
      y deja lista la invitación del administrador.
    - Invitar más personas a cualquier negocio, y activar o pausar negocios.
-   - Registrar los pagos de la suscripción de cada negocio (solo informativo:
-     el administrador de cada negocio los ve en su pantalla "Suscripción").
+   - Registrar los pagos de la suscripción de cada negocio y la fecha del próximo pago.
+     El administrador de cada negocio NO ve los pagos: en "Suscripción" solo ve
+     la fecha del último pago, la del próximo y el valor actual de su plan.
    DALU administra los negocios pero NO ve los datos de sus clientes.
    ===================================================================== */
 
@@ -17,7 +18,9 @@ function slugDe(texto) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
-let NEG = [], PLANES = [], USO = new Map();
+let NEG = [], PLANES = [], USO = new Map(), PAGOS = [];
+// Último pago registrado de un negocio (PAGOS viene ordenado del más reciente al más viejo)
+const ultimoPagoDe = (negocioId) => PAGOS.find((p) => p.negocio_id === negocioId);
 const MODULOS_PLAN = { recordatorios: "Recordatorios", reportes: "Reportes y Excel", respaldo: "Respaldo completo", historia_clinica: "Historia clínica" };
 
 async function cargarNegocios() {
@@ -34,6 +37,12 @@ async function cargarNegocios() {
       // Base sin planes (antes del SQL v13)
       NEG = await q(db.from("negocios").select("id,nombre,slug,activo,creado_en").order("id"));
       PLANES = []; USO = new Map();
+    }
+    try {
+      PAGOS = await q(db.from("pagos").select("id,negocio_id,fecha,valor,nota,proximo_pago")
+        .order("fecha", { ascending: false }).order("id", { ascending: false }));
+    } catch (error) {
+      PAGOS = []; // Base sin el SQL v14 (sin "próximo pago")
     }
     if (!$("#n-lista")) return;
     const planDe = (n) => PLANES.find((p) => p.id === n.plan_id);
@@ -52,6 +61,7 @@ async function cargarNegocios() {
         { titulo: "Enlace", valor: (n) => n.slug, filtro: "texto" },
         ...(PLANES.length ? [{ titulo: "Plan", valor: (n) => (planDe(n) || {}).nombre || "", filtro: "lista" },
           { titulo: "Uso", valor: (n) => { const u = USO.get(n.id); return u ? u.usuarios : 0; }, filtro: false }] : []),
+        { titulo: "Próximo pago", valor: (n) => (ultimoPagoDe(n.id) || {}).proximo_pago || "", filtro: false },
         { titulo: "Estado", valor: (n) => (n.activo ? "Activo" : "Pausado"), filtro: "lista" },
         { titulo: "", valor: () => "", filtro: false },
       ],
@@ -61,6 +71,7 @@ async function cargarNegocios() {
         ${PLANES.length ? `<td><select class="sel-plan" data-plan="${n.id}" aria-label="Plan de ${esc(n.nombre)}">${PLANES.map((p) =>
           `<option value="${esc(p.id)}"${p.id === n.plan_id ? " selected" : ""}>${esc(p.nombre)}</option>`).join("")}</select></td>
         <td>${textoUso(n)}</td>` : ""}
+        <td>${htmlProximoPago(n)}</td>
         <td>${n.activo ? '<span class="etiqueta ok">Activo</span>' : '<span class="etiqueta gris">Pausado</span>'}</td>
         <td><button type="button" class="btn alt chico" data-activo="${n.id}">${n.activo ? "Pausar" : "Activar"}</button></td>
       </tr>`,
@@ -81,6 +92,13 @@ async function cargarNegocios() {
   } catch (error) {
     mostrarError(caja, error);
   }
+}
+
+function htmlProximoPago(negocio) {
+  const ultimo = ultimoPagoDe(negocio.id);
+  const est = estadoPago(ultimo && ultimo.proximo_pago);
+  return `<span class="fila-proximo">${ultimo ? `<span>${esc(fechaCorta(ultimo.proximo_pago))}</span>` : ""}
+    <span class="etiqueta ${est.clase}">${esc(est.texto)}</span></span>`;
 }
 
 async function cambiarActivoNegocio(negocio) {
@@ -130,6 +148,7 @@ function pintarPlanes() {
   if (!PLANES.length) { caja.innerHTML = '<p class="suave">Falta ejecutar el SQL v13 para tener planes.</p>'; return; }
   caja.innerHTML = `<div class="tabla-scroll"><table class="tabla-planes"><thead><tr><th></th>${PLANES.map((p) => `<th>${esc(p.nombre)}</th>`).join("")}</tr></thead>
     <tbody>
+      <tr><td>Precio mensual</td>${PLANES.map((p) => `<td><input type="number" min="0" step="1000" inputmode="numeric" data-plan-id="${esc(p.id)}" data-campo="precio_mensual" value="${Number(p.precio_mensual || 0)}" aria-label="Precio mensual del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       <tr><td>Sedes</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_sedes" value="${p.max_sedes}" aria-label="Sedes del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       <tr><td>Usuarios</td>${PLANES.map((p) => `<td><input type="number" min="1" step="1" data-plan-id="${esc(p.id)}" data-campo="max_usuarios" value="${p.max_usuarios}" aria-label="Usuarios del plan ${esc(p.nombre)}"></td>`).join("")}</tr>
       ${Object.entries(MODULOS_PLAN).map(([campo, texto]) => `<tr><td>${esc(texto)}</td>${PLANES.map((p) =>
@@ -139,7 +158,11 @@ function pintarPlanes() {
     const entrada = evento.target;
     if (!entrada.dataset.planId) return;
     const valor = entrada.type === "checkbox" ? entrada.checked : Number(entrada.value);
-    if (entrada.type !== "checkbox" && !(valor >= 1)) { aviso("Debe ser un número mayor que 0.", true); return cargarNegocios(); }
+    const minimo = entrada.dataset.campo === "precio_mensual" ? 0 : 1;
+    if (entrada.type !== "checkbox" && !(valor >= minimo)) {
+      aviso(minimo ? "Debe ser un número mayor que 0." : "El precio no puede ser negativo.", true);
+      return cargarNegocios();
+    }
     try {
       const filas = await q(db.from("planes").update({ [entrada.dataset.campo]: valor }).eq("id", entrada.dataset.planId).select("id"));
       if (!filas.length) throw new Error("permission denied");
@@ -205,8 +228,10 @@ async function cargarPagosDalu() {
   const caja = $("#np-lista");
   if (!caja) return;
   try {
-    const pagos = await q(db.from("pagos").select("id,negocio_id,fecha,valor,nota").order("fecha", { ascending: false }));
+    const pagos = PAGOS.length ? PAGOS
+      : await q(db.from("pagos").select("id,negocio_id,fecha,valor,nota").order("fecha", { ascending: false }));
     if (!$("#np-lista")) return;
+    sugerirProximoPago();
     const nombreDe = (id) => (NEG.find((n) => n.id === id) || {}).nombre || `Negocio ${id}`;
     tablaInteractiva(caja, {
       id: "pagos-dalu",
@@ -216,6 +241,7 @@ async function cargarPagosDalu() {
         { titulo: "Fecha", valor: (p) => p.fecha, filtro: false },
         { titulo: "Negocio", valor: (p) => nombreDe(p.negocio_id), filtro: "lista" },
         { titulo: "Valor", valor: (p) => Number(p.valor), filtro: false },
+        { titulo: "Próximo pago", valor: (p) => p.proximo_pago || "", filtro: false },
         { titulo: "Nota", valor: (p) => p.nota ?? "", filtro: "texto" },
         { titulo: "", valor: () => "", filtro: false },
       ],
@@ -223,6 +249,7 @@ async function cargarPagosDalu() {
         <td>${esc(fechaCorta(p.fecha))}</td>
         <td>${esc(nombreDe(p.negocio_id))}</td>
         <td>${esc(dinero(p.valor))}</td>
+        <td>${esc(fechaCorta(p.proximo_pago))}</td>
         <td>${esc(p.nota || "—")}</td>
         <td><button type="button" class="btn alt chico" data-quitar-pago="${p.id}">Quitar</button></td>
       </tr>`,
@@ -234,6 +261,21 @@ async function cargarPagosDalu() {
   }
 }
 
+// Sugiere el próximo pago: un mes después del próximo pago anterior (mantiene el día, ej. el 4 de cada mes);
+// si es el primer pago, un mes después de la fecha del pago. También sugiere el valor del plan.
+function sugerirProximoPago() {
+  const lista = $("#np-negocio"), proximo = $("#np-proximo"), fecha = $("#np-fecha");
+  if (!lista || !proximo || !lista.value) return;
+  const negocio = NEG.find((n) => n.id === Number(lista.value));
+  const ultimo = ultimoPagoDe(Number(lista.value));
+  fijarFecha(proximo, ultimo && ultimo.proximo_pago ? masUnMes(ultimo.proximo_pago) : masUnMes(fecha.value || hoyISO()));
+  const plan = negocio && PLANES.find((p) => p.id === negocio.plan_id);
+  if (plan && Number(plan.precio_mensual) > 0 && !$("#np-valor").dataset.editado) $("#np-valor").value = Number(plan.precio_mensual);
+  $("#np-ayuda").textContent = ultimo && ultimo.proximo_pago
+    ? `El pago anterior quedó para el ${fechaCorta(ultimo.proximo_pago)}.`
+    : "Primer pago de esta empresa: elige el día de pago de cada mes.";
+}
+
 async function registrarPago(evento) {
   evento.preventDefault();
   const error = $("#np-error");
@@ -241,15 +283,20 @@ async function registrarPago(evento) {
   error.textContent = "";
   const valor = Number($("#np-valor").value);
   if (!(valor > 0)) { error.textContent = "Escribe un valor mayor que cero."; return; }
+  const proximo = $("#np-proximo").value;
+  if (!proximo || proximo <= $("#np-fecha").value) { error.textContent = "El próximo pago debe ser después de la fecha del pago."; return; }
   boton.disabled = true;
   try {
     const negocio = NEG.find((n) => n.id === Number($("#np-negocio").value));
     await q(db.from("pagos").insert({
       negocio_id: negocio.id, fecha: $("#np-fecha").value, valor, nota: $("#np-nota").value.trim() || null,
+      proximo_pago: proximo,
     }));
-    aviso(`Pago de ${dinero(valor)} registrado para ${negocio.nombre}.`);
+    aviso(`Pago registrado para ${negocio.nombre}. Próximo pago: ${fechaCorta(proximo)}.`);
     $("#np-valor").value = "";
+    delete $("#np-valor").dataset.editado;
     $("#np-nota").value = "";
+    await cargarNegocios();
     cargarPagosDalu();
   } catch (fallo) {
     error.textContent = mensajeError(fallo);
@@ -268,6 +315,7 @@ async function quitarPago(pago, nombreDe) {
   try {
     await q(db.from("pagos").delete().eq("id", pago.id));
     aviso("Pago quitado.");
+    await cargarNegocios();
     cargarPagosDalu();
   } catch (error) {
     aviso(mensajeError(error), true);
@@ -318,14 +366,17 @@ PANTALLAS.negocios = {
     </div>
     <div class="tarjeta">
       <h2>Pagos de la suscripción</h2>
-      <p class="suave">Solo informativo. El administrador de cada negocio ve sus pagos en «Suscripción».</p>
+      <p class="suave">Solo para ti. El administrador de cada empresa no ve estos valores: en «Suscripción» solo ve
+      la fecha del último pago, la del próximo y el valor actual de su plan.</p>
       <form id="form-pago" class="fila-form pagos-form">
         <div><label for="np-negocio">Negocio</label><select id="np-negocio" required></select></div>
         <div><label for="np-fecha">Fecha del pago</label><input id="np-fecha" type="date" required value="${hoyISO()}"></div>
         <div><label for="np-valor">Valor</label><input id="np-valor" type="number" min="1" step="1" inputmode="numeric" required></div>
+        <div><label for="np-proximo">Próximo pago</label><input id="np-proximo" type="date" required></div>
         <div><label for="np-nota">Nota (opcional)</label><input id="np-nota" maxlength="80" placeholder="Noviembre 2026"></div>
         <button class="btn" type="submit">Registrar pago</button>
       </form>
+      <p id="np-ayuda" class="suave"></p>
       <p id="np-error" class="error" role="alert"></p>
       <div id="np-lista"><p class="suave">Cargando…</p></div>
     </div>`,
@@ -338,6 +389,9 @@ PANTALLAS.negocios = {
     $("#form-negocio").addEventListener("submit", crearNegocio);
     $("#form-invitar-negocio").addEventListener("submit", invitarANegocio);
     $("#form-pago").addEventListener("submit", registrarPago);
+    $("#np-negocio").addEventListener("change", () => { delete $("#np-valor").dataset.editado; $("#np-valor").value = ""; sugerirProximoPago(); });
+    $("#np-fecha").addEventListener("change", sugerirProximoPago);
+    $("#np-valor").addEventListener("input", () => { $("#np-valor").dataset.editado = "1"; });
     return cargarNegocios().then(cargarPagosDalu);
   },
 };

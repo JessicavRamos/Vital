@@ -249,17 +249,31 @@ test.describe("Multinegocio", () => {
 });
 
 test.describe("Suscripción y pagos", () => {
-  test("el administrador ve solo los pagos de su negocio", async ({ page }) => {
+  test("el administrador ve estado, último y próximo pago, sin valores pasados ni sumas", async ({ page }) => {
     await abrir(page, "suscripcion");
-    await expect(page.locator("#s-pagos")).toContainText("Octubre 2026");
-    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
-    await expect(page.locator("#s-resumen")).toContainText("05/10/2026");
-    await expect(page.locator("#s-resumen")).toContainText("2 pagos");
+    const caja = page.locator("#s-estado");
+    await expect(page.locator("#s-estado-pago")).toHaveText("Al día");
+    await expect(caja).toContainText("Premium");
+    const [ultimo, proximo] = await page.evaluate(() => [window.__T.pagos[1].fecha, window.__T.pagos[1].proximo_pago]);
+    await expect(page.locator("#s-ultimo")).toHaveText(await page.evaluate((f) => fechaPago(f), ultimo));
+    await expect(page.locator("#s-proximo")).toHaveText(await page.evaluate((f) => fechaPago(f), proximo));
+    await expect(page.locator("#s-valor")).toHaveText("Valor: $180.000");
+    const texto = await page.locator("body").innerText();
+    expect(texto).not.toMatch(/Total|\$80\.000|\$95\.000|Septiembre|Octubre 2026|Vet Norte/);
+    expect(await page.evaluate(() => window.__log.filter((x) => x[1] === "pagos").length)).toBe(0);
   });
 
-  test("DALU tampoco ve en Suscripción los pagos de otros negocios", async ({ page }) => {
-    await abrir(page, "suscripcion", { extra: "dalu" });
-    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
+  test("pago vencido: muestra pendiente y un aviso", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "pagopendiente" });
+    await expect(page.locator("#s-estado-pago")).toHaveText("Pago pendiente");
+    await expect(page.locator("#s-estado")).toContainText("Si ya pagaste, avísale a DALU");
+  });
+
+  test("estado según los días que faltan", async ({ page }) => {
+    await abrir(page, "hoy");
+    const r = await page.evaluate(() => [estadoPago(null).texto, estadoPago(masUnMes(hoyISO())).texto,
+      estadoPago(hoyISO()).texto, estadoPago("2000-01-01").texto, masUnMes("2026-01-31"), masUnMes("2026-12-04")]);
+    expect(r).toEqual(["Sin pagos registrados", "Al día", "Vence hoy", "Pago pendiente", "2026-02-28", "2027-01-04"]);
   });
 
   test("el colaborador no ve Suscripción", async ({ page }) => {
@@ -269,17 +283,37 @@ test.describe("Suscripción y pagos", () => {
     await expect(page).toHaveURL(/#\/hoy/);
   });
 
-  test("DALU registra un pago para un negocio", async ({ page }) => {
+  test("DALU registra un pago: sugiere el próximo pago y el valor del plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
     await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
+    await expect(page.locator("#n-lista")).toContainText("Pago pendiente");
     await page.selectOption("#np-negocio", { label: "Vet Norte" });
-    await page.evaluate(() => fijarFecha(document.querySelector("#np-fecha"), "2026-11-05"));
-    await page.fill("#np-valor", "95000");
+    const esperado = await page.evaluate(() => masUnMes(window.__T.pagos[2].proximo_pago));
+    await expect(page.locator("#np-proximo")).toHaveValue(esperado);
+    await expect(page.locator("#np-valor")).toHaveValue("80000");
     await page.fill("#np-nota", "Noviembre 2026");
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(aviso(page)).toContainText("registrado para Vet Norte");
     const pago = await page.evaluate(() => window.__T.pagos.find((p) => p.nota === "Noviembre 2026"));
-    expect(pago).toMatchObject({ negocio_id: 2, fecha: "2026-11-05", valor: 95000 });
+    expect(pago).toMatchObject({ negocio_id: 2, valor: 80000, proximo_pago: esperado });
+    await expect(page.locator("#n-lista")).not.toContainText("Pago pendiente");
+  });
+
+  test("DALU no puede registrar un próximo pago anterior al pago", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
+    await page.evaluate(() => fijarFecha(document.querySelector("#np-proximo"), "2000-01-01"));
+    await page.getByRole("button", { name: "Registrar pago" }).click();
+    await expect(page.locator("#np-error")).toContainText("después de la fecha del pago");
+  });
+
+  test("DALU cambia el precio mensual de un plan", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    const precio = page.getByLabel("Precio mensual del plan Premium");
+    await precio.fill("200000");
+    await precio.dispatchEvent("change");
+    await expect(aviso(page)).toContainText("Plan actualizado");
+    expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "premium").precio_mensual)).toBe(200000);
   });
 });
 
@@ -467,8 +501,9 @@ test.describe("Sedes y planes", () => {
 
   test("Suscripción muestra el plan y sus límites", async ({ page }) => {
     await abrir(page, "suscripcion");
-    await expect(page.locator("#s-plan")).toContainText("Plan Premium");
-    await expect(page.locator("#s-plan")).toContainText("1 de 5");
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-plan")).toContainText("Hasta 5 sedes");
+    await expect(page.locator("#s-plan")).toContainText("usas 1");
   });
 
   test("DALU cambia el plan de una empresa y edita los límites de un plan", async ({ page }) => {

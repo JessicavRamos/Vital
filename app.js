@@ -343,6 +343,31 @@ const fechaCorta = (f) => {
   const [a, m, d] = String(f).slice(0, 10).split("-");
   return `${d}/${m}/${a}`;
 };
+// "2026-11-04" → "4 de noviembre de 2026"
+const fechaPago = (f) => {
+  if (!f) return "—";
+  const [a, m, d] = String(f).slice(0, 10).split("-").map(Number);
+  return new Date(a, m - 1, d).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+};
+// Mismo día del mes siguiente (31 de enero → 28/29 de febrero)
+const masUnMes = (f) => {
+  const [a, m, d] = String(f).slice(0, 10).split("-").map(Number);
+  const ultimoDia = new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(a, m, Math.min(d, ultimoDia))).toISOString().slice(0, 10);
+};
+// Días que faltan desde hoy (Colombia) hasta una fecha AAAA-MM-DD (negativo = ya pasó)
+const diasHasta = (f) => {
+  const utc = (x) => { const [a, m, d] = String(x).slice(0, 10).split("-").map(Number); return Date.UTC(a, m - 1, d); };
+  return Math.round((utc(f) - utc(hoyISO())) / 86400000);
+};
+// Estado de la suscripción según la fecha del próximo pago
+function estadoPago(proximo) {
+  if (!proximo) return { texto: "Sin pagos registrados", clase: "gris" };
+  const dias = diasHasta(proximo);
+  if (dias < 0) return { texto: "Pago pendiente", clase: "atrasada", dias };
+  if (dias <= 5) return { texto: dias === 0 ? "Vence hoy" : `Vence en ${dias} ${dias === 1 ? "día" : "días"}`, clase: "", dias };
+  return { texto: "Al día", clase: "ok", dias };
+}
 const diaSemanaCorto = (fechaISO) =>
   new Date(fechaISO + "T12:00:00").toLocaleDateString("es-CO", { weekday: "short" }).replace(".", "");
 // Celda de fecha y hora de una cita: "18/10/2026" y debajo "dom · 1:00 p. m."

@@ -542,7 +542,7 @@ td select[data-rol]{min-width:150px}
 .lista-invitaciones li span{overflow-wrap:anywhere}
 .enlaces-negocio{padding-left:20px}
 .enlaces-negocio a{overflow-wrap:anywhere}
-.fila-form.pagos-form{grid-template-columns:1.3fr 1fr .8fr 1.3fr auto}
+.fila-form.pagos-form{grid-template-columns:1.2fr 1fr .8fr 1fr 1.2fr auto}
 @media (max-width:860px){.fila-form,.fila-form.pagos-form{grid-template-columns:1fr}}
 
 /* Reportes: tablas desplegables con encabezados fijos */
@@ -577,3 +577,15 @@ details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;backgro
 
 .sel-plan{min-width:7.5rem;width:auto}
 .uso-negocio{white-space:nowrap;font-size:.85rem}
+/* Suscripción */
+.sus-tarjeta{background:linear-gradient(135deg,var(--realce),var(--tarjeta) 70%)}
+.sus-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.sus-etiqueta{margin:0;color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+.sus-plan{margin:2px 0 0;font:600 2rem Fredoka,sans-serif;color:var(--marca)}
+.sus-fechas{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0 6px}
+.sus-fechas span{display:block;color:var(--suave);font-size:.85rem}
+.sus-fechas b{display:block;font-size:1.15rem;margin-top:2px}
+.sus-fechas small{display:block;color:var(--suave);font-size:.8rem;margin-top:2px}
+.beneficios li::before{content:"✔ ";color:var(--ok);font-weight:700}
+.fila-proximo{display:flex;flex-direction:column;gap:2px}
+@media (max-width:560px){.sus-fechas{grid-template-columns:1fr}}

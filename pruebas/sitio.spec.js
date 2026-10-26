@@ -26,6 +26,14 @@ async function abrir(page, ruta, { colaborador = false, extra = "" } = {}) {
 }
 const aviso = (page) => page.locator("#aviso");
 
+// Abre una sección desplegable (details) por su título
+const abrirSeccion = (page, titulo) => page.locator("summary", { hasText: titulo }).click();
+// Abre la ficha de una empresa en Negocios · DALU
+const abrirFichaEmpresa = async (page, nombre) => {
+  await page.locator("#n-lista button.nombre-empresa", { hasText: nombre }).click();
+  await expect(page.locator("#n-ficha")).toContainText(nombre);
+};
+
 test.describe("Hoy", () => {
   test("carga sin errores y muestra las citas del día", async ({ page }) => {
     const errores = await abrir(page, "hoy");
@@ -221,6 +229,7 @@ test.describe("Multinegocio", () => {
   test("DALU crea un negocio con su enlace y la invitación del administrador", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
     await expect(page.locator("#n-lista")).toContainText("Vet Norte");
+    await abrirSeccion(page, "Crear una empresa");
     await page.fill("#nn-nombre", "Veterinaria San Roque");
     await expect(page.locator("#nn-slug")).toHaveValue("veterinaria-san-roque");
     await page.fill("#nn-correo", "admin@sanroque.co");
@@ -253,7 +262,9 @@ test.describe("Suscripción y pagos", () => {
     await abrir(page, "suscripcion");
     await expect(page.locator("#s-estado-pago")).toHaveText("Al día");
     await expect(page.locator("#s-estado")).toContainText("Premium");
-    await expect(page.locator("#s-desde")).toContainText("Cliente desde octubre de 2026");
+    await expect(page.locator("#s-desde")).toHaveText("Cliente desde octubre de 2026");
+    await expect(page.locator("#s-plan li.si")).toHaveCount(7);
+    await expect(page.locator("#s-plan li.no")).toHaveCount(0);
     const proximo = await page.evaluate(() => window.__T.pagos[1].proximo_pago);
     await expect(page.locator("#s-proximo")).toHaveText(await page.evaluate((f) => fechaPago(f), proximo));
     await expect(page.locator("#s-valor")).toHaveText("Valor: $180.000");
@@ -269,7 +280,7 @@ test.describe("Suscripción y pagos", () => {
   test("después de pagar: agradece y confirma el pago", async ({ page }) => {
     await abrir(page, "suscripcion", { extra: "pagoreciente" });
     await expect(page.locator("#s-gracias")).toContainText("Recibimos tu pago");
-    await expect(page.locator("#s-gracias")).toContainText("¡Gracias por seguir con nosotros!");
+    await expect(page.locator("#s-gracias")).not.toContainText("Gracias");
   });
 
   test("renovación pendiente es amable (amarilla) y vencida es roja", async ({ page }) => {
@@ -288,7 +299,8 @@ test.describe("Suscripción y pagos", () => {
     await expect(page.locator("#s-pagar")).toContainText("Daviplata 311 212 1501");
     const ya = decodeURIComponent(await page.locator("#s-ya-pague").getAttribute("href"));
     expect(ya).toContain("wa.me/573223050787");
-    expect(ya).toContain("Ya pagué la renovación");
+    expect(ya).toContain("Hola, DALU. Soy Jessica de Pet Garden. Ya pagué la renovación");
+    expect(ya).not.toContain("👋");
     expect(ya).toContain("Pet Garden");
   });
 
@@ -299,6 +311,8 @@ test.describe("Suscripción y pagos", () => {
     await expect(tabla.locator("th.plan-actual")).toContainText("Tu plan");
     await expect(tabla).toContainText("$120.000");
     await expect(tabla.locator("[data-quiero]")).toHaveCount(2);
+    await expect(page.locator("#s-plan li.no")).toHaveCount(1);
+    await expect(page.locator("#s-plan li.no")).toContainText("✖Historia clínica");
     const quiero = decodeURIComponent(await tabla.locator('[data-quiero="premium"]').getAttribute("href"));
     expect(quiero).toContain("pasar al plan Premium");
   });
@@ -353,9 +367,10 @@ test.describe("Suscripción y pagos", () => {
 
   test("DALU registra un pago: sugiere el próximo pago y el valor del plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
-    await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
     await expect(page.locator("#n-lista")).toContainText("Renovación vencida");
-    await page.selectOption("#np-negocio", { label: "Vet Norte" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await expect(page.locator("#f-pagos")).toContainText("Pago de Vet Norte");
+    await expect(page.locator("#f-pagos")).not.toContainText("Octubre 2026");
     const esperado = await page.evaluate(() => masUnMes(window.__T.pagos[2].proximo_pago));
     await expect(page.locator("#np-proximo")).toHaveValue(esperado);
     await expect(page.locator("#np-valor")).toHaveValue("80000");
@@ -369,7 +384,7 @@ test.describe("Suscripción y pagos", () => {
 
   test("DALU no puede registrar un próximo pago anterior al pago", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
-    await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
+    await abrirFichaEmpresa(page, "Vet Norte");
     await page.evaluate(() => fijarFecha(document.querySelector("#np-proximo"), "2000-01-01"));
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(page.locator("#np-error")).toContainText("después de la fecha del pago");
@@ -377,6 +392,7 @@ test.describe("Suscripción y pagos", () => {
 
   test("DALU cambia el nombre de un plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Planes");
     const nombre = page.getByLabel("Nombre del plan Esencial");
     await nombre.fill("Inicial");
     await nombre.dispatchEvent("change");
@@ -384,8 +400,53 @@ test.describe("Suscripción y pagos", () => {
     expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "basico").nombre)).toBe("Inicial");
   });
 
+  test("Panel DALU: resumen arriba e información de cada empresa en la lista", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#n-resumen")).toContainText("2Empresas activas");
+    await expect(page.locator("#n-resumen")).toContainText("$260.000Ingreso mensual esperado");
+    await expect(page.locator("#n-resumen")).toContainText("1Renovaciones pendientes");
+    await expect(page.locator("#n-lista")).toContainText("52 servicios este mes");
+    await expect(page.locator("#n-lista")).toContainText("Último ingreso: hoy");
+    await expect(page.locator("#n-ficha")).toBeHidden();
+  });
+
+  test("Panel DALU: la ficha muestra usuarios, invitaciones y el histórico de pagos de la empresa", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Pet Garden");
+    const ficha = page.locator("#n-ficha");
+    await expect(ficha).toContainText("Premium");
+    await expect(ficha).toContainText("Clientes120");
+    await expect(page.locator("#f-usuarios")).toContainText("andres@x.co");
+    await expect(page.locator("#f-usuarios")).toContainText("hace");
+    await expect(page.locator("#f-pagos tbody tr")).toHaveCount(2);
+    await expect(page.locator("#f-pagos")).toContainText("Septiembre 2026");
+    await expect(page.locator("#f-pagos")).not.toContainText("Vet Norte");
+    await expect(ficha).toContainText("$160.000");
+    await page.locator("#f-cerrar").click();
+    await expect(page.locator("#n-ficha")).toBeHidden();
+  });
+
+  test("Panel DALU: invitar desde la ficha y ver la invitación pendiente", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await expect(page.locator("#f-invitaciones")).toContainText("nuevo@vetnorte.co");
+    await page.fill("#ni-correo", "recepcion@vetnorte.co");
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await expect(page.locator("#dialogo h2")).toContainText("Invitación lista para Vet Norte");
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "invitar_usuario"));
+    expect(llamada[2]).toMatchObject({ p_correo: "recepcion@vetnorte.co", p_negocio_id: 2 });
+  });
+
+  test("Panel DALU: todos los pagos con totales en su sección", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Todos los pagos");
+    await expect(page.locator("#np-lista tbody tr")).toHaveCount(3);
+    await expect(page.locator("#np-totales")).toContainText("Total recibido $255.000");
+  });
+
   test("DALU cambia el precio mensual de un plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Planes");
     const precio = page.getByLabel("Precio mensual del plan Premium");
     await precio.fill("200000");
     await precio.dispatchEvent("change");
@@ -592,10 +653,12 @@ test.describe("Sedes y planes", () => {
   test("DALU cambia el plan de una empresa y edita los límites de un plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
     await expect(page.locator("#n-lista")).toContainText("1/5 sedes");
-    await page.selectOption('[data-plan="2"]', "profesional");
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await page.selectOption("#f-plan", "profesional");
     await page.getByRole("button", { name: "Sí, cambiar" }).click();
     await expect(aviso(page)).toContainText("Vet Norte quedó en el plan Profesional");
     expect(await page.evaluate(() => window.__T.negocios.find((n) => n.id === 2).plan_id)).toBe("profesional");
+    await abrirSeccion(page, "Planes");
     const usuariosBasico = page.locator('#np-planes input[data-plan-id="basico"][data-campo="max_usuarios"]');
     await usuariosBasico.fill("4");
     await usuariosBasico.blur();

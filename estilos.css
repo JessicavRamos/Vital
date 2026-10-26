@@ -542,7 +542,7 @@ td select[data-rol]{min-width:150px}
 .lista-invitaciones li span{overflow-wrap:anywhere}
 .enlaces-negocio{padding-left:20px}
 .enlaces-negocio a{overflow-wrap:anywhere}
-.fila-form.pagos-form{grid-template-columns:1.2fr 1fr .8fr 1fr 1.2fr auto}
+.fila-form.pagos-form{grid-template-columns:1fr .8fr 1fr 1.3fr auto}
 @media (max-width:860px){.fila-form,.fila-form.pagos-form{grid-template-columns:1fr}}
 
 /* Reportes: tablas desplegables con encabezados fijos */
@@ -586,8 +586,12 @@ details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;backgro
 .sus-fechas span{display:block;color:var(--suave);font-size:.85rem}
 .sus-fechas b{display:block;font-size:1.15rem;margin-top:2px}
 .sus-fechas small{display:block;color:var(--suave);font-size:.8rem;margin-top:2px}
-.beneficios li::before{content:"✔ ";color:var(--ok);font-weight:700}
-.fila-proximo{display:flex;flex-direction:column;gap:2px}
+.beneficios li{display:flex;gap:8px;align-items:baseline}
+.beneficios .marca{font-weight:700;width:1em;flex:none}
+.beneficios li.si .marca{color:var(--ok)}
+.beneficios li.no{color:var(--suave)}
+.beneficios li.no .marca{color:var(--alerta)}
+.fila-proximo{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 @media (max-width:560px){.sus-fechas{grid-template-columns:1fr}}
 /* Suscripción · marketing */
 .sus-desde{margin:4px 0 0}
@@ -603,3 +607,27 @@ details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;backgro
 .aviso-renovacion .acciones-tabla{display:flex;gap:8px;align-items:center}
 .aviso-fijo .btn{margin-left:6px}
 .tabla-comparar .btn{white-space:normal;line-height:1.2;text-align:center}
+/* Panel DALU: resumen, lista y ficha de empresa */
+.texto-alerta{color:var(--alerta)!important}
+tr.fila-elegida{background:var(--realce)}
+.nombre-empresa{font-size:1rem;text-decoration:none}
+.enlace-chico{font-size:.8rem;font-weight:600}
+.ficha-empresa{border:2px solid var(--marca)}
+.ficha-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.ficha-nombre{margin:2px 0;font:600 1.6rem Fredoka,sans-serif;color:var(--marca);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ficha-grilla{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
+.ficha-grilla section,.ficha-bloque{border:1px solid var(--linea);border-radius:12px;padding:12px 14px}
+.ficha-bloque{margin-top:16px}
+.ficha-grilla h3,.ficha-bloque h3{margin:0 0 8px;font-size:1.05rem}
+.ficha-bloque h4{margin:12px 0 6px;font-size:.95rem}
+.datos-ficha{display:grid;gap:8px;margin-top:8px}
+.datos-ficha span{display:block;color:var(--suave);font-size:.8rem}
+.datos-ficha b{font-weight:600}
+.datos-ficha b span{display:inline;font-size:inherit}
+.datos-ficha b .etiqueta{display:inline-block}
+.tachado{color:var(--suave)}
+.lista-simple{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.lista-simple li{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fila-form.invitar-ficha{grid-template-columns:2fr 1fr auto;margin-top:12px}
+.form-angosto{max-width:520px}
+@media (max-width:860px){.ficha-grilla,.fila-form.invitar-ficha{grid-template-columns:1fr}}

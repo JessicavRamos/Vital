@@ -52,7 +52,7 @@
     ],
     usuarios_sedes: [{ usuario_id: "u1", sede_id: 1 }, { usuario_id: "u2", sede_id: 1 }],
     precios_sede: [],
-    invitaciones: [],
+    invitaciones: [{ correo: "nuevo@vetnorte.co", rol: "empleado", negocio_id: 2, creado_en: "2026-10-22T15:00:00Z" }],
     pagos: [
       { id: 1, negocio_id: 1, fecha: dia(-50), valor: 80000, nota: "Septiembre 2026", proximo_pago: dia(-20) },
       { id: 2, negocio_id: 1, fecha: location.search.includes("pagoreciente") ? dia(-2) : dia(-21), valor: 80000, nota: "Octubre 2026",
@@ -265,7 +265,11 @@
           negocio_id: ng.id,
           sedes: T.sedes.filter((x) => x.negocio_id === ng.id && x.activo).length,
           usuarios: T.perfiles.filter((x) => x.negocio_id === ng.id).length,
-          invitaciones: T.invitaciones.filter((x) => x.negocio_id === ng.id).length })), error: null });
+          invitaciones: T.invitaciones.filter((x) => x.negocio_id === ng.id).length,
+          clientes: ng.id === 1 ? 120 : 15, mascotas: ng.id === 1 ? 150 : 18, citas_mes: ng.id === 1 ? 55 : 4, servicios_mes: ng.id === 1 ? 52 : 3,
+          ultima_actividad: dia(-1), ultimo_ingreso: ng.id === 1 ? new Date().toISOString() : "2026-10-20T15:00:00Z" })), error: null });
+        if (n === "usuarios_de_negocio") return Promise.resolve({ data: T.perfiles.filter((x) => x.negocio_id === d.p_negocio_id)
+          .map((x) => ({ id: x.id, nombre: x.nombre, correo: x.correo, rol: x.rol, creado_en: x.creado_en, ultimo_ingreso: "2026-10-20T15:00:00Z" })), error: null });
         if (n === "invitar_usuario") {
           const correo = String(d.p_correo || "").toLowerCase();
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return Promise.resolve({ data: null, error: { message: "Escribe un correo válido." } });

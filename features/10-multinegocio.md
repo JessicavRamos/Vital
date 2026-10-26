@@ -49,14 +49,20 @@ Los planes y las sedes de cada negocio están en [11-sedes-y-planes.md](11-sedes
 22. El logo y los videos nuevos se guardan en la carpeta del negocio (`logo/1/…`, `videos/2/…`). Los archivos que Pet Garden subió antes (sin carpeta) siguen funcionando.
 
 ### Pagos de la suscripción
-23. **DALU** registra cada pago en *Negocios · DALU → Pagos de la suscripción*: negocio, fecha, valor, **próximo pago** (renovación) y nota opcional. El próximo pago se sugiere un mes después del anterior (mantiene el día, ej. el 4 de cada mes); en el primer pago de una empresa se elige el día. El valor se sugiere con el precio del plan. DALU ve el **histórico completo** y puede quitar un pago registrado por error. La lista de negocios muestra la renovación de cada uno con su estado.
+23. **Panel Negocios · DALU** (v17):
+    - **Resumen:** empresas activas, ingreso mensual esperado (suma del precio del plan de las activas), renovaciones pendientes y lo recibido este mes.
+    - **Lista de empresas:** nombre y enlace, plan y precio, renovación con su estado, uso (usuarios y sedes frente al plan), actividad (servicios del mes y último ingreso) y estado.
+    - **Ver ficha** (o tocar el nombre): plan (se cambia ahí), uso y módulos; renovación (estado, próximo y último pago, valor, total pagado); actividad **solo en conteos** (clientes, mascotas, citas y servicios del mes, último servicio, último ingreso); usuarios con su **último ingreso**; invitaciones pendientes (Reenviar); invitar a alguien a esa empresa; **Pausar/Activar**; e **histórico de pagos** de esa empresa con *Registrar pago* y *Quitar*.
+    - Secciones desplegables: *Crear una empresa*, *Planes* y *Todos los pagos* (con total recibido y del mes).
+    En la ficha se registra cada pago: fecha, valor, **próximo pago** (renovación) y nota opcional. El próximo pago se sugiere un mes después del anterior (mantiene el día, ej. el 4 de cada mes); en el primer pago de una empresa se elige el día. El valor se sugiere con el precio del plan. DALU ve el **histórico completo** y puede quitar un pago registrado por error. La lista de negocios muestra la renovación de cada uno con su estado.
 24. **El administrador** de cada negocio ve en **Suscripción** (los colaboradores no la ven):
-    - Su plan, **«Cliente desde <mes>»** y el estado de la renovación.
+    - Su plan, **«Cliente desde <mes>»** y el estado de la renovación (estilo DALU: sobrio y cercano, sin emojis).
     - **«Tu plan se renueva el <fecha>»** y, pequeño, el valor actual de su plan.
-    - Hasta 10 días después de un pago: **«✔ Recibimos tu pago del <fecha>. ¡Gracias por seguir con nosotros!»**.
+    - Hasta 10 días después de un pago: **«✔ Recibimos tu pago del <fecha>.»**
     - **«Tu <mes> con DALU Vital»**: citas agendadas, servicios realizados, mascotas atendidas, mascotas que regresaron y cuántas llegaron por primera vez. Si el mes no tiene movimiento: «Tu mes apenas empieza…».
     - **Cómo pagar:** medios de pago de DALU (`DALU_MEDIOS_PAGO` en `config.js`: Nequi y Daviplata) con «Copiar número», y **«Ya pagué, avisar a DALU»** / «Enviar comprobante por WhatsApp» (`DALU_WHATSAPP`).
-    - **Lo que incluye tu plan** y **Haz crecer tu negocio**: comparador con su plan marcado y solo los planes de arriba (nunca los más baratos), con «Quiero <plan>» por WhatsApp. En el plan más alto no aparece.
+    - **Lo que incluye tu plan**: todos los módulos, con ✔ lo que tiene y ✖ lo que no.
+    - **Haz crecer tu negocio**: comparador con su plan marcado y solo los planes de arriba (nunca los más baratos), con «Quiero <plan>» por WhatsApp. En el plan más alto no aparece.
     - **No ve valores pagados ni sumas:** la base ya no le deja leer la tabla `pagos`; solo recibe `mi_suscripcion()`.
 25. **Estados de la renovación** (amables): *Al día* (verde) → *Se renueva en N días* (amarillo, 5 días antes) → *Se renueva hoy* → *Renovación pendiente* (amarillo, hasta 5 días de gracia) → *Renovación vencida* (rojo).
 26. **Aviso en Hoy** (solo administrador): desde 3 días antes de la renovación, o si quedó pendiente: «🔔 Tu plan <plan> se renueva el <fecha>» con «Ver cómo pagar» y ✕ para cerrarlo (si está pendiente, vuelve a salir al otro día).
@@ -66,8 +72,8 @@ Los planes y las sedes de cada negocio están en [11-sedes-y-planes.md](11-sedes
 28. El sistema **no envía** las invitaciones: el administrador comparte el mensaje por WhatsApp o correo.
 
 ### Base de datos
-29. Ejecutar en orden `sql-v11-multinegocio.sql` (necesita el v10), `sql-v12-cerrar-funciones.sql` (ninguna función se puede llamar sin sesión), `sql-v13-planes-y-sedes.sql`, `sql-v14-suscripcion.sql`, `sql-v15-sedes-solo-mi-empresa.sql` y `sql-v16-suscripcion-marketing.sql`. Cada uno va en una transacción: si algo falla, no cambia nada.
-30. Probado contra una réplica de la base: 51 comprobaciones de aislamiento entre negocios, 45 de sedes y planes, 17 de la suscripción, 10 del v15 y 8 del v16.
+29. Ejecutar en orden `sql-v11-multinegocio.sql` (necesita el v10), `sql-v12-cerrar-funciones.sql` (ninguna función se puede llamar sin sesión), `sql-v13-planes-y-sedes.sql`, `sql-v14-suscripcion.sql`, `sql-v15-sedes-solo-mi-empresa.sql`, `sql-v16-suscripcion-marketing.sql` y `sql-v17-panel-dalu.sql`. Para borrar empresas de prueba: `sql-borrar-demo-y-kiros.sql` (modelo para borrar otras: cambia los `slug`). Cada uno va en una transacción: si algo falla, no cambia nada.
+30. Probado contra una réplica de la base: 51 comprobaciones de aislamiento entre negocios, 45 de sedes y planes, 17 de la suscripción, 10 del v15, 8 del v16 y 8 del v17.
 
 ### Mensajes de error nuevos
 
@@ -179,6 +185,12 @@ Característica: Multinegocio
     Entonces "Próximo pago" muestra el 4 de diciembre y "Valor" el precio de su plan
     Cuando presiono "Registrar pago"
     Entonces veo "Pago registrado para Vet Norte. Próximo pago: 04/12/2026."
+
+  Escenario: DALU revisa una empresa en su ficha
+    Dado que estoy en "Negocios · DALU"
+    Cuando toco "Ver ficha" de "Pet Garden"
+    Entonces veo su plan, uso, renovación, actividad en conteos, usuarios con su último ingreso
+    Y el histórico de pagos solo de Pet Garden, con el total pagado
 
   Escenario: El administrador ve el valor y no el gasto
     Dado que soy administradora de Pet Garden en plan Premium

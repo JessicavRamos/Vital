@@ -392,9 +392,9 @@ async function siguientePlan(campo) {
 }
 const enlaceDalu = (mensaje) => enlaceWhatsApp(typeof DALU_WHATSAPP === "string" ? DALU_WHATSAPP : "", mensaje);
 const mensajeMejorarPlan = (plan) =>
-  `Hola DALU 👋 Soy ${nombreUsuario()} de ${nombreNegocio()}. Quiero ${plan ? `pasar al plan ${plan}` : "mejorar mi plan"} de DALU Vital.`;
+  `Hola, DALU. Soy ${nombreUsuario()} de ${nombreNegocio()}. Quiero ${plan ? `pasar al plan ${plan}` : "mejorar mi plan"} de DALU Vital.`;
 const mensajeYaPague = () =>
-  `Hola DALU 👋 Soy ${nombreUsuario()} de ${nombreNegocio()}. Ya pagué la renovación de DALU Vital. Te envío el comprobante.`;
+  `Hola, DALU. Soy ${nombreUsuario()} de ${nombreNegocio()}. Ya pagué la renovación de DALU Vital. Te envío el comprobante.`;
 // Aviso al llegar al límite del plan, con el siguiente plan y un botón para pedirlo
 async function pintarAvisoLimite(caja, campo, sustantivo) {
   if (!caja) return;

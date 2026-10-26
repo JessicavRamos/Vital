@@ -46,11 +46,11 @@ async function cargarSuscripcion() {
       <div>
         <p class="sus-etiqueta">Tu plan</p>
         <h2 class="sus-plan">${nombrePlan ? esc(nombrePlan) : "—"}</h2>
-        ${datos && datos.cliente_desde ? `<p class="suave sus-desde" id="s-desde">Cliente desde ${esc(mesYAnio(datos.cliente_desde))} · gracias por crecer con nosotros 💛</p>` : ""}
+        ${datos && datos.cliente_desde ? `<p class="suave sus-desde" id="s-desde">Cliente desde ${esc(mesYAnio(datos.cliente_desde))}</p>` : ""}
       </div>
       <span class="etiqueta ${est.clase}" id="s-estado-pago">${esc(est.texto)}</span>
     </div>
-    ${pagoReciente ? `<p class="sus-gracias" id="s-gracias">✔ Recibimos tu pago del ${esc(fechaPago(datos.ultimo_pago))}. ¡Gracias por seguir con nosotros!</p>` : ""}
+    ${pagoReciente ? `<p class="sus-gracias" id="s-gracias">✔ Recibimos tu pago del ${esc(fechaPago(datos.ultimo_pago))}.</p>` : ""}
     <div class="sus-fechas">
       <div><span>Tu plan se renueva el</span><b id="s-proximo">${esc(fechaPago(datos && datos.proximo_pago))}</b>
         ${precio ? `<small id="s-valor">Valor: ${esc(dinero(precio))}</small>` : ""}</div>
@@ -99,13 +99,13 @@ async function cargarSuscripcion() {
   const incluido = $("#s-plan");
   if (!plan) { incluido.hidden = true; return; }
   const sedesActivas = estado.sedes.filter((x) => x.activo).length;
-  const tiene = BENEFICIOS_PLAN.filter(([campo]) => plan[campo]);
+  const item = (si, texto) => `<li class="${si ? "si" : "no"}"><span class="marca" aria-hidden="true">${si ? "✔" : "✖"}</span><span>${texto}</span>${si ? "" : '<span class="oculto-visual"> (no incluido)</span>'}</li>`;
   incluido.innerHTML = `<h2>Lo que incluye tu plan</h2>
     <ul class="lista-plan beneficios">
-      <li>Hasta <strong>${plan.max_sedes} ${plan.max_sedes === 1 ? "sede" : "sedes"}</strong> <span class="suave">(usas ${sedesActivas})</span></li>
-      <li>Hasta <strong>${plan.max_usuarios} usuarios</strong></li>
-      <li>Agenda, clientes, mascotas e historial</li>
-      ${tiene.map(([, texto]) => `<li>${esc(texto)}</li>`).join("")}
+      ${item(true, `Hasta <strong>${plan.max_sedes} ${plan.max_sedes === 1 ? "sede" : "sedes"}</strong> <span class="suave">(usas ${sedesActivas})</span>`)}
+      ${item(true, `Hasta <strong>${plan.max_usuarios} usuarios</strong>`)}
+      ${item(true, "Agenda, clientes, mascotas e historial")}
+      ${BENEFICIOS_PLAN.map(([campo, texto]) => item(!!plan[campo], esc(texto))).join("")}
     </ul>`;
 
   // Solo su plan y los de arriba (no se ofrecen planes más baratos); en el plan más alto no se muestra.

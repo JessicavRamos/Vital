@@ -146,8 +146,7 @@ async function cargarHoy() {
       const retraso = p.dias_de_retraso;
       // Urgencia: toca hoy (azul), hasta 30 días (amarillo), más de 30 días (rojo).
       const urgencia = retraso <= 0 ? "hoy" : retraso <= 30 ? "leve" : "atrasada";
-      return `<div class="item persona">
-        <div class="persona-avatar" aria-hidden="true">${esc((p.mascota || "?").trim().charAt(0).toUpperCase())}</div>
+      return `<div class="item persona sin-avatar">
         <div class="persona-datos">
           <div class="persona-titulo">
             <button class="enlace persona-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button>

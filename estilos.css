@@ -673,3 +673,9 @@ tr.fila-elegida{background:var(--realce)}
 #h-buscar-mas{text-align:center;margin-top:10px}
 #h-cuantos-buscar{font-weight:400}
 @media (min-width:861px){.columnas.hoy-columnas{grid-template-columns:minmax(0,2fr) minmax(0,3fr)}}
+/* A quién buscar: sin círculo con la inicial */
+.item.persona.sin-avatar{grid-template-columns:minmax(0,1fr) auto}
+@container (max-width:520px){
+  .item.persona.sin-avatar{grid-template-columns:minmax(0,1fr)}
+  .item.persona.sin-avatar .persona-acciones{grid-column:1/-1}
+}

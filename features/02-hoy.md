@@ -259,7 +259,7 @@ Característica: No buscar a quien ya agendó
 2. Se abre en la primera pestaña que tenga mascotas. Las pestañas vacías se ven apagadas.
 3. Se muestran **10 a la vez**; «Ver 10 más (quedan N)» carga las siguientes.
 4. El buscador «Buscar mascota o dueño en la lista» busca en **toda** la lista (sin importar tildes ni mayúsculas) y apaga las pestañas mientras tenga texto.
-5. Cada mascota es una tarjeta: inicial, nombre, etiqueta de retraso, y debajo dueño · grupo · último servicio. Los botones WhatsApp (verde), Agendar y ✕ van a la derecha si caben, o debajo.
+5. Cada mascota es una tarjeta: nombre, etiqueta de retraso, y debajo dueño · grupo · último servicio. Los botones WhatsApp (verde), Agendar y ✕ van a la derecha si caben, o debajo.
 6. Colores de la etiqueta: **Toca hoy** azul, hasta 30 días amarillo, más de 30 días rojo.
 7. «Citas de hoy» usa el mismo diseño con la hora a la izquierda.
 

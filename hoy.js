@@ -8,6 +8,17 @@
 // "Descartar" quita a la mascota de "A quién buscar" solo para ESTE ciclo:
 // cuando tenga un servicio nuevo, la próxima vez que le toque vuelve a aparecer.
 let verDescartados = false;
+// "A quién buscar" es larga: se divide en tramos según cuánto llevan sin volver,
+// se muestran de a 10 y se puede buscar por mascota o dueño.
+const TRAMOS_BUSCAR = [
+  { id: "recientes", nombre: "Hasta 30 días", entra: (d) => d <= 30 },
+  { id: "meses", nombre: "1 a 3 meses", entra: (d) => d > 30 && d <= 90 },
+  { id: "viejos", nombre: "Más de 3 meses", entra: (d) => d > 90 },
+];
+const PASO_BUSCAR = 10;
+let tramoBuscar = null;   // null = el primero que tenga gente
+let textoBuscar = "";
+let cuantosBuscar = PASO_BUSCAR;
 const claveDescarte = (x) => `${x.mascota_id}|${x.grupo}|${x.ultima_fecha}`;
 
 async function descartarPendiente(p) {
@@ -84,17 +95,23 @@ async function cargarHoy() {
     <div class="stat"><b>${clientesPorBuscar}</b>Clientes por buscar</div>
     <div class="stat"><b>${serviciosMes}</b>Servicios este mes</div>`;
 
-  $("#h-citas").innerHTML = citas.length ? citas.map((c) => `<div class="item">
-      <div><strong>${esc(horaTexto(c.fecha_hora))} ·</strong>
-        <button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
-        <span class="suave">${esc(c.cliente)}</span>
-        <div class="suave">${esc(c.servicio ?? "sin servicio")}${c.medicado ? " (medicado)" : ""} · ${dinero(c.estado === "realizada" ? c.precio_cobrado : (c.precio_acordado ?? c.precio))}</div></div>
-      <div class="acciones-tabla">${c.estado === "pendiente"
+  $("#h-citas").innerHTML = citas.length ? citas.map((c) => {
+    const [hora, ...ampm] = horaTexto(c.fecha_hora).split(" ");
+    return `<div class="item persona${c.estado === "realizada" ? " hecha" : ""}">
+      <div class="persona-hora" aria-label="${esc(horaTexto(c.fecha_hora))}"><b>${esc(hora)}</b><span>${esc(ampm.join(" "))}</span></div>
+      <div class="persona-datos">
+        <div class="persona-titulo">
+          <button class="enlace persona-nombre" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
+          ${c.estado === "realizada" ? `<span class="etiqueta ok">realizada</span>` : ""}
+        </div>
+        <div class="suave persona-sub">${esc(c.cliente)} · ${esc(c.servicio ?? "sin servicio")}${c.medicado ? " (medicado)" : ""} · ${dinero(c.estado === "realizada" ? c.precio_cobrado : (c.precio_acordado ?? c.precio))}</div>
+      </div>
+      <div class="persona-acciones">${c.estado === "pendiente"
         ? `<button class="btn chico" data-terminar="${c.id}">Terminar</button>
            <button class="btn chico alt" data-recordar="${c.id}" title="Enviar recordatorio de la cita por WhatsApp">Recordar</button>${botonMenu(c.id)}`
-        : `<span class="etiqueta ok">${esc(c.estado)}</span>
-           <button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`}</div>
-    </div>`).join("") : '<p class="suave">No tienes citas para hoy.</p>';
+        : `<button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`}</div>
+    </div>`;
+  }).join("") : '<p class="suave">No tienes citas para hoy.</p>';
 
   $$("[data-terminar]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirTerminarCita(citas.find((c) => c.id === Number(b.dataset.terminar)), cargarHoy)));
@@ -106,19 +123,93 @@ async function cargarHoy() {
     abrirMenu(b, opcionesCita(citas.find((c) => c.id === Number(b.dataset.menu)), cargarHoy))));
 
   if (!$("#h-pendientes")) return; // el plan no incluye recordatorios
-  $("#h-pendientes").innerHTML = pendientes.length ? pendientes.map((p, i) => {
-    const retraso = p.dias_de_retraso;
-    return `<div class="item">
-      <div><button class="enlace" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button>
-        <span class="suave">${esc(p.cliente)}</span>
-        <div class="suave">${esc(p.grupo)} · último: ${esc(fechaTexto(p.ultima_fecha))}</div></div>
-      <div class="acciones-tabla">
-        <span class="etiqueta ${retraso > 0 ? "atrasada" : ""}">${retraso <= 0 ? "Toca hoy" : `Hace ${retraso} ${retraso === 1 ? "día" : "días"}`}</span>
-        <button class="btn chico" data-whatsapp="${i}">WhatsApp</button>
-        <button class="btn chico alt" data-agendar="${i}">Agendar</button>
-        <button class="btn chico alt solo-icono" data-descartar="${i}" title="Descartar: quitar de esta lista hasta su próximo servicio" aria-label="Descartar ${esc(p.mascota)}">✕</button>
-      </div></div>`;
-  }).join("") : '<p class="suave">Nadie por buscar por ahora.</p>';
+  $("#h-cuantos-buscar").textContent = pendientes.length ? `(${pendientes.length})` : "";
+  const porTramo = TRAMOS_BUSCAR.map((t) => ({ ...t, lista: pendientes.filter((p) => t.entra(p.dias_de_retraso)) }));
+  if (!tramoBuscar || !porTramo.some((t) => t.id === tramoBuscar && t.lista.length)) {
+    tramoBuscar = (porTramo.find((t) => t.lista.length) || porTramo[0]).id;
+  }
+  $("#h-buscar-controles").innerHTML = pendientes.length ? `
+    <div class="filtros tramos-buscar" role="group" aria-label="Cuánto llevan sin volver">${porTramo.map((t) =>
+      `<button type="button" class="chip" data-tramo="${t.id}" aria-pressed="${!textoBuscar && t.id === tramoBuscar}"${t.lista.length ? "" : " disabled"}>${t.nombre} <b>${t.lista.length}</b></button>`).join("")}</div>
+    <input type="search" id="h-buscar-texto" class="buscar-lista" placeholder="Buscar mascota o dueño en la lista" value="${esc(textoBuscar)}" aria-label="Buscar en A quién buscar">` : "";
+
+  const pintarPendientes = () => {
+    const texto = sinTildes(textoBuscar);
+    const lista = texto
+      ? pendientes.filter((p) => sinTildes(`${p.mascota} ${p.cliente}`).includes(texto))
+      : porTramo.find((t) => t.id === tramoBuscar).lista;
+    const visibles = lista.slice(0, cuantosBuscar);
+    $("#h-pendientes").innerHTML = !pendientes.length ? '<p class="suave">Nadie por buscar por ahora.</p>'
+      : !lista.length ? `<p class="suave">Nadie coincide con «${esc(textoBuscar)}».</p>`
+      : visibles.map((p) => {
+      const i = pendientes.indexOf(p);
+      const retraso = p.dias_de_retraso;
+      // Urgencia: toca hoy (azul), hasta 30 días (amarillo), más de 30 días (rojo).
+      const urgencia = retraso <= 0 ? "hoy" : retraso <= 30 ? "leve" : "atrasada";
+      return `<div class="item persona">
+        <div class="persona-avatar" aria-hidden="true">${esc((p.mascota || "?").trim().charAt(0).toUpperCase())}</div>
+        <div class="persona-datos">
+          <div class="persona-titulo">
+            <button class="enlace persona-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button>
+            <span class="etiqueta ${urgencia}">${retraso <= 0 ? "Toca hoy" : `Hace ${retraso} ${retraso === 1 ? "día" : "días"}`}</span>
+          </div>
+          <div class="suave persona-sub">${esc(p.cliente)} · ${esc(p.grupo)} · último&nbsp;${esc(fechaTexto(p.ultima_fecha))}</div>
+        </div>
+        <div class="persona-acciones">
+          <button class="btn chico wa" data-whatsapp="${i}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.4 1.1 4.6 3 6.2L4 21l3.6-1.6c1.3.5 2.8.8 4.4.8 5.5 0 10-3.9 10-8.6S17.5 3 12 3z"/></svg>WhatsApp</button>
+          <button class="btn chico alt" data-agendar="${i}">Agendar</button>
+          <button class="btn chico alt solo-icono" data-descartar="${i}" title="Descartar: quitar de esta lista hasta su próximo servicio" aria-label="Descartar ${esc(p.mascota)}">✕</button>
+        </div></div>`;
+    }).join("");
+    const faltan = lista.length - visibles.length;
+    $("#h-buscar-mas").innerHTML = faltan > 0
+      ? `<button type="button" class="btn alt chico ver-mas" id="h-ver-mas">Ver ${Math.min(PASO_BUSCAR, faltan)} más <span class="suave">(quedan ${faltan})</span></button>` : "";
+    const verMas = $("#h-ver-mas");
+    if (verMas) verMas.addEventListener("click", () => { cuantosBuscar += PASO_BUSCAR; pintarPendientes(); });
+    conectarPendientes();
+  };
+
+  // Botones de cada persona (se conectan cada vez que se pinta la lista)
+  const conectarPendientes = () => {
+    $$("[data-descartar]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () =>
+      descartarPendiente(pendientes[Number(b.dataset.descartar)])));
+    $$("[data-ficha]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () =>
+      abrirFichaEnDialogo(Number(b.dataset.ficha), cargarHoy)));
+    $$("[data-whatsapp]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () => {
+      const p = pendientes[Number(b.dataset.whatsapp)];
+      const mensaje = `¡Hola, ${primerNombre(p.cliente)}!
+
+Recibe un cordial saludo de parte de ${nombreNegocio()}.
+
+Queremos agradecerte por permitirnos cuidar y consentir a ${p.mascota} en su última visita el ${fechaMensaje(p.ultima_fecha)}. ¡Fue un placer atenderlos!
+
+Nos encantaría volver a recibir a tu peludito para su próximo servicio de ${p.grupo.toLowerCase()}.
+
+Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustedes.
+
+¿Te gustaría agendar una cita para esta semana?`;
+      window.open(enlaceWhatsApp(p.telefono, mensaje), "_blank", "noopener");
+    }));
+    $$("[data-agendar]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () => {
+      const p = pendientes[Number(b.dataset.agendar)];
+      estado.agendarPrefill = { mascota: p.mascota, telefono: p.telefono };
+      location.hash = "#/agendar";
+    }));
+  };
+
+  $$("[data-tramo]", $("#h-buscar-controles")).forEach((b) => b.addEventListener("click", () => {
+    tramoBuscar = b.dataset.tramo; textoBuscar = ""; cuantosBuscar = PASO_BUSCAR;
+    $("#h-buscar-texto").value = "";
+    $$("[data-tramo]", $("#h-buscar-controles")).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    pintarPendientes();
+  }));
+  const cajaTexto = $("#h-buscar-texto");
+  if (cajaTexto) cajaTexto.addEventListener("input", () => {
+    textoBuscar = cajaTexto.value; cuantosBuscar = PASO_BUSCAR;
+    $$("[data-tramo]", $("#h-buscar-controles")).forEach((x) => x.setAttribute("aria-pressed", String(!textoBuscar && x.dataset.tramo === tramoBuscar)));
+    pintarPendientes();
+  });
+  pintarPendientes();
 
   // Descartados: se pueden ver y volver a poner en la lista.
   $("#h-descartados").innerHTML = descartados.length ? `
@@ -132,33 +223,10 @@ async function cargarHoy() {
   if (casillaDescartados) casillaDescartados.addEventListener("change", (e) => { verDescartados = e.target.checked; cargarHoy(); });
   $$("[data-restaurar]", $("#h-descartados")).forEach((b) => b.addEventListener("click", () =>
     restaurarPendiente(Number(b.dataset.restaurar))));
-  $$("[data-descartar]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () =>
-    descartarPendiente(pendientes[Number(b.dataset.descartar)])));
-
-  $$("[data-ficha]", $("#pantalla")).forEach((b) => b.addEventListener("click", () =>
+  $$("[data-ficha]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirFichaEnDialogo(Number(b.dataset.ficha), cargarHoy)));
-
-  $$("[data-whatsapp]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () => {
-    const p = pendientes[Number(b.dataset.whatsapp)];
-    const mensaje = `¡Hola, ${primerNombre(p.cliente)}!
-
-Recibe un cordial saludo de parte de ${nombreNegocio()}.
-
-Queremos agradecerte por permitirnos cuidar y consentir a ${p.mascota} en su última visita el ${fechaMensaje(p.ultima_fecha)}. ¡Fue un placer atenderlos!
-
-Nos encantaría volver a recibir a tu peludito para su próximo servicio de ${p.grupo.toLowerCase()}.
-
-Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustedes.
-
-¿Te gustaría agendar una cita para esta semana?`;
-    window.open(enlaceWhatsApp(p.telefono, mensaje), "_blank", "noopener");
-  }));
-
-  $$("[data-agendar]", $("#h-pendientes")).forEach((b) => b.addEventListener("click", () => {
-    const p = pendientes[Number(b.dataset.agendar)];
-    estado.agendarPrefill = { mascota: p.mascota, telefono: p.telefono };
-    location.hash = "#/agendar";
-  }));
+  $$("[data-ficha]", $("#h-descartados")).forEach((b) => b.addEventListener("click", () =>
+    abrirFichaEnDialogo(Number(b.dataset.ficha), cargarHoy)));
 }
 
 PANTALLAS.hoy = {
@@ -166,9 +234,12 @@ PANTALLAS.hoy = {
     <p class="suave">Lo que tienes que hacer y a quién escribirle. Haz clic en el nombre de una mascota para ver su ficha.</p>
     <div id="h-renovacion"></div>
     <div class="stats" id="h-stats"></div>
-    <div class="columnas">
-      <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas"><p class="suave">Cargando…</p></div></div>
-      ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
+    <div class="columnas hoy-columnas">
+      <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas" class="lista-hoy"><p class="suave">Cargando…</p></div></div>
+      ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy <span class="suave" id="h-cuantos-buscar"></span></h2>
+        <div id="h-buscar-controles"></div>
+        <div id="h-pendientes" class="lista-hoy"><p class="suave">Cargando…</p></div>
+        <div id="h-buscar-mas"></div>
         <div id="h-descartados" class="descartados"></div></div>` : ""}
     </div>`,
   despues: () => { avisoRenovacion(); return cargarHoy(); },

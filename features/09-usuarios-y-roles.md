@@ -134,4 +134,34 @@ Característica: Razas y precios según el rol
 | Leer datos sin iniciar sesión | — | — (solo la página pública de videos) |
 
 - Cambiar el rol se confirma en una ventana propia.
+
+> La tabla de permisos completa y vigente está en «Novedades v18», al final.
 - Nota: el colaborador ve los precios de cada cita (así se pidió), por eso los ingresos se podrían calcular a mano. La pantalla Reportes y el Excel siguen siendo solo del administrador.
+
+## Novedades v18 (ronda E2E · B08): tabla «Ver qué puede hacer cada rol»
+
+La ventana de Usuarios → «Ver qué puede hacer cada rol» quedó así (ya no habla de Videos, que está oculto, y agrega Sedes):
+
+| Acción | Administrador | Colaborador |
+|---|---|---|
+| Hoy, Agendar, Agenda | Todas las sedes | Solo sus sedes |
+| Clientes, mascotas e historial | ✔ | ✔ |
+| Ver precios | ✔ | ✔ |
+| Cancelar citas y servicios | ✔ | ✔ |
+| Guías | ✔ | ✔ |
+| Precios por raza y sede, servicios, recordatorios y logo | ✔ | Solo ver |
+| Sedes (agregar, renombrar, pausar) | ✔ | ✖ |
+| Reportes, Excel y respaldo | ✔ | ✖ |
+| Usuarios, roles e invitaciones | ✔ | ✖ |
+| Suscripción (pagos a DALU) | ✔ | ✖ |
+
+```gherkin
+# language: es
+Característica: Tabla de roles al día
+
+  Escenario: Ver qué puede hacer cada rol
+    Dado que soy administrador
+    Cuando abro Usuarios → "Ver qué puede hacer cada rol"
+    Entonces veo la fila "Sedes (agregar, renombrar, pausar)" con ✖ para el colaborador
+    Y no veo filas de Videos
+```

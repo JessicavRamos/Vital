@@ -39,11 +39,13 @@ async function cargarHoy() {
   let citas, todosPendientes, serviciosMes, descartes = [];
   try {
     [citas, todosPendientes, serviciosMes] = await Promise.all([
-      q(db.from("agenda").select("*")
+      q(conSede(db.from("agenda").select("*"))
         .gte("fecha_hora", inicioDiaBogota(hoy)).lt("fecha_hora", inicioDiaBogota(sumarDias(hoy, 1)))
         .neq("estado", "cancelada").order("fecha_hora")),
-      q(db.from("pendientes").select("*").order("dias_de_retraso", { ascending: false })),
-      contar(db.from("servicios").select("id", { count: "exact", head: true }).gte("fecha", mes)),
+      moduloActivo("recordatorios")
+        ? q(db.from("pendientes").select("*").order("dias_de_retraso", { ascending: false }))
+        : Promise.resolve([]),
+      contar(conSede(db.from("servicios").select("id", { count: "exact", head: true })).gte("fecha", mes)),
     ]);
   } catch (error) {
     mostrarError($("#h-citas"), error);
@@ -52,8 +54,26 @@ async function cargarHoy() {
   try {
     descartes = await q(db.from("pendientes_descartados").select("id,mascota_id,grupo,ultima_fecha"));
   } catch (error) { /* si la tabla aún no existe, se muestran todos */ }
+  // Mascotas que YA tienen una cita pendiente (de hoy en adelante) para ese mismo grupo de servicios:
+  // no hay que buscarlas, ya vienen. Una cita sin servicio cuenta para todos los grupos.
+  let yaAgendadas = new Set();
+  if (todosPendientes.length) {
+    try {
+      const [proximas, tipos, grupos] = await Promise.all([
+        q(db.from("citas").select("mascota_id,tipo_id").eq("estado", "pendiente").gte("fecha_hora", inicioDiaBogota(hoy))),
+        q(db.from("tipos_servicio").select("id,grupo_id")),
+        q(db.from("grupos_recordatorio").select("id,nombre")),
+      ]);
+      const grupoDeTipo = new Map(tipos.map((t) => [t.id, (grupos.find((g) => g.id === t.grupo_id) || {}).nombre]));
+      yaAgendadas = new Set(proximas.map((c) => `${c.mascota_id}|${c.tipo_id ? grupoDeTipo.get(c.tipo_id) ?? "*" : "*"}`));
+    } catch (error) { /* si falla, se muestran todos como antes */ }
+  }
+  const tieneCita = (p) => yaAgendadas.has(`${p.mascota_id}|${p.grupo}`) || yaAgendadas.has(`${p.mascota_id}|*`);
+  todosPendientes = todosPendientes.filter((p) => !tieneCita(p));
   if (!$("#h-citas")) return; // cambiaste de pantalla
 
+  // Con sedes: cada sede busca a los clientes cuyo último servicio fue en ella.
+  if (estado.conSedes && estado.sede) todosPendientes = todosPendientes.filter((p) => p.ultima_sede_id == null || p.ultima_sede_id === estado.sede.id);
   const idDescarte = new Map(descartes.map((d) => [claveDescarte(d), d.id]));
   const pendientes = todosPendientes.filter((p) => !idDescarte.has(claveDescarte(p)));
   const descartados = todosPendientes.filter((p) => idDescarte.has(claveDescarte(p)));
@@ -85,6 +105,7 @@ async function cargarHoy() {
   $$("[data-menu]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirMenu(b, opcionesCita(citas.find((c) => c.id === Number(b.dataset.menu)), cargarHoy))));
 
+  if (!$("#h-pendientes")) return; // el plan no incluye recordatorios
   $("#h-pendientes").innerHTML = pendientes.length ? pendientes.map((p, i) => {
     const retraso = p.dias_de_retraso;
     return `<div class="item">
@@ -143,11 +164,37 @@ Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustede
 PANTALLAS.hoy = {
   html: () => `<h1>Hoy</h1>
     <p class="suave">Lo que tienes que hacer y a quién escribirle. Haz clic en el nombre de una mascota para ver su ficha.</p>
+    <div id="h-renovacion"></div>
     <div class="stats" id="h-stats"></div>
     <div class="columnas">
       <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas"><p class="suave">Cargando…</p></div></div>
-      <div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
-        <div id="h-descartados" class="descartados"></div></div>
+      ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy</h2><div id="h-pendientes"><p class="suave">Cargando…</p></div>
+        <div id="h-descartados" class="descartados"></div></div>` : ""}
     </div>`,
-  despues: cargarHoy,
+  despues: () => { avisoRenovacion(); return cargarHoy(); },
 };
+
+// Recordatorio suave para el administrador: 3 días antes de renovar el plan, o si quedó pendiente.
+// Se puede cerrar (vuelve a salir al otro día si sigue pendiente).
+async function avisoRenovacion() {
+  const caja = $("#h-renovacion");
+  if (!caja || estado.rol !== "administrador") return;
+  let datos = null;
+  try { datos = (await q(db.rpc("mi_suscripcion")))[0] || null; } catch (error) { return; }
+  if (!datos || !datos.proximo_pago || !$("#h-renovacion")) return;
+  const est = estadoPago(datos.proximo_pago);
+  if (!est.aviso) return;
+  const clave = `dalu-vital-renovacion-${estado.negocio ? estado.negocio.id : 0}-${datos.proximo_pago}-${est.dias < 0 ? hoyISO() : ""}`;
+  try { if (localStorage.getItem(clave)) return; } catch (error) { /* sin almacenamiento: se muestra */ }
+  const texto = est.dias > 0 ? `Tu plan ${esc(datos.plan || "")} se renueva el ${esc(fechaPago(datos.proximo_pago))}.`
+    : est.dias === 0 ? `Tu plan ${esc(datos.plan || "")} se renueva hoy.`
+    : `Tu renovación del plan ${esc(datos.plan || "")} está pendiente desde el ${esc(fechaPago(datos.proximo_pago))}.`;
+  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion" role="status">
+    <span>🔔 ${texto}</span>
+    <span class="acciones-tabla"><a class="btn chico" href="#/suscripcion">Ver cómo pagar</a>
+    <button type="button" class="btn alt chico" id="h-renovacion-cerrar" aria-label="Cerrar aviso">✕</button></span></div>`;
+  $("#h-renovacion-cerrar").addEventListener("click", () => {
+    try { localStorage.setItem(clave, "1"); } catch (error) { /* nada */ }
+    caja.innerHTML = "";
+  });
+}

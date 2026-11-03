@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DALU Vital</title>
+  <!-- Enlaces de cada negocio: https://vital.dalu.pro/petgarden
+       GitHub Pages no tiene esa página, así que muestra este archivo; aquí se vuelve a la página
+       principal con ?negocio=petgarden y la página deja otra vez la dirección /petgarden. -->
+  <script>
+    (function () {
+      var parte = location.pathname.replace(/^\/+|\/+$/g, "").split("/")[0].toLowerCase();
+      var valido = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(parte);
+      location.replace("/" + (valido ? "?negocio=" + parte : "") + location.hash);
+    })();
+  </script>
+</head>
+<body style="font-family:system-ui,sans-serif;background:#EEF6F6;color:#12303A">
+  <p style="text-align:center;margin-top:30vh">Abriendo DALU Vital…</p>
+</body>
+</html>

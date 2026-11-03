@@ -275,6 +275,9 @@ tfoot th{color:var(--tinta);font-size:.9rem;text-transform:none;letter-spacing:0
 @media (prefers-reduced-motion:reduce){.tira{scroll-behavior:auto}.interruptor .perilla,.interruptor .perilla::after{transition:none}}
 /* Las columnas no se estiran por una tabla ancha: la tabla se desplaza por dentro */
 .columnas>*{min-width:0}
+/* Pantallas con tablas anchas (Clientes, Usuarios): en portátiles la tabla va arriba y la ficha abajo,
+   para que las columnas no queden cortadas ni con desplazamiento de lado (B11). */
+@media (max-width:1400px){.columnas.ancha{grid-template-columns:1fr}}
 
 /* ===== Versión 4: botones compactos, menú ⋯, cancelaciones y diseño para celular ===== */
 
@@ -516,7 +519,7 @@ dialog .aviso-fijo{font-size:.9rem}
 /* ===== Versión 10: roles y Usuarios ===== */
 .lateral .usuario .rol-usuario{display:block;font:600 .75rem Nunito,sans-serif;opacity:.8;margin-top:2px;padding-left:24px}
 .tabla-permisos{font-size:.88rem}
-.tabla-permisos td:not(:first-child),.tabla-permisos th:not(:first-child){text-align:center;width:72px}
+.tabla-permisos td:not(:first-child),.tabla-permisos th:not(:first-child){text-align:center;width:96px}
 .pasos{padding-left:20px;margin:6px 0 10px}
 .pasos li{margin-bottom:6px}
 @media (max-width:860px){ .lateral .usuario .rol-usuario{display:inline;padding-left:6px} }
@@ -542,5 +545,100 @@ td select[data-rol]{min-width:150px}
 .lista-invitaciones li span{overflow-wrap:anywhere}
 .enlaces-negocio{padding-left:20px}
 .enlaces-negocio a{overflow-wrap:anywhere}
-.fila-form.pagos-form{grid-template-columns:1.3fr 1fr .8fr 1.3fr auto}
+.fila-form.pagos-form{grid-template-columns:1fr .8fr 1fr 1.3fr auto}
 @media (max-width:860px){.fila-form,.fila-form.pagos-form{grid-template-columns:1fr}}
+
+/* Reportes: tablas desplegables con encabezados fijos */
+details.plegable>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}
+details.plegable>summary::-webkit-details-marker{display:none}
+details.plegable>summary h2{margin:0}
+details.plegable>summary::before{content:"▸";font-size:1.1rem;color:var(--marca);transition:transform .15s}
+details.plegable[open]>summary::before{transform:rotate(90deg)}
+details.plegable .abrir-cerrar::after{content:"Ver tabla"}
+details.plegable[open] .abrir-cerrar::after{content:"Ocultar"}
+details.plegable>summary .abrir-cerrar{margin-left:auto}
+details.plegable .tabla-scroll{max-height:70vh;overflow:auto}
+details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;background:var(--tarjeta);box-shadow:0 1px 0 var(--linea)}
+@media (max-width:860px){details.plegable .tabla-scroll{max-height:75vh;overflow:auto}}
+/* Invitaciones: mensaje para enviar */
+.mensaje-invitacion{white-space:pre-wrap;background:var(--realce);border-radius:10px;padding:12px;font:inherit;margin:10px 0}
+.envio-invitacion{flex-wrap:wrap}
+.acciones-invitacion{display:flex;gap:6px}
+
+/* Sedes y planes */
+.oculto-visual{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sede-actual{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--marca);white-space:nowrap}
+.sede-actual select{font-weight:700;padding:6px 8px;border-radius:10px}
+/* Celular: la sede va en su propia fila, a todo lo ancho, para que se lea completa (B07) */
+@media (max-width:860px){
+  .barra{flex-wrap:wrap}
+  .barra .sede-actual{order:3;flex:1 1 100%;white-space:normal}
+  .barra .sede-actual select{flex:1;min-width:0}
+}
+.casillas{display:flex;flex-wrap:wrap;gap:6px 16px;border:0;padding:0;margin:8px 0}
+.casillas legend{font-weight:700;margin-bottom:4px;padding:0}
+.fila-sede{display:flex;align-items:center;gap:10px;margin:6px 0 12px;flex-wrap:wrap}
+.fila-sede label{margin:0}
+.tabla-planes input[type=number]{width:110px}
+.tabla-planes td,.tabla-planes th{text-align:center}
+.tabla-planes td:first-child{text-align:left}
+.lista-plan{list-style:none;padding:0;margin:6px 0;display:grid;gap:4px}
+
+.sel-plan{min-width:7.5rem;width:auto}
+.uso-negocio{white-space:nowrap;font-size:.85rem}
+/* Suscripción */
+.sus-tarjeta{background:linear-gradient(135deg,var(--realce),var(--tarjeta) 70%)}
+.sus-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.sus-etiqueta{margin:0;color:var(--suave);font-size:.85rem;text-transform:uppercase;letter-spacing:.06em}
+.sus-plan{margin:2px 0 0;font:600 2rem Fredoka,sans-serif;color:var(--marca)}
+.sus-fechas{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0 6px}
+.sus-fechas span{display:block;color:var(--suave);font-size:.85rem}
+.sus-fechas b{display:block;font-size:1.15rem;margin-top:2px}
+.sus-fechas small{display:block;color:var(--suave);font-size:.8rem;margin-top:2px}
+.beneficios li{display:flex;gap:8px;align-items:baseline}
+.beneficios .marca{font-weight:700;width:1em;flex:none}
+.beneficios li.si .marca{color:var(--ok)}
+.beneficios li.no{color:var(--suave)}
+.beneficios li.no .marca{color:var(--alerta)}
+.fila-proximo{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+@media (max-width:560px){.sus-fechas{grid-template-columns:1fr}}
+/* Suscripción · marketing */
+.sus-desde{margin:4px 0 0}
+.sus-gracias{background:var(--realce);border-left:4px solid var(--ok);border-radius:10px;padding:8px 12px;margin:14px 0 0;font-weight:600}
+.sus-fechas{grid-template-columns:1fr}
+.sus-acciones{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.medios-pago{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
+.medios-pago li{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--linea);border-radius:10px;padding:8px 12px}
+.tabla-comparar th,.tabla-comparar td{text-align:center}
+.tabla-comparar td:first-child,.tabla-comparar th:first-child{text-align:left}
+.tabla-comparar .plan-actual{background:var(--realce)}
+.aviso-renovacion{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.aviso-renovacion .acciones-tabla{display:flex;gap:8px;align-items:center}
+.aviso-fijo .btn{margin-left:6px}
+.tabla-comparar .btn{white-space:normal;line-height:1.2;text-align:center}
+/* Panel DALU: resumen, lista y ficha de empresa */
+.texto-alerta{color:var(--alerta)!important}
+tr.fila-elegida{background:var(--realce)}
+.nombre-empresa{font-size:1rem;text-decoration:none}
+.enlace-chico{font-size:.8rem;font-weight:600}
+.ficha-empresa{border:2px solid var(--marca)}
+.ficha-cabeza{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.ficha-nombre{margin:2px 0;font:600 1.6rem Fredoka,sans-serif;color:var(--marca);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ficha-grilla{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px}
+.ficha-grilla section,.ficha-bloque{border:1px solid var(--linea);border-radius:12px;padding:12px 14px}
+.ficha-bloque{margin-top:16px}
+.ficha-grilla h3,.ficha-bloque h3{margin:0 0 8px;font-size:1.05rem}
+.ficha-bloque h4{margin:12px 0 6px;font-size:.95rem}
+.datos-ficha{display:grid;gap:8px;margin-top:8px}
+.datos-ficha span{display:block;color:var(--suave);font-size:.8rem}
+.datos-ficha b{font-weight:600}
+.datos-ficha b span{display:inline;font-size:inherit}
+.datos-ficha b .etiqueta{display:inline-block}
+.tachado{color:var(--suave)}
+.lista-simple{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.lista-simple li{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fila-form.invitar-ficha{grid-template-columns:2fr 1fr auto;margin-top:12px}
+.form-angosto{max-width:520px}
+@media (max-width:860px){.ficha-grilla,.fila-form.invitar-ficha{grid-template-columns:1fr}}
+
+.aviso-futura{border:1px solid #e9c46a;background:rgba(233,196,106,.12);border-radius:10px;padding:10px 12px;margin:8px 0}.aviso-futura p{margin:0 0 6px}.aviso-futura .casilla{margin:0}

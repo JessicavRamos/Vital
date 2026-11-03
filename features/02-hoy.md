@@ -225,3 +225,29 @@ Característica: Quién aparece en "A quién buscar"
     Dado que el cliente está marcado como inactivo
     Entonces sus mascotas no aparecen aunque ya les toque
 ```
+
+## Novedades v18 (ronda E2E · B02)
+
+### Reglas
+1. «A quién buscar» **no muestra** una mascota que ya tiene una **cita pendiente de hoy en adelante** para un servicio del **mismo grupo de recordatorio** (ej. Spa).
+2. Una cita pendiente **sin servicio** cuenta para todos los grupos de esa mascota.
+3. Si la cita se cancela o pasa su fecha sin terminarse, la mascota vuelve a aparecer.
+
+```gherkin
+# language: es
+Característica: No buscar a quien ya agendó
+
+  Escenario: Ya tiene cita del mismo grupo
+    Dado que "Max" aparece en "A quién buscar" por el grupo Spa
+    Cuando le agendo un "Corte y baño" para mañana
+    Entonces "Max" ya no aparece en "A quién buscar"
+
+  Escenario: Tiene cita de otro grupo
+    Dado que "Max" debe volver por Spa
+    Y tiene una cita pendiente de "Desparasitación" (otro grupo)
+    Entonces "Max" sigue apareciendo en "A quién buscar" por Spa
+
+  Escenario: La cita ya pasó sin terminarse
+    Dado que "Max" tenía una cita de Spa ayer que nadie terminó
+    Entonces "Max" vuelve a aparecer en "A quién buscar"
+```

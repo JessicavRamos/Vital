@@ -19,6 +19,9 @@ const RANGOS = {
 };
 let rangoReporte = "mes";
 let fechasReporte = null; // { desde, hasta } elegidas (se recuerdan al volver a la pantalla)
+let sedeReporte = ""; // "" = todas las sedes
+// Filtra por la sede elegida en Reportes (si hay varias sedes)
+const deSedeReporte = (c) => (estado.conSedes && sedeReporte ? c.eq("sede_id", Number(sedeReporte)) : c);
 let datosReporte = null; // lo último que se calculó (para el Excel)
 
 function fechasDeRango(clave) {
@@ -44,7 +47,7 @@ const textoRango = (d, h) => (d || h) ? `${d ? fechaTexto(d) : "el inicio"} a ${
 async function calcularReporte(desde, hasta) {
   const [historial, mascotas, clientes, citas] = await Promise.all([
     traerTodo(() => {
-      let c = db.from("historial").select("*").order("fecha", { ascending: false }).order("id", { ascending: false });
+      let c = deSedeReporte(db.from("historial").select("*").order("fecha", { ascending: false }).order("id", { ascending: false }));
       if (desde) c = c.gte("fecha", desde);
       if (hasta) c = c.lte("fecha", hasta);
       return c;
@@ -52,7 +55,7 @@ async function calcularReporte(desde, hasta) {
     traerTodo(() => db.from("mascotas_resumen").select("*").order("mascota").order("mascota_id")),
     traerTodo(() => db.from("clientes").select("id,nombre,telefono,telefono2,notas,activo").order("nombre").order("id")),
     traerTodo(() => {
-      let c = db.from("agenda").select("*").order("fecha_hora", { ascending: false }).order("id", { ascending: false });
+      let c = deSedeReporte(db.from("agenda").select("*").order("fecha_hora", { ascending: false }).order("id", { ascending: false }));
       if (desde) c = c.gte("fecha_hora", inicioDiaBogota(desde));
       if (hasta) c = c.lt("fecha_hora", inicioDiaBogota(sumarDias(hasta, 1)));
       return c;
@@ -63,7 +66,7 @@ async function calcularReporte(desde, hasta) {
   let anulados = [];
   try {
     anulados = await traerTodo(() => {
-      let c = db.from("servicios_anulados").select("*").order("anulado_en", { ascending: false }).order("id");
+      let c = deSedeReporte(db.from("servicios_anulados").select("*").order("anulado_en", { ascending: false }).order("id"));
       if (desde) c = c.gte("anulado_en", inicioDiaBogota(desde));
       if (hasta) c = c.lt("anulado_en", inicioDiaBogota(sumarDias(hasta, 1)));
       return c;
@@ -168,6 +171,13 @@ function htmlTablaSimple(titulo, grupos) {
     : '<p class="suave">Sin servicios en este período.</p>'}</div>`;
 }
 
+// Las tablas largas (Dueños, Cancelados, Mascotas) se muestran cerradas: se abren con un clic
+// y, ya abiertas, se desplazan dentro de su recuadro con los encabezados fijos arriba.
+const TABLAS_ABIERTAS = {};
+const plegable = (id, titulo, cantidad, descripcion) => `<details class="tarjeta plegable" data-tabla="${id}"${TABLAS_ABIERTAS[id] ? " open" : ""}>
+    <summary><h2>${esc(titulo)}</h2><span class="etiqueta gris">${cantidad}</span><span class="suave abrir-cerrar"></span></summary>
+    <p class="suave">${esc(descripcion)}</p><div id="${id}"></div></details>`;
+
 function pintarReporte(d) {
   const r = d.resumen;
   $("#rep-resultado").innerHTML = `
@@ -185,9 +195,11 @@ function pintarReporte(d) {
     <p class="suave">Citas del período: ${r.citas} · ${r.citasRealizadas} realizadas · ${r.citasPendientes} pendientes · ${r.citasCanceladas} canceladas</p>
     ${r.anulados ? `<p class="aviso-fijo">⚠ ${r.anulados} ${r.anulados === 1 ? "servicio realizado fue cancelado" : "servicios realizados fueron cancelados"} en este período (${dinero(r.dineroAnulado)} que ya no cuentan). Mira el detalle abajo y en la hoja "Cancelados" del Excel.</p>` : ""}
     <div class="columnas">${htmlTablaSimple("Por servicio", d.porServicio)}${htmlTablaSimple("Por mes", d.porMes)}</div>
-    <div class="tarjeta"><h2>Dueños</h2><p class="suave">Suma de lo que se le cobró a todas sus mascotas en el período.</p><div id="rep-clientes"></div></div>
-    ${d.filasAnulados.length ? `<div class="tarjeta"><h2>Servicios cancelados</h2><p class="suave">Quién canceló cada servicio realizado, cuándo y por qué.</p><div id="rep-anulados"></div></div>` : ""}
-    <div class="tarjeta"><h2>Mascotas</h2><p class="suave">Todas las mascotas registradas, con lo cobrado en el período.</p><div id="rep-mascotas"></div></div>`;
+    ${plegable("rep-clientes", "Dueños", d.filasClientes.length, "Suma de lo que se le cobró a todas sus mascotas en el período.")}
+    ${d.filasAnulados.length ? plegable("rep-anulados", "Servicios cancelados", d.filasAnulados.length, "Quién canceló cada servicio realizado, cuándo y por qué.") : ""}
+    ${plegable("rep-mascotas", "Mascotas", d.filasMascotas.length, "Todas las mascotas registradas, con lo cobrado en el período.")}`;
+  // Recuerda qué tablas dejaste abiertas mientras la página esté abierta.
+  $$("details.plegable", $("#rep-resultado")).forEach((d) => d.addEventListener("toggle", () => { TABLAS_ABIERTAS[d.dataset.tabla] = d.open; }));
 
   tablaInteractiva($("#rep-clientes"), {
     id: "rep-clientes",
@@ -401,7 +413,9 @@ async function descargarExcel() {
    Descarga TODAS las tablas tal cual están en la base (una hoja por tabla), para guardar una copia.
    El plan gratis de Supabase no guarda respaldos que puedas restaurar tú misma. */
 const TABLAS_RESPALDO = ["clientes", "mascotas", "citas", "servicios", "servicios_anulados", "razas", "tipos_servicio",
-  "grupos_recordatorio", "guias", "videos", "pendientes_descartados", "perfiles"];
+  "grupos_recordatorio", "guias", "videos", "pendientes_descartados", "perfiles", "sedes", "precios_sede", "usuarios_sedes"];
+// Tablas sin columna "id": se ordenan por otra
+const ORDEN_RESPALDO = { precios_sede: "sede_id", usuarios_sedes: "usuario_id" };
 
 async function descargarRespaldo() {
   const boton = $("#rep-respaldo");
@@ -417,7 +431,7 @@ async function descargarRespaldo() {
       try {
         // Solo los perfiles de ESTE negocio (DALU podría ver los de todos).
         filas = await traerTodo(() => {
-          const consulta = db.from(tabla).select("*").order("id");
+          const consulta = db.from(tabla).select("*").order(ORDEN_RESPALDO[tabla] || "id");
           return tabla === "perfiles" && estado.negocio && estado.negocio.id ? consulta.eq("negocio_id", estado.negocio.id) : consulta;
         });
       } catch (error) { continue; } // si la tabla no existe en esta base, se salta
@@ -467,17 +481,20 @@ PANTALLAS.reportes = {
       <div class="fila-nueva">
         <div><label for="rep-desde">Desde</label><input id="rep-desde" type="date" value="${desde}" data-vacio="Desde el inicio"></div>
         <div><label for="rep-hasta">Hasta</label><input id="rep-hasta" type="date" value="${hasta}" data-vacio="Hasta hoy"></div>
+        ${estado.conSedes && estado.sedes.length > 1 ? `<div><label for="rep-sede">Sede</label>
+          <select id="rep-sede"><option value="">Todas las sedes</option>${estado.sedes.map((x) =>
+            `<option value="${x.id}"${String(x.id) === String(sedeReporte) ? " selected" : ""}>${esc(x.nombre)}${x.activo ? "" : " (pausada)"}</option>`).join("")}</select></div>` : ""}
         <div><button class="btn" id="rep-excel" type="button" disabled>⬇ Descargar Excel</button></div>
       </div>
     </div>
     <div id="rep-resultado"><p class="suave">Calculando…</p></div>
-    <div class="tarjeta">
+    ${moduloActivo("respaldo") ? `<div class="tarjeta">
       <h2>Respaldo de la base de datos</h2>
       <p class="suave">Descarga una copia de <strong>todas</strong> tus tablas (clientes, mascotas, citas, servicios, precios…)
       en un Excel. Si algún día se pierde o se daña algo, con este archivo se puede recuperar.</p>
       <p class="suave" id="rep-ultimo-respaldo"></p>
       <button class="btn alt" id="rep-respaldo" type="button">⬇ Descargar respaldo completo</button>
-    </div>`;
+    </div>` : ""}`;
   },
   despues: async () => {
     $$("[data-rango]").forEach((b) => b.addEventListener("click", () => {
@@ -496,8 +513,12 @@ PANTALLAS.reportes = {
     $("#rep-desde").addEventListener("change", alCambiarFecha);
     $("#rep-hasta").addEventListener("change", alCambiarFecha);
     $("#rep-excel").addEventListener("click", descargarExcel);
-    $("#rep-respaldo").addEventListener("click", descargarRespaldo);
-    pintarUltimoRespaldo();
+    const selectorSede = $("#rep-sede");
+    if (selectorSede) selectorSede.addEventListener("change", () => { sedeReporte = selectorSede.value; cargarReporte(); });
+    if ($("#rep-respaldo")) {
+      $("#rep-respaldo").addEventListener("click", descargarRespaldo);
+      pintarUltimoRespaldo();
+    }
     await cargarReporte();
   },
 };

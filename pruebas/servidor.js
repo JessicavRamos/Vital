@@ -10,7 +10,13 @@ http.createServer((req, res) => {
   const archivo = path.join(RAIZ, ruta === "/" ? "index.html" : ruta);
   if (!archivo.startsWith(RAIZ)) { res.writeHead(403); return res.end(); }
   fs.readFile(archivo, (error, datos) => {
-    if (error) { res.writeHead(404); return res.end("No existe"); }
+    if (error) {
+      // Igual que GitHub Pages: si la dirección no existe (ej. /petgarden), se muestra 404.html.
+      return fs.readFile(path.join(RAIZ, "404.html"), (e2, pagina) => {
+        res.writeHead(404, { "Content-Type": "text/html" });
+        res.end(e2 ? "No existe" : pagina);
+      });
+    }
     res.writeHead(200, { "Content-Type": TIPOS[path.extname(archivo)] || "application/octet-stream", "Cache-Control": "no-store" });
     res.end(datos);
   });

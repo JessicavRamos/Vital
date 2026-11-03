@@ -70,7 +70,7 @@ async function abrirFicha(mascotaId) {
     C.sel = { m, cliente };
     pintarFichaCliente();
     // En el celular la ficha queda debajo de la lista: se baja hasta ella.
-    if (!enDialogo() && window.matchMedia("(max-width: 860px)").matches) ficha.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!enDialogo() && window.matchMedia("(max-width: 1400px)").matches) ficha.scrollIntoView({ behavior: "smooth", block: "start" });
     await cargarHistorialCliente();
     listarClientes(); // resalta la fila elegida (si la lista está en pantalla)
   } catch (error) {
@@ -198,7 +198,9 @@ async function abrirVisitaAnterior() {
       q(db.from("tipos_servicio").select("id,nombre").order("id")),
       q(db.from("guias").select("id,nombre").order("nombre")),
     ]);
-    if (m.raza_id) raza = (await q(db.from("razas").select("*").eq("id", m.raza_id)))[0] || null;
+    if (m.raza_id) raza = (await q(estado.conSedes && estado.sede
+      ? db.from("razas_sede").select("*").eq("id", m.raza_id).eq("sede_id", estado.sede.id)
+      : db.from("razas").select("*").eq("id", m.raza_id)))[0] || null;
   } catch (error) {
     aviso(mensajeError(error), true);
     return;
@@ -259,6 +261,7 @@ async function abrirVisitaAnterior() {
         p_notas: $("#va-notas").value.trim() || null,
         p_medicado: esMedicado,
         p_recargo: esMedicado && $("#va-recargo").value !== "" ? Number($("#va-recargo").value) : null,
+        ...(estado.conSedes && estado.sede ? { p_sede_id: estado.sede.id } : {}),
       }));
       cerrarDialogo("dialogo-visita");
       aviso(`Visita del ${fechaCorta(dia)} guardada en el historial de ${m.mascota}.`);
@@ -309,7 +312,7 @@ async function cargarHistorialCliente() {
           <div class="acciones-tabla"><s>${dinero(f.precio_cobrado)}</s></div></div>`
       : `<div class="item">
           <div><strong>${esc(f.servicio)}</strong>${f.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${C.todas ? ` · ${esc(f.mascota)}` : ""}
-            <div class="suave">${esc(fechaCorta(f.fecha))}${f.guia ? " · guía " + esc(f.guia) : ""}${f.notas ? " · " + esc(f.notas) : ""}</div></div>
+            <div class="suave">${esc(fechaCorta(f.fecha))}${f.sede && estado.sedes.length > 1 ? " · 📍 " + esc(f.sede) : ""}${f.guia ? " · guía " + esc(f.guia) : ""}${f.notas ? " · " + esc(f.notas) : ""}</div></div>
           <div class="acciones-tabla"><strong>${dinero(f.precio_cobrado)}</strong>
             <button class="btn chico alt" data-corregir="${f.id}">Editar</button></div></div>`).join("")
       : '<p class="suave">Todavía no tiene servicios registrados.</p>';
@@ -418,7 +421,7 @@ async function editarServicio(id, alGuardar) {
 PANTALLAS.clientes = {
   html: () => `<h1>Clientes y mascotas</h1>
     <p class="suave">Busca por mascota, dueño o cualquiera de los dos teléfonos, y abre la ficha para ver y editar todo. Haz clic en un encabezado para ordenar.</p>
-    <div class="columnas derecha">
+    <div class="columnas derecha ancha">
       <div class="tarjeta">
         <label for="c-buscar">Buscar</label>
         <input id="c-buscar" type="search" placeholder="Mascota, dueño o teléfono">

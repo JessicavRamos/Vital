@@ -13,6 +13,16 @@ const EXCEL_FALSO = `window.XLSX = { utils: {
   sheet_add_aoa: () => {}, encode_cell: () => "A1", decode_range: () => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } }), encode_range: () => "A1:A1",
 }, writeFile: (libro, nombre) => { window.__excel = { nombre, hojas: libro.SheetNames }; } };`;
 
+// config.js usa la base de pruebas fuera de vital.dalu.pro. Aquí se le ponen datos de mentira
+// (Supabase es falso en estas pruebas), así funcionan aunque aún no hayas pegado la base de pruebas.
+const fs = require("fs");
+const CONFIG_PRUEBAS = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8")
+  .replace("PEGA_AQUI_LA_URL_DE_PRUEBAS", "https://pruebas-automaticas.supabase.co")
+  .replace("PEGA_AQUI_LA_CLAVE_DE_PRUEBAS", "clave-de-mentira");
+test.beforeEach(async ({ page }) => {
+  await page.route(/\/config\.js(\?|$)/, (r) => r.fulfill({ body: CONFIG_PRUEBAS, contentType: "text/javascript" }));
+});
+
 // Abre el sitio como administrador (por defecto) o como colaborador.
 async function abrir(page, ruta, { colaborador = false, extra = "" } = {}) {
   const errores = [];
@@ -25,6 +35,14 @@ async function abrir(page, ruta, { colaborador = false, extra = "" } = {}) {
   return errores;
 }
 const aviso = (page) => page.locator("#aviso");
+
+// Abre una sección desplegable (details) por su título
+const abrirSeccion = (page, titulo) => page.locator("summary", { hasText: titulo }).click();
+// Abre la ficha de una empresa en Negocios · DALU
+const abrirFichaEmpresa = async (page, nombre) => {
+  await page.locator("#n-lista button.nombre-empresa", { hasText: nombre }).click();
+  await expect(page.locator("#n-ficha")).toContainText(nombre);
+};
 
 test.describe("Hoy", () => {
   test("carga sin errores y muestra las citas del día", async ({ page }) => {
@@ -84,7 +102,8 @@ test.describe("Catálogos (administrador)", () => {
     await precio.fill("32000");
     await precio.blur();
     await expect(aviso(page)).toContainText("Guardado.");
-    expect(await page.evaluate(() => window.__T.razas[0].precio_bano)).toBe(32000);
+    // El precio se guarda en la sede actual (precios por sede)
+    expect(await page.evaluate(() => window.__T.precios_sede.find((p) => p.sede_id === 1 && p.raza_id === 1).precio_bano)).toBe(32000);
   });
 
   test("quitar una guía usa la ventana propia de confirmación", async ({ page }) => {
@@ -144,17 +163,17 @@ test.describe("Calendario", () => {
   });
 });
 
-test.describe("Videos", () => {
-  test("los videos nuevos solo se suben como archivo (sin campo de YouTube)", async ({ page }) => {
-    await abrir(page, "videos");
-    await expect(page.locator("#form-video")).toBeVisible();
-    await expect(page.locator("#v-url")).toHaveCount(0);
+test.describe("Videos (oculto)", () => {
+  test("Videos no aparece en el menú ni en la entrada, y su dirección lleva a Hoy", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator("#menu-secciones")).not.toContainText("Videos");
+    await page.goto("/index.html#/videos");
+    await expect(page.locator("h1")).toHaveText("Hoy");
   });
 
-  test("el colaborador no tiene botón Borrar", async ({ page }) => {
-    await abrir(page, "videos", { colaborador: true });
-    await expect(page.locator("#form-video")).toBeVisible();
-    await expect(page.locator("[data-borrar]")).toHaveCount(0);
+  test("la entrada ya no tiene el enlace a videos", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await expect(page.getByText("Ver videos de productos")).toHaveCount(0);
   });
 });
 
@@ -177,14 +196,6 @@ test.describe("Multinegocio", () => {
     await expect(page).toHaveTitle("Vet Norte · DALU Vital");
   });
 
-  test("los videos públicos solo muestran los del negocio de la dirección", async ({ page }) => {
-    await abrir(page, "videos", { extra: "sinsesion&negocio=petgarden" });
-    await expect(page.locator("#v-publico")).not.toContainText("Cargando");
-    const cargados = await page.evaluate(() => V.todos.map((v) => v.titulo));
-    expect(cargados).toContain("Croquetas premium");
-    expect(cargados).not.toContain("Solo de Vet Norte");
-  });
-
   test("con sesión, Usuarios solo lista personas de mi negocio", async ({ page }) => {
     await abrir(page, "usuarios");
     await expect(page.locator("#u-lista")).toContainText("Andrés");
@@ -202,7 +213,7 @@ test.describe("Multinegocio", () => {
     await page.fill("#i-correo", "Nueva@Correo.co");
     await page.selectOption("#i-rol", "administrador");
     await page.getByRole("button", { name: "Invitar", exact: true }).click();
-    await expect(aviso(page)).toContainText("Invitación lista");
+    await expect(page.locator("#dialogo h2")).toContainText("Invitación lista");
     const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "invitar_usuario"));
     expect(llamada[2]).toEqual({ p_correo: "nueva@correo.co", p_rol: "administrador" });
     await expect(page.locator("#u-invitaciones")).toContainText("nueva@correo.co");
@@ -228,13 +239,15 @@ test.describe("Multinegocio", () => {
   test("DALU crea un negocio con su enlace y la invitación del administrador", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
     await expect(page.locator("#n-lista")).toContainText("Vet Norte");
+    await abrirSeccion(page, "Crear una empresa");
     await page.fill("#nn-nombre", "Veterinaria San Roque");
     await expect(page.locator("#nn-slug")).toHaveValue("veterinaria-san-roque");
     await page.fill("#nn-correo", "admin@sanroque.co");
     await page.getByRole("button", { name: "Crear negocio" }).click();
-    await expect(page.locator("#dialogo")).toContainText("?negocio=veterinaria-san-roque");
+    await expect(page.locator("#dialogo")).toContainText("/veterinaria-san-roque");
+    await expect(page.locator("#dialogo a", { hasText: "WhatsApp" })).toHaveAttribute("href", /wa\.me.*admin%40sanroque\.co/);
     const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "crear_negocio"));
-    expect(llamada[2]).toEqual({ p_nombre: "Veterinaria San Roque", p_slug: "veterinaria-san-roque", p_correo_admin: "admin@sanroque.co" });
+    expect(llamada[2]).toMatchObject({ p_nombre: "Veterinaria San Roque", p_slug: "veterinaria-san-roque", p_correo_admin: "admin@sanroque.co", p_plan: "basico" });
   });
 
   test("un usuario sin negocio ve el aviso y no el panel", async ({ page }) => {
@@ -255,17 +268,104 @@ test.describe("Multinegocio", () => {
 });
 
 test.describe("Suscripción y pagos", () => {
-  test("el administrador ve solo los pagos de su negocio", async ({ page }) => {
+  test("el administrador ve su plan, renovación y lo logrado, sin valores pasados ni sumas", async ({ page }) => {
     await abrir(page, "suscripcion");
-    await expect(page.locator("#s-pagos")).toContainText("Octubre 2026");
-    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
-    await expect(page.locator("#s-resumen")).toContainText("05/10/2026");
-    await expect(page.locator("#s-resumen")).toContainText("2 pagos");
+    await expect(page.locator("#s-estado-pago")).toHaveText("Al día");
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-desde")).toHaveText("Cliente desde octubre de 2026");
+    await expect(page.locator("#s-plan li.si")).toHaveCount(7);
+    await expect(page.locator("#s-plan li.no")).toHaveCount(0);
+    const proximo = await page.evaluate(() => window.__T.pagos[1].proximo_pago);
+    await expect(page.locator("#s-proximo")).toHaveText(await page.evaluate((f) => fechaPago(f), proximo));
+    await expect(page.locator("#s-valor")).toHaveText("Valor: $180.000");
+    await expect(page.locator("#s-gracias")).toHaveCount(0);
+    await expect(page.locator("#s-resumen")).toContainText("42Citas agendadas");
+    await expect(page.locator("#s-resumen")).toContainText("24Mascotas que regresaron");
+    await expect(page.locator("#s-mes")).toContainText("6 mascotas llegaron por primera vez");
+    const texto = await page.locator("body").innerText();
+    expect(texto).not.toMatch(/Total pagado|\$95\.000|Septiembre 2026|Octubre 2026|Vet Norte|Último pago/);
+    expect(await page.evaluate(() => window.__log.filter((x) => x[1] === "pagos").length)).toBe(0);
   });
 
-  test("DALU tampoco ve en Suscripción los pagos de otros negocios", async ({ page }) => {
-    await abrir(page, "suscripcion", { extra: "dalu" });
-    await expect(page.locator("#s-pagos")).not.toContainText("Vet Norte");
+  test("después de pagar: agradece y confirma el pago", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "pagoreciente" });
+    await expect(page.locator("#s-gracias")).toContainText("Recibimos tu pago");
+    await expect(page.locator("#s-gracias")).not.toContainText("Gracias");
+  });
+
+  test("renovación pendiente es amable (amarilla) y vencida es roja", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "pagopendiente" });
+    await expect(page.locator("#s-estado-pago")).toHaveText("Renovación pendiente");
+    await expect(page.locator("#s-estado-pago")).not.toHaveClass(/atrasada/);
+    await expect(page.locator("#s-estado")).toContainText("Si ya pagaste, avísanos");
+    await page.goto("/index.html?pagovencido#/suscripcion");
+    await expect(page.locator("#s-estado-pago")).toHaveText("Renovación vencida");
+    await expect(page.locator("#s-estado-pago")).toHaveClass(/atrasada/);
+  });
+
+  test("cómo pagar: medios de pago, copiar número y avisar por WhatsApp", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-pagar")).toContainText("Nequi 311 212 1501");
+    await expect(page.locator("#s-pagar")).toContainText("Daviplata 311 212 1501");
+    const ya = decodeURIComponent(await page.locator("#s-ya-pague").getAttribute("href"));
+    expect(ya).toContain("wa.me/573223050787");
+    expect(ya).toContain("Hola, DALU. Soy Jessica de Pet Garden. Ya pagué la renovación");
+    expect(ya).not.toContain("👋");
+    expect(ya).toContain("Pet Garden");
+  });
+
+  test("comparador de planes: marca el tuyo y ofrece subir", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "basico" });
+    const tabla = page.locator("#s-comparar");
+    await expect(tabla.locator("th.plan-actual")).toContainText("Esencial");
+    await expect(tabla.locator("th.plan-actual")).toContainText("Tu plan");
+    await expect(tabla).toContainText("$120.000");
+    await expect(tabla.locator("[data-quiero]")).toHaveCount(2);
+    await expect(page.locator("#s-plan li.no")).toHaveCount(1);
+    await expect(page.locator("#s-plan li.no")).toContainText("✖Historia clínica");
+    const quiero = decodeURIComponent(await tabla.locator('[data-quiero="premium"]').getAttribute("href"));
+    expect(quiero).toContain("pasar al plan Premium");
+  });
+
+  test("comparador: no ofrece planes más baratos y en Premium no aparece", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-comparar")).toBeHidden();
+    await expect(page.locator("body")).not.toContainText("$80.000");
+  });
+
+  test("mes vacío: mensaje de ánimo en vez de ceros", async ({ page }) => {
+    await abrir(page, "suscripcion", { extra: "mesvacio" });
+    await expect(page.locator("#s-mes")).toContainText("Tu mes apenas empieza");
+    await expect(page.locator("#s-resumen")).toHaveCount(0);
+  });
+
+  test("Hoy: aviso de renovación 3 días antes, solo al administrador, y se puede cerrar", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "renuevapronto" });
+    await expect(page.locator("#h-renovacion")).toContainText("se renueva el");
+    await page.locator("#h-renovacion-cerrar").click();
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+    await page.reload();
+    await expect(page.locator("h1")).toHaveText("Hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+  });
+
+  test("Hoy: sin aviso cuando falta más de 3 días o para el colaborador", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+    await page.goto("/index.html?empleado&renuevapronto#/hoy");
+    await expect(page.locator("h1")).toHaveText("Hoy");
+    await page.waitForTimeout(500);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+  });
+
+  test("estado según los días que faltan", async ({ page }) => {
+    await abrir(page, "hoy");
+    const r = await page.evaluate(() => [estadoPago(null).texto, estadoPago(masUnMes(hoyISO())).texto,
+      estadoPago(hoyISO()).texto, estadoPago("2000-01-01").texto, masUnMes("2026-01-31"), masUnMes("2026-12-04")]);
+    expect(r).toEqual(["Sin pagos registrados", "Al día", "Se renueva hoy", "Renovación vencida", "2026-02-28", "2027-01-04"]);
   });
 
   test("el colaborador no ve Suscripción", async ({ page }) => {
@@ -275,16 +375,424 @@ test.describe("Suscripción y pagos", () => {
     await expect(page).toHaveURL(/#\/hoy/);
   });
 
-  test("DALU registra un pago para un negocio", async ({ page }) => {
+  test("DALU registra un pago: sugiere el próximo pago y el valor del plan", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
-    await expect(page.locator("#np-lista")).toContainText("Pago de Vet Norte");
-    await page.selectOption("#np-negocio", { label: "Vet Norte" });
-    await page.evaluate(() => fijarFecha(document.querySelector("#np-fecha"), "2026-11-05"));
-    await page.fill("#np-valor", "95000");
+    await expect(page.locator("#n-lista")).toContainText("Renovación vencida");
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await expect(page.locator("#f-pagos")).toContainText("Pago de Vet Norte");
+    await expect(page.locator("#f-pagos")).not.toContainText("Octubre 2026");
+    const esperado = await page.evaluate(() => masUnMes(window.__T.pagos[2].proximo_pago));
+    await expect(page.locator("#np-proximo")).toHaveValue(esperado);
+    await expect(page.locator("#np-valor")).toHaveValue("80000");
     await page.fill("#np-nota", "Noviembre 2026");
     await page.getByRole("button", { name: "Registrar pago" }).click();
     await expect(aviso(page)).toContainText("registrado para Vet Norte");
     const pago = await page.evaluate(() => window.__T.pagos.find((p) => p.nota === "Noviembre 2026"));
-    expect(pago).toMatchObject({ negocio_id: 2, fecha: "2026-11-05", valor: 95000 });
+    expect(pago).toMatchObject({ negocio_id: 2, valor: 80000, proximo_pago: esperado });
+    await expect(page.locator("#n-lista")).not.toContainText("Renovación vencida");
+  });
+
+  test("DALU no puede registrar un próximo pago anterior al pago", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await page.evaluate(() => fijarFecha(document.querySelector("#np-proximo"), "2000-01-01"));
+    await page.getByRole("button", { name: "Registrar pago" }).click();
+    await expect(page.locator("#np-error")).toContainText("después de la fecha del pago");
+  });
+
+  test("DALU cambia el nombre de un plan", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Planes");
+    const nombre = page.getByLabel("Nombre del plan Esencial");
+    await nombre.fill("Inicial");
+    await nombre.dispatchEvent("change");
+    await expect(aviso(page)).toContainText("Plan actualizado");
+    expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "basico").nombre)).toBe("Inicial");
+  });
+
+  test("Panel DALU: resumen arriba e información de cada empresa en la lista", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#n-resumen")).toContainText("2Empresas activas");
+    await expect(page.locator("#n-resumen")).toContainText("$260.000Ingreso mensual esperado");
+    await expect(page.locator("#n-resumen")).toContainText("1Renovaciones pendientes");
+    await expect(page.locator("#n-lista")).toContainText("52 servicios este mes");
+    await expect(page.locator("#n-lista")).toContainText("Último ingreso: hoy");
+    await expect(page.locator("#n-ficha")).toBeHidden();
+  });
+
+  test("Panel DALU: la ficha muestra usuarios, invitaciones y el histórico de pagos de la empresa", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Pet Garden");
+    const ficha = page.locator("#n-ficha");
+    await expect(ficha).toContainText("Premium");
+    await expect(ficha).toContainText("Clientes120");
+    await expect(page.locator("#f-usuarios")).toContainText("andres@x.co");
+    await expect(page.locator("#f-usuarios")).toContainText("hace");
+    await expect(page.locator("#f-pagos tbody tr")).toHaveCount(2);
+    await expect(page.locator("#f-pagos")).toContainText("Septiembre 2026");
+    await expect(page.locator("#f-pagos")).not.toContainText("Vet Norte");
+    await expect(ficha).toContainText("$160.000");
+    await page.locator("#f-cerrar").click();
+    await expect(page.locator("#n-ficha")).toBeHidden();
+  });
+
+  test("Panel DALU: invitar desde la ficha y ver la invitación pendiente", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await expect(page.locator("#f-invitaciones")).toContainText("nuevo@vetnorte.co");
+    await page.fill("#ni-correo", "recepcion@vetnorte.co");
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await expect(page.locator("#dialogo h2")).toContainText("Invitación lista para Vet Norte");
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "invitar_usuario"));
+    expect(llamada[2]).toMatchObject({ p_correo: "recepcion@vetnorte.co", p_negocio_id: 2 });
+  });
+
+  test("Panel DALU: todos los pagos con totales en su sección", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Todos los pagos");
+    await expect(page.locator("#np-lista tbody tr")).toHaveCount(3);
+    await expect(page.locator("#np-totales")).toContainText("Total recibido $255.000");
+  });
+
+  test("DALU cambia el precio mensual de un plan", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirSeccion(page, "Planes");
+    const precio = page.getByLabel("Precio mensual del plan Premium");
+    await precio.fill("200000");
+    await precio.dispatchEvent("change");
+    await expect(aviso(page)).toContainText("Plan actualizado");
+    expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "premium").precio_mensual)).toBe(200000);
+  });
+});
+
+test.describe("Versión nueva", () => {
+  test("avisa y ofrece recargar cuando se publica una versión nueva", async ({ page }) => {
+    await abrir(page, "hoy");
+    expect(await page.evaluate(() => VERSION_CARGADA)).toMatch(/^\d+$/);
+    // Misma versión: no avisa
+    await page.evaluate(() => revisarVersionNueva());
+    await expect(page.locator("#aviso")).not.toContainText("versión nueva");
+    // Se publica otra versión
+    await page.route(/buscar-version=/, (r) => r.fulfill({ body: '<script src="app.js?v=2099010101"></script>', contentType: "text/html" }));
+    await page.evaluate(() => revisarVersionNueva());
+    await expect(page.locator("#aviso")).toContainText("Hay una versión nueva");
+    await expect(page.locator("#aviso button")).toHaveText("Recargar");
+  });
+});
+
+test.describe("Ronda 2: enlaces, invitaciones, roles y reportes", () => {
+  test("el enlace corto /vet-norte llega a ese negocio (vía 404.html)", async ({ page }) => {
+    await page.route("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",
+      (r) => r.fulfill({ path: require("path").join(__dirname, "supabase-falso.js"), contentType: "text/javascript" }));
+    // GitHub muestra 404.html en /vet-norte, que vuelve a la página principal con ese negocio.
+    // (En las pruebas hay una sesión de Pet Garden abierta, por eso aparece el aviso de otro negocio.)
+    await page.goto("/vet-norte#/hoy");
+    await expect(page.locator("#dialogo")).toContainText("Este enlace es de Vet Norte");
+  });
+
+  test("?negocio= también funciona y se cambia por la dirección corta", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion&negocio=vet-norte" });
+    await expect(page.locator(".acceso-marca h1")).toHaveText("Vet Norte");
+    expect(new URL(page.url()).pathname).toBe("/vet-norte");
+  });
+
+  test("con sesión de Pet Garden, el enlace de otro negocio avisa y no muestra sus datos", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "negocio=vet-norte" });
+    await expect(page.locator("#dialogo")).toContainText("Este enlace es de Vet Norte");
+    await expect(page.locator("#dialogo")).toContainText("solo puedes ver Pet Garden");
+    await page.getByRole("button", { name: "Seguir en Pet Garden" }).click();
+    await expect(page.locator(".marca-lateral").first()).toContainText("Pet Garden");
+    expect(new URL(page.url()).pathname).toBe("/petgarden");
+  });
+
+  test("Usuarios: los roles se ven con un botón (sin tabla fija)", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await expect(page.locator("#pantalla .tabla-permisos")).toHaveCount(0);
+    await page.getByRole("button", { name: "Ver qué puede hacer cada rol" }).click();
+    await expect(page.locator("#dialogo .tabla-permisos")).toContainText("Reportes, Excel y respaldo");
+  });
+
+  test("invitar abre el mensaje para enviar y se puede reenviar", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.fill("#i-correo", "nueva@correo.co");
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await expect(page.locator("#dialogo")).toContainText("nueva@correo.co");
+    await expect(page.locator("#dialogo .mensaje-invitacion")).toContainText("/petgarden");
+    await expect(page.locator("#dialogo a", { hasText: "Enviar por correo" })).toHaveAttribute("href", /^mailto:nueva%40correo\.co/);
+    await page.getByRole("button", { name: "Listo" }).click();
+    await page.locator("[data-reenviar='nueva@correo.co']").click();
+    await expect(page.locator("#dialogo h2")).toHaveText("Reenviar la invitación");
+  });
+
+  test("Reportes: las tablas largas empiezan cerradas y se abren con encabezado fijo", async ({ page }) => {
+    await abrir(page, "reportes");
+    const duenos = page.locator('details[data-tabla="rep-clientes"]');
+    await expect(duenos).toBeVisible();
+    await expect(duenos).not.toHaveAttribute("open", "");
+    await duenos.locator("summary").click();
+    await expect(duenos.locator("table.interactiva")).toBeVisible();
+    const fijo = await duenos.locator("thead").evaluate((t) => getComputedStyle(t).position);
+    expect(fijo).toBe("sticky");
+  });
+});
+
+test.describe("Sedes y planes", () => {
+  test("con una sola sede no hay selector y la cita se agenda en esa sede", async ({ page }) => {
+    await abrir(page, "agendar");
+    await expect(page.locator("#sede-actual")).toHaveCount(0);
+    await expect(page.locator(".sede-actual")).toContainText("Sede principal");
+    await page.fill("#a-mascota", "Toby");
+    await page.fill("#a-telefono", "3209998877");
+    await page.fill("#a-dueno", "Marta");
+    await page.getByRole("button", { name: "Agendar cita" }).click();
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "registrar_cita"));
+    expect(llamada[2].p_sede_id).toBe(1);
+  });
+
+  test("con dos sedes se elige la sede arriba y la agenda cambia", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "dossedes" });
+    await expect(page.locator("#h-citas")).toContainText("Luna");
+    await page.selectOption("#sede-actual", { label: "Sede Norte" });
+    await expect(aviso(page)).toContainText("Estás en Sede Norte");
+    await expect(page.locator("#h-citas")).toContainText("No tienes citas para hoy");
+    await page.goto("/index.html?dossedes#/agendar");
+    await expect(page.locator("#sede-actual")).toHaveValue("2"); // se recuerda la sede elegida
+    await expect(page.locator("h1")).toContainText("Sede Norte");
+  });
+
+  test("el colaborador solo ve sus sedes (sin selector si tiene una)", async ({ page }) => {
+    await abrir(page, "hoy", { colaborador: true, extra: "dossedes" });
+    await expect(page.locator("#sede-actual")).toHaveCount(0);
+    await expect(page.locator(".sede-actual")).toContainText("Sede principal");
+    await expect(page.locator("#menu-secciones")).not.toContainText("Sedes");
+  });
+
+  test("Catálogos: cada sede tiene sus propios precios", async ({ page }) => {
+    await abrir(page, "catalogos", { extra: "dossedes" });
+    await page.selectOption("#cat-sede", { label: "Sede Norte" });
+    const precio = page.locator('#tabla-razas tr[data-id="1"] input[data-campo="precio_bano"]');
+    await expect(precio).toHaveValue("30000");
+    await precio.fill("45000");
+    await precio.blur();
+    await expect(aviso(page)).toContainText("Guardado.");
+    const precios = await page.evaluate(() => window.__T.precios_sede.filter((p) => p.raza_id === 1).map((p) => [p.sede_id, p.precio_bano]));
+    expect(precios).toEqual([[1, 30000], [2, 45000]]);
+  });
+
+  test("Sedes: el administrador agrega una sede dentro de su plan", async ({ page }) => {
+    await abrir(page, "sedes");
+    await expect(page.locator("#sd-plan")).toContainText("Premium");
+    await page.fill("#sd-nombre", "Sede Sur");
+    await page.getByRole("button", { name: "Agregar sede" }).click();
+    await expect(aviso(page)).toContainText("Sede Sur quedó creada");
+    await expect(page.locator('#sd-lista input[value="Sede Sur"]')).toHaveCount(1);
+    await expect(page.locator("#sd-lista")).not.toContainText("Pausada");
+  });
+
+  test("Sedes: el plan Esencial no deja agregar otra sede", async ({ page }) => {
+    await abrir(page, "sedes", { extra: "basico" });
+    await expect(page.locator("#sd-plan")).toContainText("permite 1 sede");
+    await expect(page.getByRole("button", { name: "Agregar sede" })).toBeDisabled();
+    await expect(page.locator("#sd-lleno")).toBeVisible();
+    await expect(page.locator("#sd-lleno")).toContainText("Con Profesional tienes hasta 2");
+    const enlace = await page.locator("#sd-lleno a[data-mejorar-plan]").getAttribute("href");
+    expect(decodeURIComponent(enlace)).toContain("wa.me/573223050787");
+    expect(decodeURIComponent(enlace)).toContain("pasar al plan Profesional");
+  });
+
+  test("Usuarios: se invita eligiendo sedes y se ve el uso del plan", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "dossedes" });
+    await expect(page.locator("#u-uso")).toContainText("2 de 20");
+    await page.fill("#i-correo", "norte@correo.co");
+    await page.locator('input[name="i-sede"][value="1"]').uncheck();
+    await page.locator('input[name="i-sede"][value="2"]').check();
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await expect(page.locator("#dialogo h2")).toContainText("Invitación lista");
+    const llamada = await page.evaluate(() => window.__log.find((x) => x[0] === "rpc" && x[1] === "invitar_usuario"));
+    expect(llamada[2]).toMatchObject({ p_correo: "norte@correo.co", p_rol: "empleado", p_sedes: [2] });
+  });
+
+  test("Usuarios: el plan Esencial se llena en 3 usuarios", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "basico" });
+    await page.fill("#i-correo", "tercera@correo.co");
+    await page.getByRole("button", { name: "Invitar", exact: true }).click();
+    await page.getByRole("button", { name: "Listo" }).click();
+    await expect(page.locator("#u-uso")).toContainText("3 de 3");
+    await expect(page.getByRole("button", { name: "Invitar", exact: true })).toBeDisabled();
+    await expect(page.locator("#u-lleno")).toContainText("Con Profesional tienes hasta 8");
+    await expect(page.locator("#u-lleno a[data-mejorar-plan]")).toHaveText("Quiero mejorar mi plan");
+  });
+
+  test("Usuarios: cambiar las sedes de un colaborador", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "dossedes" });
+    await page.locator('[data-sedes="u2"]').click();
+    await page.locator('input[name="eu-sede"][value="2"]').check();
+    await page.getByRole("button", { name: "Guardar" }).click();
+    await expect(aviso(page)).toContainText("Sedes de Andrés actualizadas");
+    const sedes = await page.evaluate(() => window.__T.usuarios_sedes.filter((x) => x.usuario_id === "u2").map((x) => x.sede_id).sort());
+    expect(sedes).toEqual([1, 2]);
+  });
+
+  test("un plan sin recordatorios oculta «A quién buscar»", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinrecordatorios" });
+    await expect(page.locator("#h-citas")).toContainText("Luna");
+    await expect(page.getByText("A quién buscar hoy")).toHaveCount(0);
+  });
+
+  test("un plan sin reportes oculta Reportes", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinreportes" });
+    await expect(page.locator("#menu-secciones")).not.toContainText("Reportes");
+    await page.goto("/index.html?sinreportes#/reportes");
+    await expect(page).toHaveURL(/#\/hoy/);
+    await expect(aviso(page)).toContainText("no está incluida en tu plan");
+  });
+
+  test("empresa pausada: aviso y sin panel", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "pausado" });
+    await expect(page.locator("h1")).toHaveText("Tu empresa está pausada");
+    await expect(page.locator("#menu-secciones")).toHaveCount(0);
+  });
+
+  test("Suscripción muestra el plan y sus límites", async ({ page }) => {
+    await abrir(page, "suscripcion");
+    await expect(page.locator("#s-estado")).toContainText("Premium");
+    await expect(page.locator("#s-plan")).toContainText("Hasta 5 sedes");
+    await expect(page.locator("#s-plan")).toContainText("usas 1");
+  });
+
+  test("DALU cambia el plan de una empresa y edita los límites de un plan", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await expect(page.locator("#n-lista")).toContainText("1/5 sedes");
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await page.selectOption("#f-plan", "profesional");
+    await page.getByRole("button", { name: "Sí, cambiar" }).click();
+    await expect(aviso(page)).toContainText("Vet Norte quedó en el plan Profesional");
+    expect(await page.evaluate(() => window.__T.negocios.find((n) => n.id === 2).plan_id)).toBe("profesional");
+    await abrirSeccion(page, "Planes");
+    const usuariosBasico = page.locator('#np-planes input[data-plan-id="basico"][data-campo="max_usuarios"]');
+    await usuariosBasico.fill("4");
+    await usuariosBasico.blur();
+    await expect(aviso(page)).toContainText("Plan actualizado");
+    expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "basico").max_usuarios)).toBe(4);
+  });
+});
+
+test.describe("Arreglos de la ronda E2E (B02–B11)", () => {
+  test("B02: A quién buscar no muestra mascotas que ya tienen cita del mismo grupo", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "conagendada" });
+    await expect(page.locator("#h-pendientes")).toContainText("Luna");
+    await expect(page.locator("#h-pendientes")).not.toContainText("Simba");
+  });
+
+  test("B03: las fechas con hora se muestran en el día de Bogotá", async ({ page }) => {
+    await abrir(page, "hoy");
+    expect(await page.evaluate(() => fechaCorta("2026-10-29T03:50:00Z"))).toBe("28/10/2026");
+    expect(await page.evaluate(() => fechaCorta("2026-10-29"))).toBe("29/10/2026");
+  });
+
+  test("B04: los mensajes de la base se muestran sin «Detalle técnico»", async ({ page }) => {
+    await abrir(page, "hoy");
+    const mensajes = await page.evaluate(() => [
+      "Ese teléfono ya pertenece a otro cliente.", "El segundo teléfono no puede ser igual al primero.",
+      "La fecha de la visita anterior no puede ser futura.", "No tienes acceso a esa sede.",
+      "Tu plan permite 1 sede(s). Para agregar más, cambia de plan con DALU.",
+    ].map((m) => mensajeError({ message: m })));
+    mensajes.forEach((m) => expect(m).not.toContain("Detalle técnico"));
+    expect(mensajes[0]).toBe("Ese teléfono ya pertenece a otro cliente.");
+  });
+
+  test("B05: Catálogos muestra los precios de la sede elegida arriba", async ({ page }) => {
+    await abrir(page, "catalogos", { extra: "dossedes" });
+    await page.selectOption("#cat-sede", { label: "Sede Norte" });
+    await page.selectOption("#sede-actual", { label: "Sede principal" });
+    await page.goto("/index.html?dossedes#/hoy");
+    await page.goto("/index.html?dossedes#/catalogos");
+    await expect(page.locator("#cat-sede")).toHaveValue("1");
+    await page.selectOption("#sede-actual", { label: "Sede Norte" });
+    await expect(page.locator("#cat-sede")).toHaveValue("2");
+  });
+
+  test("B06: el selector de arriba se actualiza al agregar y renombrar una sede", async ({ page }) => {
+    await abrir(page, "sedes");
+    await expect(page.locator("#sede-actual")).toHaveCount(0);
+    await page.fill("#sd-nombre", "Sede Sur");
+    await page.getByRole("button", { name: "Agregar sede" }).click();
+    await expect(aviso(page)).toContainText("Sede Sur quedó creada");
+    await expect(page.locator("#sede-actual option")).toHaveText(["Sede principal", "Sede Sur"]);
+    const nombre = page.locator('#sd-lista input[value="Sede Sur"]');
+    await nombre.fill("Sede Sur 2");
+    await nombre.blur();
+    await expect(aviso(page)).toContainText("Guardado.");
+    await expect(page.locator("#sede-actual option")).toHaveText(["Sede principal", "Sede Sur 2"]);
+  });
+
+  test("B07: en celular el selector de sede se lee completo", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await abrir(page, "hoy", { extra: "dossedes" });
+    const medida = await page.locator("#sede-actual").evaluate((s) => ({ ancho: s.clientWidth, texto: s.scrollWidth }));
+    expect(medida.ancho).toBeGreaterThan(150);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  });
+
+  test("B08: la tabla de roles habla de Sedes y no de Videos", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.getByRole("button", { name: "Ver qué puede hacer cada rol" }).click();
+    const tabla = page.locator(".tabla-permisos");
+    await expect(tabla).toContainText("Sedes");
+    await expect(tabla).toContainText("Solo sus sedes");
+    await expect(tabla).not.toContainText("videos");
+  });
+
+  test("B10: al editar una cita y cambiar el servicio se propone su precio", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.locator('[data-menu="100"]').first().click();
+    await page.getByRole("menuitem", { name: "Editar cita" }).click();
+    await page.selectOption("#e-servicio", { label: "Corte y baño" });
+    await expect(page.locator("#e-precio")).toHaveValue("65000");
+    await expect(page.locator("#e-sugerido")).toContainText("$65.000");
+  });
+
+  test("B10: si ya escribiste el precio a mano, no se cambia", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.locator('[data-menu="100"]').first().click();
+    await page.getByRole("menuitem", { name: "Editar cita" }).click();
+    await page.fill("#e-precio", "50000");
+    await page.selectOption("#e-servicio", { label: "Corte y baño" });
+    await page.waitForTimeout(300);
+    await expect(page.locator("#e-precio")).toHaveValue("50000");
+  });
+
+  test("B09: terminar una cita de un día futuro pide confirmar y la mueve a hoy", async ({ page }) => {
+    await abrir(page, "agenda");
+    const futura = new Date(Date.now() + 3 * 86400000).toISOString();
+    await page.evaluate((f) => abrirTerminarCita({ id: 100, mascota_id: 1, mascota: "Luna", servicio: "Corte", fecha_hora: f, precio_acordado: 30000 }), futura);
+    await expect(page.locator(".aviso-futura")).toContainText("se moverá a hoy");
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toBeVisible(); // sin confirmar no se guarda
+    await page.check("#t-confirmar-hoy");
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toHaveCount(0);
+    const guardado = await page.evaluate(() => window.__log.filter((l) => l[0] === "update" && l[1] === "citas").pop()[2]);
+    expect(guardado.estado).toBe("realizada");
+    const dia = (f) => new Date(f).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+    expect(dia(guardado.fecha_hora)).toBe(dia(new Date()));
+  });
+
+  test("B09: una cita de hoy se termina sin aviso y sin cambiar su fecha", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.evaluate(() => abrirTerminarCita({ id: 100, mascota_id: 1, mascota: "Luna", servicio: "Corte", fecha_hora: new Date().toISOString(), precio_acordado: 30000 }));
+    await expect(page.locator(".aviso-futura")).toHaveCount(0);
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toHaveCount(0);
+    const guardado = await page.evaluate(() => window.__log.filter((l) => l[0] === "update" && l[1] === "citas").pop()[2]);
+    expect(guardado.fecha_hora).toBeUndefined();
+  });
+
+  test("B11: en un portátil (1280 px) la tabla de Clientes no se corta", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await abrir(page, "clientes");
+    await expect(page.locator("#c-lista table")).toBeVisible();
+    const medida = await page.locator("#c-lista").evaluate((c) => ({ visible: c.clientWidth, contenido: c.scrollWidth }));
+    expect(medida.contenido).toBeLessThanOrEqual(medida.visible + 1);
   });
 });

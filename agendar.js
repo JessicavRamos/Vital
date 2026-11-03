@@ -44,7 +44,7 @@ async function pintarDia() {
   $("#a-dia-texto").textContent = dia ? diaTexto(dia) : "";
   if (!dia) return;
   try {
-    const citas = await q(db.from("agenda").select("fecha_hora,mascota")
+    const citas = await q(conSede(db.from("agenda").select("fecha_hora,mascota"))
       .gte("fecha_hora", inicioDiaBogota(dia)).lt("fecha_hora", inicioDiaBogota(sumarDias(dia, 1)))
       .neq("estado", "cancelada").order("fecha_hora"));
     if (!$("#a-dia") || $("#a-dia").value !== dia) return;
@@ -164,8 +164,9 @@ async function actualizarPrecio() {
 
   if (A.sel) {
     try {
-      const filas = await q(db.from("precios_sugeridos").select("precio_sugerido,origen,recargo_medicado")
-        .eq("mascota_id", A.sel.mascota_id).eq("tipo_id", tipoId));
+      // Precio de ESTA sede: cada sede tiene sus propios precios.
+      const filas = await q(conSede(db.from("precios_sugeridos").select("precio_sugerido,origen,recargo_medicado")
+        .eq("mascota_id", A.sel.mascota_id).eq("tipo_id", tipoId)));
       if (filas[0]) {
         valor = filas[0].precio_sugerido;
         origen = filas[0].origen;
@@ -269,6 +270,7 @@ async function enviarAgendar(evento) {
     p_medicado: medicado,
     p_recargo: medicado && $("#a-recargo").value !== "" ? Number($("#a-recargo").value) : null,
   };
+  if (estado.conSedes && estado.sede) datos.p_sede_id = estado.sede.id;
   if (!datos.p_cliente_nombre || !datos.p_telefono || !datos.p_mascota_nombre || !datos.p_fecha_hora) {
     error.textContent = "Faltan datos obligatorios (los marcados con *).";
     return;
@@ -297,7 +299,7 @@ async function enviarAgendar(evento) {
 }
 
 PANTALLAS.agendar = {
-  html: () => `<h1>Agendar cita</h1>
+  html: () => `<h1>Agendar cita${estado.conSedes && estado.sede && estado.sedes.length > 1 ? ` <span class="etiqueta gris">${esc(estado.sede.nombre)}</span>` : ""}</h1>
     <p class="suave">Escribe el nombre o cualquiera de los dos teléfonos: si la mascota ya vino, se completan sus datos. Si es nueva, se guarda sola.</p>
     <div class="columnas derecha">
       <form id="form-agendar" class="tarjeta" autocomplete="off">
@@ -343,7 +345,10 @@ PANTALLAS.agendar = {
           precioEditado: false, recargoEditado: false, coincidencias: [], med: { fijar() {} } };
     try {
       [A.razas, A.tipos] = await Promise.all([
-        q(db.from("razas").select("*").order("nombre")),
+        // Razas con los precios de la sede en la que estás
+        q(estado.conSedes && estado.sede
+          ? db.from("razas_sede").select("*").eq("sede_id", estado.sede.id).order("nombre")
+          : db.from("razas").select("*").order("nombre")),
         q(db.from("tipos_servicio").select("id,nombre").order("id")),
       ]);
     } catch (error) {

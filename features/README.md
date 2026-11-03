@@ -14,6 +14,9 @@ Cada archivo describe un módulo con: historia de usuario, reglas de negocio y e
 | 07 | [07-videos.md](07-videos.md) | Carrusel público, lista para deslizar, activar/desactivar y administrador | Público / privado |
 | 08 | [08-reportes.md](08-reportes.md) | Resumen por fechas y descarga de Excel | Solo administrador |
 | 09 | [09-usuarios-y-roles.md](09-usuarios-y-roles.md) | Roles (Administrador / Colaborador) y pantalla Usuarios | Solo administrador |
+| 10 | [10-multinegocio.md](10-multinegocio.md) | DALU Vital: varios negocios, invitaciones, enlaces cortos, suscripción y pagos | Administrador / DALU |
+| 11 | [11-sedes-y-planes.md](11-sedes-y-planes.md) | Planes (Esencial, Profesional, Premium), sedes, agenda y precios por sede | Administrador / DALU |
+| 12 | [12-parametrizacion.md](12-parametrizacion.md) | Dónde se cambia cada cosa: panel DALU, administrador, `config.js`, código, base, Supabase, GitHub y respaldos | DALU |
 
 ## Lenguajes y tecnologías
 
@@ -24,7 +27,7 @@ Cada archivo describe un módulo con: historia de usuario, reglas de negocio y e
 | **HTML5** | Estructura del sitio (`index.html`) y de cada pantalla, que se genera desde JavaScript. Usa `<dialog>` para las ventanas emergentes |
 | **CSS3** | Estilos (`estilos.css`): variables de color, Grid, Flexbox, diseño adaptable a celular (media queries) y tema claro/oscuro automático (`prefers-color-scheme`) |
 | **JavaScript (ES2020+)** | Toda la lógica del sitio, sin framework ni compilación: módulos por pantalla, `async/await`, plantillas de texto |
-| **SQL (PostgreSQL)** | Tablas, vistas, permisos por fila (RLS) y consultas de mantenimiento (`sql-v4` a `sql-v10`) |
+| **SQL (PostgreSQL)** | Tablas, vistas, permisos por fila (RLS) y consultas de mantenimiento (`sql-v4` a `sql-v17`) |
 | **PL/pgSQL** | Funciones y disparadores de la base: crear el servicio al terminar una cita, cancelar con registro, roles |
 | **Gherkin (en español)** | Escenarios de estos features (`# language: es`: Característica, Escenario, Dado / Cuando / Entonces) |
 | **Markdown** | Esta documentación |
@@ -44,9 +47,9 @@ Archivos del sitio:
 | Archivo | Contenido |
 |---|---|
 | `index.html` | Página base y carga de scripts |
-| `config.js` | URL y clave pública de Supabase, nombre del negocio |
+| `config.js` | Bases de **producción** y **pruebas** (se elige sola según la dirección), franja «🧪 PRUEBAS», negocio por defecto y datos de pago de DALU |
 | `app.js` | Núcleo: login, recuperación de contraseña, roles, menú, utilidades, tablas, calendario, WhatsApp |
-| `hoy.js` · `agendar.js` · `agenda.js` · `clientes.js` · `reportes.js` · `catalogos.js` · `videos.js` · `usuarios.js` | Una pantalla cada uno |
+| `hoy.js` · `agendar.js` · `agenda.js` · `clientes.js` · `reportes.js` · `catalogos.js` · `sedes.js` · `usuarios.js` · `suscripcion.js` · `negocios.js` · `videos.js` (oculto) | Una pantalla cada uno |
 | `estilos.css` | Todos los estilos |
 | `sql-v*.sql` | Cambios de base de datos por versión |
 
@@ -78,9 +81,18 @@ Archivos del sitio:
 
 | Herramienta | Uso |
 |---|---|
-| **Git** y **GitHub** | Repositorio `JessicavRamos/Agenda` |
+| **Git** y **GitHub** | Repositorio `JessicavRamos/Vital`. Se trabaja en una rama (ej. `sedes-y-planes`) y se publica con un pull request a `main` |
 | **GitHub Pages** | Hosting del sitio (estático, sin servidor propio) |
-| **Dominio `dalu.pro`** (Namecheap) | Dominio de la marca **Dalu**, para conectarlo a GitHub Pages |
+| **Dominio `dalu.pro`** (Namecheap) | `vital.dalu.pro` apunta a GitHub Pages |
+
+### Entornos y respaldos
+
+| Entorno | Base (Supabase) | Dónde se usa |
+|---|---|---|
+| **Producción** | `hkzaxvijtomwhzmvyqkq` | `vital.dalu.pro`: los negocios reales |
+| **Pruebas** | `fejdjrnocouxjhjkjrgo` (copia de los datos reales) | Tu computador (`localhost:8080`). Muestra la franja roja «🧪 BASE DE PRUEBAS» |
+
+Respaldo de producción con `respaldar-vital` (copia en el Mac y cifrada en Google Drive), cada semana y antes de cada publicación. Detalle en [12-parametrizacion.md](12-parametrizacion.md#i-respaldos-de-la-base-real).
 
 ### Pruebas automáticas (v13, en el repositorio)
 
@@ -88,7 +100,7 @@ Archivos del sitio:
 |---|---|
 | `package.json` | Dependencia `@playwright/test` y los comandos `npm test`, `npm run test:ver` (con el navegador a la vista) y `npm run test:reporte` |
 | `playwright.config.js` | Configuración: zona `America/Bogota`, idioma `es-CO`, levanta el sitio solo con `node pruebas/servidor.js` |
-| `pruebas/sitio.spec.js` | 16 pruebas: Hoy, celular sin desbordes, roles, catálogos, confirmaciones, clientes (+1.000), visita anterior, calendario con teclado, videos y respaldo |
+| `pruebas/sitio.spec.js` | 77 pruebas: Hoy, celular sin desbordes, roles, catálogos, confirmaciones, clientes (+1.000), visita anterior, calendario, respaldo, multinegocio, sedes y planes, suscripción, panel DALU y los arreglos de la ronda E2E (B02–B11) |
 | `pruebas/supabase-falso.js` | Supabase simulado en memoria (también simula los permisos del colaborador). **Las pruebas nunca tocan la base real** |
 | `pruebas/servidor.js` | Servidor mínimo sin instalar nada |
 
@@ -99,7 +111,8 @@ Cómo correrlas en tu computador (una sola vez `npm install` y `npx playwright i
 | Herramienta | Uso |
 |---|---|
 | **Playwright** (Chromium) | Pruebas automáticas de la interfaz en computador (1300 px) y celular (390 px) contra una base simulada; capturas de pantalla |
-| **PostgreSQL 16 local** | Validar cada SQL antes de entregarlo (ejecutarlo dos veces, permisos de colaborador y administrador, reglas automáticas) |
+| **PostgreSQL 16 local** | Réplica con el esquema y los datos de producción: 81 pruebas de base de datos (seguridad sin sesión, aislamiento entre negocios, roles, sedes, planes y los arreglos B02, B09 y B10). Cada prueba se deshace sola |
+| **Pruebas E2E manuales** | Todos los flujos en la base de pruebas con datos reales, con evidencia en imágenes y lista de bugs |
 | **Node.js** | Revisar la sintaxis de cada archivo JavaScript y probar funciones sueltas (mensajes de WhatsApp, primer nombre) |
 | Gherkin (estos features) | Base para automatizar después con Cypress + Cucumber |
 
@@ -108,7 +121,7 @@ Cómo correrlas en tu computador (una sola vez `npm install` y `npx playwright i
 - **Zona horaria:** todas las fechas se calculan en `America/Bogota`.
 - **Moneda:** pesos colombianos, formato `es-CO` (ej. `$30.000`).
 - **Diseño adaptable:** computador y celular (desde 390 px), tema claro y oscuro según el dispositivo.
-- **Configuración:** `config.js` → `SUPABASE_URL`, `SUPABASE_ANON_KEY` (clave pública), `NOMBRE_NEGOCIO`.
+- **Configuración:** `config.js` → `SUPABASE_URL`, `SUPABASE_ANON_KEY` (clave pública), `NEGOCIO_POR_DEFECTO`, `NOMBRE_NEGOCIO`, `DALU_WHATSAPP` y `DALU_MEDIOS_PAGO` (Suscripción).
 
 ### Objetos de base de datos que usa el frontend
 
@@ -131,7 +144,7 @@ Cómo correrlas en tu computador (una sola vez `npm install` y `npx playwright i
 | Vista | `ultima_guia` | Última guía usada por mascota |
 | Vista | `precios_sugeridos` | Precio habitual de la mascota o de la raza |
 | RPC | `registrar_cita` | Crea la cita y, si no existen, el cliente y la mascota |
-| Trigger | `trg_cita_realizada` en `citas` → `crear_servicio_al_completar()` | Al pasar la cita a `realizada` crea el servicio con la **fecha de la cita** (v7). No deja reabrir una realizada; solo permite pasarla a `cancelada` si su servicio ya está en la bitácora (v5) |
+| Trigger | `trg_cita_realizada` en `citas` → `crear_servicio_al_completar()` | Al pasar la cita a `realizada` crea el servicio con la **fecha de la cita** (v7). No deja reabrir una realizada; solo permite pasarla a `cancelada` si su servicio ya está en la bitácora (v5). Si la cita era de un día futuro, el sitio la mueve a hoy en la misma actualización (v18) |
 | Trigger | `trg_sincronizar_cita` en `servicios` → `sincronizar_cita_desde_servicio()` | Al corregir un servicio, copia sus datos (y su fecha) a la cita |
 | Storage | `logo`, `videos` | Buckets públicos. Desde v13 solo el administrador sube o cambia el logo |
 | RPC | `registrar_visita_anterior` (v13) | Crea una cita ya realizada en una fecha pasada y su servicio con esa misma fecha |
@@ -261,6 +274,11 @@ Característica: Uso en celular
 
 ## Historial de versiones
 
+- **v18 · Ronda de pruebas E2E (nov 2026):** «A quién buscar» oculta mascotas que ya tienen cita del mismo grupo (B02); fechas con hora en el día de Bogotá (B03); mensajes de la base sin «Detalle técnico», ej. teléfono repetido (B04); Catálogos sigue la sede de arriba (B05); el selector de sede se actualiza al agregar o renombrar (B06) y se lee completo en celular (B07); tabla de roles con Sedes y sin Videos (B08); terminar una cita futura pide confirmar y la mueve a hoy (B09); precio sugerido al cambiar el servicio en «Editar cita» (B10); tabla de Clientes que cabe en un portátil (B11). Base de pruebas separada con franja «🧪 PRUEBAS» y respaldos semanales. Sin SQL nuevo.
+- **v17 · Panel DALU:** ficha por empresa (plan y uso, usuarios, pagos, pausar/activar), invitar a cualquier empresa, Suscripción con estilo DALU y script para borrar empresas de prueba. SQL: `sql-v17-panel-dalu.sql`.
+- **v16 · Suscripción de marketing:** Suscripción muestra el valor y no el gasto (plan, cliente desde, renovación, lo logrado en el mes, cómo pagar, comparador para mejorar el plan); estados amables de renovación; aviso en Hoy 3 días antes; aviso con «Quiero mejorar mi plan» al llegar al límite de usuarios o sedes; el plan Básico se llama **Esencial** y los nombres se editan en el panel DALU. SQL: `sql-v16-suscripcion-marketing.sql`.
+- **v15 · Planes, sedes y suscripción:** tres planes con límites y módulos; varias sedes con agenda y precios por sede; Videos oculto; Reportes desplegables y filtro por sede; el administrador ya no ve valores pagados. SQL: `sql-v12` a `sql-v15`.
+- **v14 · DALU Vital:** varios negocios en una sola base, invitaciones, enlaces cortos (`vital.dalu.pro/petgarden`), panel Negocios · DALU y pagos de la suscripción. SQL: `sql-v11-multinegocio.sql`.
 - **v13 (revisión de código):** sin sesión ya no se pueden leer los datos (solo los videos); servicios, recordatorios y logo solo los cambia el administrador (guías siguen para todos); al renombrar un grupo no reaparecen los descartados; todas las pantallas avisan si la base no dejó guardar; sin límites fijos (Agenda → Buscar trae todas las citas, Clientes todas las mascotas, la ficha todo el historial con el total correcto); ventana propia de confirmación en vez de la del navegador; calendario con teclado; fechas en un solo formato (dd/mm/aaaa); videos nuevos solo como archivo; **Registrar visita anterior**; **respaldo completo** en Reportes; título "Pet Garden"; pruebas automáticas en el repositorio. SQL: `sql-v10-seguridad-y-visitas.sql`.
 - **v12:** el rol "empleado" se muestra como "Colaborador".
 - **v11:** solo el administrador cambia razas y precios (el empleado los ve en modo lectura); segundo administrador.

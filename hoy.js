@@ -58,7 +58,6 @@ function resumenDelDia(citas, serviciosMes) {
 }
 
 // Citas del día en una línea de tiempo. Todas tienen la misma altura (no se usa la duración).
-// La línea amarilla "ahora" queda entre la última cita que ya empezó y la siguiente.
 // La cita "actual" es la última pendiente cuya hora ya llegó: se resalta y su botón Terminar es el principal.
 function htmlJornada(citas) {
   if (!citas.length) return '<p class="suave jornada-vacia">No tienes citas para hoy.</p>';
@@ -66,12 +65,9 @@ function htmlJornada(citas) {
   const yaEmpezaron = citas.filter((c) => Date.parse(c.fecha_hora) <= ahora);
   const pendientesQueLlegaron = yaEmpezaron.filter((c) => c.estado === "pendiente");
   const actual = pendientesQueLlegaron.length ? pendientesQueLlegaron[pendientesQueLlegaron.length - 1] : null;
-  const lineaAhora = `<div class="jornada-ahora" role="presentation"><b>${esc(horaTexto(new Date(ahora).toISOString()))}</b><i></i></div>`;
 
   let html = "";
-  let lineaPuesta = false;
   citas.forEach((c) => {
-    if (!lineaPuesta && Date.parse(c.fecha_hora) > ahora) { html += lineaAhora; lineaPuesta = true; }
     const [hora, ...ampm] = horaTexto(c.fecha_hora).split(" ");
     const hecha = c.estado === "realizada";
     const esActual = actual && c.id === actual.id;
@@ -79,7 +75,7 @@ function htmlJornada(citas) {
     const acciones = hecha
       ? `<button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`
       : `<button class="btn chico${esActual ? "" : " alt"}" data-terminar="${c.id}">${esActual ? icono("check", { tam: 16 }) : ""}Terminar</button>
-         <button class="btn chico alt" data-recordar="${c.id}" title="Enviar recordatorio de la cita por WhatsApp">Recordar</button>${botonMenu(c.id)}`;
+         <button class="btn chico alt solo-icono" data-recordar="${c.id}" title="Recordar la cita por WhatsApp" aria-label="Recordar la cita de ${esc(c.mascota)} por WhatsApp">${icono("whatsapp", { tam: 17 })}</button>${botonMenu(c.id)}`;
     html += `<div class="jornada-cita${hecha ? " hecha" : ""}${esActual ? " actual" : ""}">
       <div class="jornada-hora" aria-label="${esc(horaTexto(c.fecha_hora))}"><b>${esc(hora)}</b><span>${esc(ampm.join(" "))}</span></div>
       <div class="jornada-punto" aria-hidden="true">${hecha ? icono("check", { tam: 10 }) : ""}</div>
@@ -92,7 +88,6 @@ function htmlJornada(citas) {
       <div class="jornada-der"><span class="jornada-precio">${dinero(precioCita(c))}</span><span class="jornada-acciones">${acciones}</span></div>
     </div>`;
   });
-  if (!lineaPuesta) html += lineaAhora;
   return html;
 }
 

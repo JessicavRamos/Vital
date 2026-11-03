@@ -14,9 +14,8 @@
 2. **La jornada**: las citas de hoy van en una línea de tiempo ordenada por hora. Todas miden lo mismo (no se usa la duración). Cada una muestra hora, ícono de perro o gato, mascota (enlace a la ficha), "Medicado" si aplica, dueño, servicio, guía y precio.
    - Punto sobre el hilo: verde con chulo = terminada; círculo vacío = pendiente; aro turquesa = la cita **actual**.
    - Cita **actual**: la última cita pendiente cuya hora ya llegó. Se resalta con fondo suave y su botón "Terminar" es el principal.
-   - **Línea amarilla de ahora** con la hora actual: queda entre la última cita que ya empezó y la siguiente (al final si ya pasaron todas, al inicio si ninguna ha empezado).
 3. Precio mostrado: si la cita está **realizada** → `precio_cobrado`; si no → `precio_acordado` o, si no hay, el precio sugerido.
-4. Citas **pendientes**: botones Terminar, Recordar y menú (⋯). Citas **realizadas**: "Terminada", botón Avisar y menú.
+4. Citas **pendientes**: botón Terminar, botón de WhatsApp para recordar la cita (solo ícono) y menú (⋯). Citas **realizadas**: "Terminada", botón Avisar y menú.
 5. **A quién buscar hoy** se ordena por más días de retraso primero. El retraso va dentro de la frase:
    - `dias_de_retraso <= 0` → "le toca hoy"
    - `1` → "1 día tarde"
@@ -43,11 +42,10 @@ Característica: Pantalla Hoy
     Entonces el título dice "Buenas tardes, Jessica"
     Y el resumen dice "Tienes 4 citas: una ya terminó y quedan 3 por atender."
 
-  Escenario: Línea de ahora y cita actual
+  Escenario: Cita actual resaltada
     Dado que hay citas pendientes a las 9:00 a. m. y a la 1:00 p. m.
     Y son las 11:20 a. m.
-    Entonces la línea amarilla "11:20 a. m." queda entre las dos citas
-    Y la cita de las 9:00 a. m. se ve resaltada con "Terminar" como botón principal
+    Entonces la cita de las 9:00 a. m. se ve resaltada con "Terminar" como botón principal
 
   Escenario: Ícono de perro o gato
     Dado que "Luna" es perro y "Simba" es gato

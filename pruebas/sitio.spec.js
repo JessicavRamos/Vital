@@ -868,11 +868,10 @@ test.describe("v19 · Estados de empresa, avisos de pago e invitaciones", () => 
 
 
 test.describe("Diseño La jornada (Hoy)", () => {
-  test("saludo, resumen del día en una frase y línea de ahora", async ({ page }) => {
+  test("saludo, resumen del día en una frase y citas en la jornada", async ({ page }) => {
     await abrir(page, "hoy");
     await expect(page.locator("#h-saludo")).toContainText(/Buen(os|as) (días|tardes|noches)/);
     await expect(page.locator("#h-resumen")).toContainText("Tienes 2 citas");
-    await expect(page.locator("#h-citas .jornada-ahora")).toHaveCount(1);
     await expect(page.locator("#h-citas .jornada-cita")).toHaveCount(2);
   });
 

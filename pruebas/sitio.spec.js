@@ -340,9 +340,9 @@ test.describe("Suscripción y pagos", () => {
     await expect(page.locator("#s-resumen")).toHaveCount(0);
   });
 
-  test("Hoy: aviso de renovación 3 días antes, solo al administrador, y se puede cerrar", async ({ page }) => {
+  test("Hoy: aviso de renovación 1 día antes, solo al administrador, y se puede cerrar", async ({ page }) => {
     await abrir(page, "hoy", { extra: "renuevapronto" });
-    await expect(page.locator("#h-renovacion")).toContainText("se renueva el");
+    await expect(page.locator("#h-renovacion")).toContainText("Mañana");
     await page.locator("#h-renovacion-cerrar").click();
     await expect(page.locator("#h-renovacion")).toBeEmpty();
     await page.reload();
@@ -647,9 +647,11 @@ test.describe("Sedes y planes", () => {
     await expect(aviso(page)).toContainText("no está incluida en tu plan");
   });
 
-  test("empresa pausada: aviso y sin panel", async ({ page }) => {
+  test("empresa finalizada: sin panel, con su correo y la razón", async ({ page }) => {
     await abrir(page, "hoy", { extra: "pausado" });
-    await expect(page.locator("h1")).toHaveText("Tu empresa está pausada");
+    await expect(page.locator("h1")).toHaveText("Pet Garden ya no tiene acceso");
+    await expect(page.locator(".sin-acceso")).toContainText("Entraste como");
+    await expect(page.locator(".sin-acceso")).toContainText("finalizado");
     await expect(page.locator("#menu-secciones")).toHaveCount(0);
   });
 
@@ -796,3 +798,71 @@ test.describe("Arreglos de la ronda E2E (B02–B11)", () => {
     expect(medida.contenido).toBeLessThanOrEqual(medida.visible + 1);
   });
 });
+
+test.describe("v19 · Estados de empresa, avisos de pago e invitaciones", () => {
+  test("pausa: aviso para todos, sin Agendar ni Terminar, y la base no deja escribir", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "pausa" });
+    await expect(page.locator(".aviso-pausa")).toContainText("está en pausa");
+    await expect(page.locator(".lateral nav a", { hasText: "Agendar" })).toHaveCount(0);
+    await expect(page.locator("#h-citas [data-terminar]")).toBeHidden();
+    await page.goto("/index.html?empleado&pausa#/agenda");
+    await expect(page.locator(".aviso-pausa")).toContainText("está en pausa");
+  });
+
+  test("pausa: si intenta guardar algo ve el mensaje claro", async ({ page }) => {
+    await abrir(page, "catalogos", { extra: "pausa" });
+    const r = await page.evaluate(async () => { try { await q(db.from("guias").insert({ nombre: "X" })); return "sin error"; } catch (e) { return mensajeError(e); } });
+    expect(r).toContain("Tu empresa está en pausa");
+  });
+
+  for (const [extra, texto] of [["pagomanana", "Mañana"], ["pagohoy", "Hoy se renueva"], ["pagodia2", "hace 2 días"], ["pagodia4", "último día"], ["pagovencido", "vencida"]]) {
+    test(`aviso de pago (${extra})`, async ({ page }) => {
+      await abrir(page, "hoy", { extra });
+      await expect(page.locator("#h-renovacion")).toContainText(texto);
+    });
+  }
+
+  test("a 3 días de renovar todavía no hay aviso", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.waitForTimeout(400);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+  });
+
+  test("DALU cambia el estado de una empresa desde la ficha", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await page.selectOption("#f-estado", "pausa");
+    await page.getByRole("button", { name: /Sí, en pausa/ }).click();
+    await expect(aviso(page)).toContainText("en pausa");
+  });
+
+  test("invitar con celular abre WhatsApp directo a ese número", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.fill("#i-correo", "nueva@pet.co");
+    await page.fill("#i-telefono", "300 123 4567");
+    await page.locator("#form-invitar button[type=submit]").click();
+    const wa = page.locator(".envio-invitacion a.wa");
+    await expect(wa).toContainText("3001234567");
+    await expect(wa).toHaveAttribute("href", /wa\.me\/573001234567/);
+    await expect(page.locator(".mensaje-invitacion")).toContainText("#invitado=nueva%40pet.co");
+  });
+
+  test("el enlace de la invitación abre Crear cuenta con el correo escrito", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await page.goto("/index.html?sinsesion&invitacion#invitado=nueva%40pet.co");
+    await expect(page.locator("#cc-correo")).toHaveValue("nueva@pet.co");
+  });
+
+  test("enlace de correo reusado: mensaje que no habla solo de contraseña", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await page.goto("/index.html?sinsesion&enlace#error=access_denied&error_code=otp_expired&error_description=x");
+    await expect(page.locator("#error-login")).toContainText("Este enlace ya se usó");
+  });
+
+  test("Usuarios: el botón dice Cambiar sedes y deja marcar varias", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "dossedes" });
+    await page.getByRole("button", { name: "Cambiar sedes" }).first().click();
+    await expect(page.locator('input[name="eu-sede"]')).toHaveCount(2);
+  });
+});
+

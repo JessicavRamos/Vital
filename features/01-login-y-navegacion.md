@@ -24,7 +24,7 @@
 |---------------|------------------|
 | `invalid login credentials` | Correo o contraseña incorrectos. |
 | `failed to fetch` / sin red | No hay conexión con la base de datos. Revisa tu internet y los datos de config.js. |
-| `email not confirmed` | Tu correo aún no está confirmado. Confírmalo en Supabase (Authentication > Users). |
+| `email not confirmed` | Aún no has confirmado tu correo. Busca el correo de confirmación que te enviamos (revisa también Spam o Promociones), toca el enlace y vuelve a entrar. |
 | `jwt expired` | Tu sesión venció. Vuelve a iniciar sesión. |
 | `permission denied` / RLS | No tienes permiso para hacer esto. Inicia sesión de nuevo. |
 | `duplicate key` | Ya existe un registro con ese dato (por ejemplo, otro cliente con ese teléfono o una raza repetida). |
@@ -64,7 +64,7 @@ Característica: Inicio de sesión y navegación del panel
   Escenario: Correo sin confirmar
     Dado un usuario cuyo correo no está confirmado en Supabase
     Cuando intento iniciar sesión
-    Entonces veo "Tu correo aún no está confirmado. Confírmalo en Supabase (Authentication > Users)."
+    Entonces veo "Aún no has confirmado tu correo. Busca el correo de confirmación que te enviamos (revisa también Spam o Promociones), toca el enlace y vuelve a entrar."
 
   Escenario: Configuración incompleta
     Dado que config.js todavía tiene "PEGA_AQUI" en la URL o la clave

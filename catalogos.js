@@ -228,7 +228,6 @@ async function pestanaServicios(caja) {
   }
 
   caja.innerHTML = `
-    <p class="aviso-fijo">No cambies el nombre de <strong>${SERVICIOS_FIJOS.join(", ")}</strong>: el precio sugerido por raza depende de esos nombres.</p>
     <h3>Grupos de recordatorio</h3>
     <p class="suave">Los servicios de un mismo grupo cuentan igual para avisarte cuándo debe volver el cliente.</p>
     <form id="nuevo-grupo" class="fila-nueva">

@@ -130,7 +130,7 @@ async function cargarHoy() {
   }
   $("#h-buscar-controles").innerHTML = pendientes.length ? `
     <div class="filtros tramos-buscar" role="group" aria-label="Cuánto llevan sin volver">${porTramo.map((t) =>
-      `<button type="button" class="chip" data-tramo="${t.id}" aria-pressed="${!textoBuscar && t.id === tramoBuscar}"${t.lista.length ? "" : " disabled"}>${t.nombre} <b>${t.lista.length}</b></button>`).join("")}</div>
+      `<button type="button" class="chip" data-tramo="${t.id}" aria-pressed="${!textoBuscar && t.id === tramoBuscar}"${t.lista.length ? "" : " disabled"}>${t.nombre} (${t.lista.length})</button>`).join("")}</div>
     <input type="search" id="h-buscar-texto" class="buscar-lista" placeholder="Buscar mascota o dueño en la lista" value="${esc(textoBuscar)}" aria-label="Buscar en A quién buscar">` : "";
 
   const pintarPendientes = () => {
@@ -256,11 +256,9 @@ async function avisoRenovacion() {
   if (!est.aviso) return;
   const clave = `dalu-vital-renovacion-${estado.negocio ? estado.negocio.id : 0}-${datos.proximo_pago}-${est.dias < 0 ? hoyISO() : ""}`;
   try { if (localStorage.getItem(clave)) return; } catch (error) { /* sin almacenamiento: se muestra */ }
-  const texto = est.dias > 0 ? `Tu plan ${esc(datos.plan || "")} se renueva el ${esc(fechaPago(datos.proximo_pago))}.`
-    : est.dias === 0 ? `Tu plan ${esc(datos.plan || "")} se renueva hoy.`
-    : `Tu renovación del plan ${esc(datos.plan || "")} está pendiente desde el ${esc(fechaPago(datos.proximo_pago))}.`;
-  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion" role="status">
-    <span>🔔 ${texto}</span>
+  const texto = esc(textoAvisoPago(datos.proximo_pago, datos.plan || ""));
+  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion${est.dias < 0 ? " atrasada" : ""}" role="status">
+    <span>${texto}</span>
     <span class="acciones-tabla"><a class="btn chico" href="#/suscripcion">Ver cómo pagar</a>
     <button type="button" class="btn alt chico" id="h-renovacion-cerrar" aria-label="Cerrar aviso">✕</button></span></div>`;
   $("#h-renovacion-cerrar").addEventListener("click", () => {

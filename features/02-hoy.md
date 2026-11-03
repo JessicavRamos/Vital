@@ -271,7 +271,7 @@ Característica: A quién buscar sin una lista interminable
     Dado 12 mascotas con hasta 30 días de retraso, 30 con 1 a 3 meses y 58 con más de 3 meses
     Cuando abro Hoy
     Entonces el título dice "A quién buscar hoy (100)"
-    Y está elegida la pestaña "Hasta 30 días 12"
+    Y está elegida la pestaña "Hasta 30 días (12)"
     Y veo 10 mascotas y el botón "Ver 2 más (quedan 2)"
 
   Escenario: Cambiar de tramo

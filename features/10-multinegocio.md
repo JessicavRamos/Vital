@@ -206,7 +206,7 @@ Característica: Multinegocio
 
   Escenario: Renovación pendiente amable
     Dado que mi renovación era hace 3 días
-    Entonces veo "Renovación pendiente" en amarillo y "Si ya pagaste, avísanos y la registramos."
+    Entonces veo "Renovación pendiente" en amarillo y "Si ya pagaste, avísanos y la registraremos."
     Pero si pasan más de 5 días veo "Renovación vencida" en rojo
 
   Escenario: Avisar que ya pagué

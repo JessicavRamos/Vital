@@ -679,3 +679,21 @@ tr.fila-elegida{background:var(--realce)}
   .item.persona.sin-avatar{grid-template-columns:minmax(0,1fr)}
   .item.persona.sin-avatar .persona-acciones{grid-column:1/-1}
 }
+
+/* v19 · Empresa en pausa (solo lectura) y finalizada */
+.aviso-pausa{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 12px;padding:12px 14px;border-radius:12px;border:1px solid var(--sol);background:rgba(246,201,69,.16)}
+.aviso-pausa p{margin:0;flex:1 1 320px}
+.solo-lectura [data-terminar],.solo-lectura [data-descartar],.solo-lectura [data-agendar],.solo-lectura [data-menu],
+.solo-lectura [data-restaurar],.solo-lectura #form-invitar,.solo-lectura #i-sedes{display:none!important}
+.tarjeta.sin-acceso p{margin:.4em 0}
+.tarjeta.sin-acceso .acciones{margin-top:14px}
+.aviso-fijo.atrasada{border-color:var(--alerta)}
+.estado-empresa{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.85rem}
+.estado-empresa select{padding:4px 8px}
+.envio-invitacion .btn.wa{background:#1F9D55;border-color:#1F9D55;color:#fff}
+#form-invitar{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) minmax(0,1fr);gap:10px 12px;align-items:end}
+#form-invitar>*{min-width:0}
+#form-invitar #i-sedes{grid-column:1/-1;margin:0}
+#form-invitar button[type=submit]{grid-column:1/-1;justify-self:start;min-width:140px}
+@media (max-width:700px){#form-invitar{grid-template-columns:1fr}}
+.solo-lectura [data-whatsapp],.solo-lectura [data-recordar],.solo-lectura [data-recoger]{display:none!important}

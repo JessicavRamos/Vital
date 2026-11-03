@@ -3,7 +3,8 @@
 // Parámetros en la dirección: ?empleado (entra como colaborador), ?sinsesion, ?muchas (1.200 mascotas extra),
 // ?dalu (la usuaria es de DALU), ?sinnegocio (su usuario no tiene negocio), ?negocio=slug (negocio del visitante),
 // ?dossedes (Pet Garden con 2 sedes), ?basico (Pet Garden en plan Esencial), ?pagopendiente / ?pagovencido / ?pagoreciente / ?renuevapronto (estado de la renovación), ?mesvacio (resumen del mes en ceros), ?sinrecordatorios / ?sinreportes (plan sin ese módulo),
-// ?pausado (DALU pausó a Pet Garden).
+// ?pausado (DALU finalizó a Pet Garden: sin acceso), ?pausa (Pet Garden en pausa: solo lectura).
+// Renovación: ?pagomanana (mañana), ?pagohoy (hoy), ?pagodia2 (hace 2 días), ?pagodia4 (hace 4 días, último día).
 // Multinegocio: las filas con negocio_id se filtran como lo hace la base (RLS) cuando hay sesión.
 (function () {
   const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
@@ -41,7 +42,8 @@
       { id: "premium", nombre: "Premium", orden: 3, precio_mensual: 180000, max_sedes: 5, max_usuarios: 20, recordatorios: true, reportes: true, respaldo: true, historia_clinica: true },
     ],
     negocios: [
-      { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: !location.search.includes("pausado"), creado_en: "2026-10-01T15:00:00Z",
+      { id: 1, nombre: "Pet Garden", slug: "petgarden", activo: !location.search.includes("pausado"),
+        estado: location.search.includes("pausado") ? "finalizada" : /[?&]pausa(&|$)/.test(location.search) ? "pausa" : "activo", creado_en: "2026-10-01T15:00:00Z",
         plan_id: location.search.includes("basico") ? "basico" : "premium" },
       { id: 2, nombre: "Vet Norte", slug: "vet-norte", activo: true, creado_en: "2026-10-20T15:00:00Z", plan_id: "basico" },
     ],
@@ -57,7 +59,9 @@
       { id: 1, negocio_id: 1, fecha: dia(-50), valor: 80000, nota: "Septiembre 2026", proximo_pago: dia(-20) },
       { id: 2, negocio_id: 1, fecha: location.search.includes("pagoreciente") ? dia(-2) : dia(-21), valor: 80000, nota: "Octubre 2026",
         proximo_pago: location.search.includes("pagopendiente") ? dia(-3) : location.search.includes("pagovencido") ? dia(-8)
-          : location.search.includes("renuevapronto") ? dia(2) : location.search.includes("pagoreciente") ? dia(28) : dia(10) },
+          : location.search.includes("renuevapronto") || location.search.includes("pagomanana") ? dia(1)
+          : location.search.includes("pagohoy") ? dia(0) : location.search.includes("pagodia2") ? dia(-2) : location.search.includes("pagodia4") ? dia(-4)
+          : location.search.includes("pagoreciente") ? dia(28) : dia(10) },
       { id: 3, negocio_id: 2, fecha: dia(-40), valor: 95000, nota: "Pago de Vet Norte", proximo_pago: dia(-10) },
     ],
     perfiles: [
@@ -166,6 +170,11 @@
         error: this.op === "select" ? null : { message: 'new row violates row-level security policy for table "pagos"' } };
       const pasa = (r) => (this.t === "negocios" || this.t === "planes" || (deMiNegocio(r) && !(pausado && r.negocio_id !== undefined && this.t !== "perfiles")))
         && this.f.every((fn) => fn(r));
+      // Empresa en pausa: la base no deja escribir (solo lectura)
+      if (["insert", "update", "delete", "upsert"].includes(this.op) && sesion && !esDalu
+          && (T.negocios.find((n) => n.id === mi) || {}).estado === "pausa") {
+        return { data: null, error: { message: "Tu empresa está en pausa: puedes consultar tu información, pero no hacer cambios. Comunícate con DALU para reactivarla." } };
+      }
       if (esEmpleado && (SOLO_ADMIN[this.t] || []).includes(this.op)) {
         if (this.op === "insert") return { data: null, error: { message: 'new row violates row-level security policy for table "' + this.t + '"' } };
         return { data: [], error: null };
@@ -242,6 +251,10 @@
           return Promise.resolve({ data: null, error: null });
         }
         if (n === "es_dalu") return Promise.resolve({ data: esDalu, error: null });
+        if (n === "mi_empresa_estado") {
+          const ng = T.negocios.find((x) => x.id === miNegocio());
+          return Promise.resolve({ data: ng ? [{ nombre: ng.nombre, estado: ng.estado }] : [], error: null });
+        }
         if (n === "mis_sedes") {
           const perfil = T.perfiles.find((x) => x.id === sesion.user.id) || {};
           const ids = perfil.rol === "administrador"

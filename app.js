@@ -171,7 +171,7 @@ function mensajeError(error) {
   if (/failed to fetch|networkerror|load failed/i.test(texto))
     return "No hay conexión con la base de datos. Revisa tu internet y los datos de config.js.";
   if (/email not confirmed/i.test(texto))
-    return "Tu correo aún no está confirmado. Confírmalo en Supabase (Authentication > Users).";
+    return "Aún no has confirmado tu correo. Busca el correo de confirmación que te enviamos (revisa también Spam o Promociones), toca el enlace y vuelve a entrar.";
   if (/jwt expired/i.test(texto)) return "Tu sesión venció. Vuelve a iniciar sesión.";
   if (/permission denied|row-level security/i.test(texto))
     return "No tienes permiso para hacer esto. Inicia sesión de nuevo.";
@@ -183,7 +183,7 @@ function mensajeError(error) {
     return "Ese correo no tiene invitación. Pide al administrador de tu negocio que te invite y vuelve a intentar.";
   if (/user already registered/i.test(texto)) return "Ese correo ya tiene cuenta. Inicia sesión o usa «¿Olvidaste tu contraseña?».";
   if (/negocios_slug_key|duplicate key.*slug/i.test(texto)) return "Ya existe un negocio con esa dirección corta. Usa otra.";
-  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite)/.test(texto)) return texto;
+  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite|Tu empresa está en pausa|Escribe un celular válido)/.test(texto)) return texto;
   return `No se pudo completar. Detalle técnico: ${texto}`;
 }
 
@@ -197,18 +197,29 @@ const configurado =
 
 // ¿Se abrió la página desde el enlace del correo "recuperar contraseña"?
 // Se revisa ANTES de crear el cliente de Supabase, que es quien lee y limpia ese enlace.
+// También el de "confirmar tu correo": al confirmarlo se entra directo con un aviso de bienvenida.
+// Los enlaces sirven una sola vez: si se vuelve a abrir, Supabase responde con un error y aquí se
+// explica sin suponer que era de contraseña.
 const RECUPERACION = (() => {
   const h = location.hash + "&" + location.search;
   if (/type=recovery/.test(h)) return { modo: "nueva" };
+  if (/type=(signup|invite|email)\b/.test(h) && /access_token=/.test(h)) return { modo: "confirmado" };
   if (/error_code=|error_description=/.test(h)) {
     return {
       modo: "error",
       texto: /otp_expired|expired/i.test(h)
-        ? "El enlace para cambiar la contraseña venció o ya se usó. Pide uno nuevo."
-        : "El enlace para cambiar la contraseña no es válido. Pide uno nuevo.",
+        ? "Este enlace ya se usó o venció. Si ya confirmaste tu correo, entra con tu correo y contraseña. Si querías cambiar tu contraseña, pide un enlace nuevo en «¿Olvidaste tu contraseña?»."
+        : "Este enlace no es válido. Entra con tu correo y contraseña o pide un enlace nuevo en «¿Olvidaste tu contraseña?».",
     };
   }
   return null;
+})();
+
+// Enlace de invitación: vital.dalu.pro/petgarden#invitado=correo → abre «Crear tu cuenta» con el correo escrito.
+const INVITADO = (() => {
+  const m = location.hash.match(/^#invitado=([^&]+)/);
+  if (!m) return null;
+  try { return decodeURIComponent(m[1]); } catch (error) { return null; }
 })();
 
 const db = configurado && typeof supabase !== "undefined"
@@ -366,15 +377,32 @@ const diasHasta = (f) => {
 };
 // Estado de la suscripción según la fecha de renovación (próximo pago).
 // Amable: amarillo cerca de la fecha y en los días de gracia; rojo solo después.
-const DIAS_GRACIA = 5;
+// Días de gracia después de la fecha de renovación. Pasados esos días, DALU decide (a mano) si pausa la empresa.
+const DIAS_GRACIA = 4;
 function estadoPago(proximo) {
   if (!proximo) return { texto: "Sin pagos registrados", clase: "gris" };
   const dias = diasHasta(proximo);
   if (dias < -DIAS_GRACIA) return { texto: "Renovación vencida", clase: "atrasada", dias, aviso: true };
   if (dias < 0) return { texto: "Renovación pendiente", clase: "", dias, aviso: true };
   if (dias === 0) return { texto: "Se renueva hoy", clase: "", dias, aviso: true };
-  if (dias <= DIAS_GRACIA) return { texto: `Se renueva en ${dias} ${dias === 1 ? "día" : "días"}`, clase: "", dias, aviso: dias <= 3 };
+  if (dias === 1) return { texto: "Se renueva mañana", clase: "", dias, aviso: true };
+  if (dias <= 5) return { texto: `Se renueva en ${dias} días`, clase: "", dias };
   return { texto: "Al día", clase: "ok", dias };
+}
+// Mensaje para la empresa según cuántos días faltan o pasaron (Hoy y Suscripción).
+function textoAvisoPago(proximo, plan = "") {
+  const est = estadoPago(proximo);
+  if (!est.aviso) return "";
+  const elPlan = plan ? `tu plan ${plan}` : "tu plan";
+  const limite = fechaPago(sumarDias(String(proximo).slice(0, 10), DIAS_GRACIA));
+  if (est.dias === 1) return `🔔 Mañana, ${fechaPago(proximo)}, se renueva ${elPlan}. Paga a tiempo para seguir usando ${NOMBRE_PRODUCTO} sin interrupciones.`;
+  if (est.dias === 0) return `🔔 Hoy se renueva ${elPlan}. Cuando pagues, envíanos el comprobante por WhatsApp y lo registraremos.`;
+  if (est.dias === -DIAS_GRACIA) return `⚠️ Hoy es el último día para pagar tu renovación. Desde mañana tu empresa puede pasar a pausa: podrán consultar, pero no agendar ni hacer cambios.`;
+  if (est.dias < 0 && est.dias > -DIAS_GRACIA) {
+    const n = -est.dias;
+    return `⚠️ Tu renovación está pendiente desde el ${fechaPago(proximo)} (hace ${n} ${n === 1 ? "día" : "días"}). Tienes hasta el ${limite} para pagar; después tu empresa puede pasar a pausa (solo consulta).`;
+  }
+  return `⛔ Tu renovación está vencida desde el ${fechaPago(proximo)}. Tu empresa puede pasar a pausa (solo consulta) en cualquier momento. Paga y envíanos el comprobante para evitarlo.`;
 }
 
 /* ---------- Planes y contacto con DALU (marketing) ---------- */
@@ -799,7 +827,7 @@ function cerrarDialogo(id = "dialogo") {
 
 /* ---------- Estado, logo, usuario, menú y pantallas ---------- */
 const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null,
-  logoUrl: null, recuperacion: RECUPERACION, negocio: null, esDalu: false,
+  logoUrl: null, recuperacion: RECUPERACION, invitado: INVITADO, enPausa: false, negocio: null, esDalu: false,
   plan: null, sedes: [], sedesMias: [], sede: null, conSedes: false };
 
 /* ---------- Sedes y plan ---------- */
@@ -858,7 +886,7 @@ function htmlSelectorSede() {
   if (!estado.conSedes || !estado.sede) return "";
   if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">📍 ${esc(estado.sede.nombre)}</span>`;
   return `<label class="sede-actual">📍 <span class="oculto-visual">Sede</span>
-    <select id="sede-actual" aria-label="Sede en la que estás trabajando">${estado.sedesMias.map((s) =>
+    <select id="sede-actual" aria-label="Sede en la que estás trabajando" title="Sede en la que estás trabajando ahora. Las sedes de cada colaborador se asignan en Usuarios → Cambiar sedes.">${estado.sedesMias.map((s) =>
       `<option value="${s.id}"${s.id === estado.sede.id ? " selected" : ""}>${esc(s.nombre)}</option>`).join("")}</select></label>`;
 }
 
@@ -988,15 +1016,23 @@ const MENU = [
 
 /* ---------- Roles: administrador y empleado ---------- */
 const esAdmin = () => estado.rol === "administrador";
-const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu) && moduloActivo(m.modulo);
+const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu) && moduloActivo(m.modulo)
+  && !(m.clave === "agendar" && estado.enPausa && !estado.esDalu); // en pausa no se agenda
 
 // Lee el rol de la persona que inició sesión (tabla "perfiles").
 async function cargarRol() {
   estado.plan = null;
   if (!estado.sesion) { estado.rol = null; estado.esDalu = false; return; }
   try {
-    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,planes(*))")
+    estado.enPausa = false;
+    estado.empresaFinalizada = null;
+    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,estado,planes(*))")
       .eq("id", estado.sesion.user.id).maybeSingle();
+    if (error && /estado/i.test(error.message || "")) {
+      // Base sin el SQL v18 (sin estado de la empresa)
+      ({ data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,planes(*))")
+        .eq("id", estado.sesion.user.id).maybeSingle());
+    }
     if (error && /plan/i.test(error.message || "")) {
       // Base sin planes (antes del SQL v13)
       ({ data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug)")
@@ -1008,10 +1044,14 @@ async function cargarRol() {
       if (!error) estado.negocio = negocioLegado();
     } else if (!error) {
       const negocio = data && data.negocios ? data.negocios : null;
-      // Tiene empresa pero no se ve: DALU la pausó.
+      // Tiene empresa pero no se ve: DALU la finalizó (sin acceso).
       estado.negocioPausado = !!(data && data.negocio_id && !negocio);
+      if (estado.negocioPausado) {
+        try { const r = await db.rpc("mi_empresa_estado"); estado.empresaFinalizada = (r.data && r.data[0]) || null; } catch (e) { /* base sin v18 */ }
+      }
       estado.plan = negocio && negocio.planes ? negocio.planes : null;
-      estado.negocio = negocio ? { id: negocio.id, nombre: negocio.nombre, slug: negocio.slug } : null;
+      estado.negocio = negocio ? { id: negocio.id, nombre: negocio.nombre, slug: negocio.slug, estado: negocio.estado || "activo" } : null;
+      estado.enPausa = !!negocio && negocio.estado === "pausa";
       recordarNegocio(estado.negocio);
     }
     if (error) throw error;
@@ -1184,14 +1224,15 @@ function pedirRecuperacion() {
 }
 
 // Crear cuenta: solo funciona si el administrador del negocio (o DALU) invitó ese correo.
-function pedirCrearCuenta() {
+function pedirCrearCuenta(correoInicial = "") {
+  if (typeof correoInicial !== "string") correoInicial = "";
   abrirDialogo(`<form id="form-cuenta">
     <h2>Crear tu cuenta</h2>
-    <p class="suave">Usa el mismo correo con el que te invitaron. Te llegará un correo para confirmarlo.</p>
+    <p class="suave">${correoInicial ? "Tu correo ya está escrito: solo pon tu nombre y crea tu contraseña." : "Usa el mismo correo con el que te invitaron."}</p>
     <label for="cc-nombre">Tu nombre</label>
     <input id="cc-nombre" maxlength="60" autocomplete="name" required>
     <label for="cc-correo">Correo</label>
-    <input id="cc-correo" type="email" autocomplete="username" required>
+    <input id="cc-correo" type="email" autocomplete="username" required value="${esc(correoInicial)}">
     <label for="cc-clave">Contraseña (mínimo 6 caracteres)</label>
     <input id="cc-clave" type="password" autocomplete="new-password" minlength="6" required>
     <p id="cc-error" class="error" role="alert"></p>
@@ -1214,6 +1255,7 @@ function pedirCrearCuenta() {
       if (error) throw error;
       cerrarDialogo();
       if (!data.session) aviso("¡Listo! Revisa tu correo y confirma la cuenta para poder entrar.");
+      else setTimeout(() => aviso(`¡Listo! Tu cuenta quedó creada. Te damos la bienvenida a ${nombreNegocio()}.`), 1500);
     } catch (error) {
       $("#cc-error").textContent = mensajeError(error);
       boton.disabled = false;
@@ -1225,12 +1267,21 @@ function pedirCrearCuenta() {
 
 // Inició sesión pero su usuario no está en ningún negocio (y no es de DALU).
 function htmlSinNegocio() {
-  if (estado.negocioPausado) return `<main class="login"><div class="tarjeta">
-    <h1>Tu empresa está pausada</h1>
-    <p>El acceso de tu empresa a ${esc(NOMBRE_PRODUCTO)} está pausado por el momento. Tus datos están guardados y no se perdió nada.
-    Comunícate con DALU para reactivarlo.</p>
-    <button id="salir" class="btn">Cerrar sesión</button>
+  if (estado.negocioPausado) {
+    const empresa = estado.empresaFinalizada && estado.empresaFinalizada.nombre ? estado.empresaFinalizada.nombre : "Tu empresa";
+    const correo = estado.sesion.user.email || "";
+    return `<main class="login"><div class="tarjeta sin-acceso">
+    <h1>${esc(empresa)} ya no tiene acceso</h1>
+    <p>Entraste como <strong>${esc(correo)}</strong>.</p>
+    <p>El servicio de <strong>${esc(empresa)}</strong> en ${esc(NOMBRE_PRODUCTO)} está <strong>finalizado</strong>, por eso no puedes ver ni registrar información.
+    Los datos de la empresa no se borraron.</p>
+    <p class="suave">Si crees que es un error o tu empresa quiere volver, comunícate con DALU.</p>
+    <div class="acciones">
+      <a class="btn" target="_blank" rel="noopener" href="${esc(enlaceDalu(`Hola, soy ${correo} de ${empresa}. Nuestro acceso a ${NOMBRE_PRODUCTO} aparece finalizado.`))}">Escribir a DALU</a>
+      <button id="salir" class="btn alt">Cerrar sesión</button>
+    </div>
   </div></main>`;
+  }
   return `<main class="login"><div class="tarjeta">
     <h1>Tu usuario aún no tiene negocio</h1>
     <p>Iniciaste sesión como <strong>${esc(estado.sesion.user.email || "")}</strong>, pero todavía no estás en ningún negocio.
@@ -1272,6 +1323,7 @@ function htmlPanel(clave) {
         ${htmlSelectorSede()}
         <span class="suave">${esc(fechaLarga())}</span>
       </div>
+      ${htmlAvisoPausa()}
       <section id="pantalla" tabindex="-1"></section>
     </div>
   </div>`;
@@ -1320,9 +1372,23 @@ function montarLogin() {
     estado.recuperacion = null;
   }
   $("#correo").focus();
+  // Llegó con el enlace de su invitación: se abre de una vez «Crear tu cuenta».
+  if (estado.invitado) { const correo = estado.invitado; estado.invitado = null; pedirCrearCuenta(correo); }
+}
+
+// Empresa en pausa: todos (administrador y colaboradores) ven qué pasa. Solo pueden consultar.
+function htmlAvisoPausa() {
+  if (!estado.enPausa || estado.esDalu) return "";
+  const empresa = nombreNegocio();
+  return `<div class="aviso-pausa" role="status">
+    <p><strong>⏸ ${esc(empresa)} está en pausa.</strong> Puedes consultar tu información (agenda, clientes e historial),
+    pero no puedes agendar, terminar ni cancelar citas, ni hacer cambios. Para reactivarla, comunícate con DALU.</p>
+    <a class="btn chico" target="_blank" rel="noopener" href="${esc(enlaceDalu(`Hola, somos ${empresa}. Nuestra cuenta de ${NOMBRE_PRODUCTO} está en pausa y queremos reactivarla.`))}">Escribir a DALU</a>
+  </div>`;
 }
 
 function montarPanel() {
+  document.body.classList.toggle("solo-lectura", !!estado.enPausa && !estado.esDalu);
   $("#salir").addEventListener("click", async () => {
     await db.auth.signOut();
     location.hash = "#/hoy";
@@ -1437,21 +1503,24 @@ function avisarOtroNegocio() {
 
 /* ---------- Invitaciones: mensaje para enviar por WhatsApp o correo ---------- */
 function mensajeInvitacion(correo, negocio) {
-  const enlace = negocio && negocio.slug ? enlacePublico(negocio.slug) : location.origin + "/";
+  const base = negocio && negocio.slug ? enlacePublico(negocio.slug) : location.origin + "/";
+  const enlace = `${base}#invitado=${encodeURIComponent(correo)}`;
   return `¡Hola! Te invité a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}.
-1. Entra a ${enlace}
-2. Toca «¿Te invitaron? Crea tu cuenta».
-3. Usa este correo: ${correo}`;
+1. Abre este enlace: ${enlace}
+2. Escribe tu nombre y crea tu contraseña (tu correo ya aparece escrito).
+3. ¡Listo! Entras de una vez.
+Tu correo para entrar es: ${correo}`;
 }
-function abrirEnvioInvitacion(correo, negocio, titulo = "Envía la invitación") {
+function abrirEnvioInvitacion(correo, negocio, titulo = "Envía la invitación", telefono = "") {
   const texto = mensajeInvitacion(correo, negocio);
+  const tel = String(telefono || "").replace(/\D/g, "");
   const asunto = `Invitación a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}`;
   abrirDialogo(`<div>
     <h2>${esc(titulo)}</h2>
     <p class="suave">El sistema no envía correos solo: compártele este mensaje a <strong>${esc(correo)}</strong>.</p>
     <pre class="mensaje-invitacion">${esc(texto)}</pre>
     <div class="acciones envio-invitacion">
-      <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">Enviar por WhatsApp</a>
+      <a class="btn wa" target="_blank" rel="noopener" href="${esc(tel ? enlaceWhatsApp(tel, texto) : `https://wa.me/?text=${encodeURIComponent(texto)}`)}">${tel ? `Enviar por WhatsApp al ${esc(tel)}` : "Enviar por WhatsApp (elige el contacto)"}</a>
       <a class="btn alt" href="mailto:${encodeURIComponent(correo)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}">Enviar por correo</a>
       <button type="button" class="btn alt" id="ei-copiar">Copiar mensaje</button>
       <button type="button" class="btn alt" id="ei-cerrar">Listo</button>
@@ -1518,7 +1587,8 @@ async function iniciar() {
       aviso(mensajeError(error), true);
     }
     // Se limpia el enlace del correo de la barra de direcciones (ya lo leyó Supabase).
-    if (RECUPERACION) history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    if (RECUPERACION || INVITADO) history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    if (estado.sesion && RECUPERACION && RECUPERACION.modo === "error") estado.recuperacion = null; // ya tiene sesión: nada que avisar
     db.auth.onAuthStateChange((evento, sesion) => {
       const nuevoId = sesion ? sesion.user.id : null;
       estado.sesion = sesion;
@@ -1537,6 +1607,9 @@ async function iniciar() {
   }
   window.addEventListener("hashchange", pintar);
   pintar();
+  if (RECUPERACION && RECUPERACION.modo === "confirmado" && estado.sesion) {
+    setTimeout(() => aviso(`¡Listo! Tu correo quedó confirmado. Te damos la bienvenida a ${nombreNegocio()}.`), 300);
+  }
   setInterval(revisarVersionNueva, 5 * 60 * 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) revisarVersionNueva(); });
 }

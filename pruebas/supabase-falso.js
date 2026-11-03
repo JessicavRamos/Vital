@@ -67,7 +67,8 @@
       { id: 'u3', correo: 'otra@vetnorte.co', nombre: 'Laura', rol: 'administrador', creado_en: '2026-10-20T15:00:00Z', negocio_id: 2 },
     ],
     ultima_guia: [{ mascota_id: 1, guia_id: 1, guia: "#7", fecha: dia(-35) }],
-    precios_sugeridos: [{ mascota_id: 1, tipo_id: 1, precio_sugerido: 40000, origen: "mascota", recargo_medicado: null }],
+    precios_sugeridos: [{ mascota_id: 1, tipo_id: 1, precio_sugerido: 40000, origen: "mascota", recargo_medicado: null },
+      { mascota_id: 1, tipo_id: 3, sede_id: 1, precio_sugerido: 65000, origen: "raza", recargo_medicado: null }],
     videos: [
       { id: 1, especie: "perro", categoria: "Comida", titulo: "Croquetas premium", archivo: null, youtube_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", activo: true },
       { id: 2, especie: "perro", categoria: "Juguetes", titulo: "Pelota mordedora", archivo: null, youtube_url: "https://youtu.be/dQw4w9WgXcQ", activo: true },
@@ -98,6 +99,8 @@
     { id: 102, fecha_hora: hoy + "T18:00:00.000Z", mascota_id: 2, mascota: "Simba", cliente: "Ana", telefono: "3001234567", servicio: "Corte y baño", tipo_id: 3, estado: "cancelada", precio_acordado: 60000 },
   );
   T.citas.push({ id: 100, estado: "pendiente" }, { id: 101, estado: "realizada" }, { id: 102, estado: "cancelada" });
+  // ?conagendada: Simba ya tiene una cita de Spa en 2 días (no debe salir en "A quién buscar")
+  if (location.search.includes("conagendada")) T.citas.push({ id: 103, mascota_id: 2, tipo_id: 1, estado: "pendiente", fecha_hora: dia(2) + "T15:00:00.000Z" });
   T.servicios.push({ id: 500, cita_id: 101, tipo_id: 2, fecha: hoy, precio_cobrado: 35000 });
   T.historial.push({ id: 500, mascota_id: 3, cliente_id: 2, mascota: "Rocky", servicio: "Corte", fecha: hoy, precio_cobrado: 35000 });
   if (location.search.includes("muchas")) {

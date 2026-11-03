@@ -212,14 +212,14 @@ function verPermisosRoles() {
     <table class="tabla-permisos">
       <thead><tr><th></th><th>Admin.</th><th>Colaborador</th></tr></thead>
       <tbody>
-        <tr><td>Hoy, Agendar, Agenda, Clientes</td><td>✔</td><td>✔</td></tr>
+        <tr><td>Hoy, Agendar, Agenda</td><td>Todas las sedes</td><td>Solo sus sedes</td></tr>
+        <tr><td>Clientes, mascotas e historial</td><td>✔</td><td>✔</td></tr>
         <tr><td>Ver precios</td><td>✔</td><td>✔</td></tr>
         <tr><td>Cancelar citas y servicios</td><td>✔</td><td>✔</td></tr>
         <tr><td>Guías</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Precios por raza, servicios, recordatorios y logo</td><td>✔</td><td>Solo ver</td></tr>
-        <tr><td>Subir, editar y activar videos</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Borrar videos</td><td>✔</td><td>✖</td></tr>
-        <tr><td>Reportes y Excel</td><td>✔</td><td>✖</td></tr>
+        <tr><td>Precios por raza y sede, servicios, recordatorios y logo</td><td>✔</td><td>Solo ver</td></tr>
+        <tr><td>Sedes (agregar, renombrar, pausar)</td><td>✔</td><td>✖</td></tr>
+        <tr><td>Reportes, Excel y respaldo</td><td>✔</td><td>✖</td></tr>
         <tr><td>Usuarios, roles e invitaciones</td><td>✔</td><td>✖</td></tr>
         <tr><td>Suscripción (pagos a DALU)</td><td>✔</td><td>✖</td></tr>
       </tbody>
@@ -232,7 +232,7 @@ PANTALLAS.usuarios = {
   html: () => `<h1>Usuarios</h1>
     <p class="suave">Quién usa el sistema en ${esc(nombreNegocio())} y qué puede hacer. Solo el administrador ve esta pantalla.</p>
     ${estado.sinRoles ? '<p class="aviso-fijo">Los roles aún no están activos: falta ejecutar en Supabase el SQL de roles (v8). Mientras tanto, todos tienen acceso completo.</p>' : ""}
-    <div class="columnas derecha">
+    <div class="columnas derecha ancha">
       <div>
         <div class="tarjeta"><div id="u-lista"><p class="suave">Cargando…</p></div></div>
         <div class="tarjeta">

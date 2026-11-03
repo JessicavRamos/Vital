@@ -92,6 +92,7 @@ async function editarCita(cita, alGuardar) {
       `<option value="${t.id}"${t.id === cita.tipo_id ? " selected" : ""}>${esc(t.nombre)}</option>`).join("")}</select>
     <label for="e-precio">Precio acordado</label>
     <input id="e-precio" type="number" min="0" step="any" value="${esc(cita.precio_acordado ?? "")}">
+    <p id="e-sugerido" class="suave" aria-live="polite"></p>
     ${htmlMedicado("e", cita.medicado, cita.recargo_medicado ?? "")}
     <label for="e-motivo">Motivo</label>
     <input id="e-motivo" value="${esc(cita.motivo ?? "")}" maxlength="200">
@@ -111,6 +112,26 @@ async function editarCita(cita, alGuardar) {
       $("#e-medicado").checked = false;
       $("#e-medicado").dispatchEvent(new Event("change"));
     }
+  });
+  // Al cambiar el servicio se propone su precio (el habitual de la mascota o el de la raza en ESA sede),
+  // como en Agendar. Si ya escribiste un precio a mano, no se toca.
+  let precioEditado = false;
+  $("#e-precio").addEventListener("input", () => { precioEditado = true; });
+  $("#e-servicio").addEventListener("change", async () => {
+    if (precioEditado || !cita.mascota_id) return;
+    const tipoId = Number($("#e-servicio").value);
+    try {
+      let consulta = db.from("precios_sugeridos").select("precio_sugerido,origen")
+        .eq("mascota_id", cita.mascota_id).eq("tipo_id", tipoId);
+      if (estado.conSedes && cita.sede_id) consulta = consulta.eq("sede_id", cita.sede_id);
+      const filas = await q(consulta);
+      const fila = filas[0];
+      if (!$("#e-precio") || Number($("#e-servicio").value) !== tipoId) return; // cerraste o cambiaste otra vez
+      if (!fila || fila.precio_sugerido === null) { $("#e-sugerido").textContent = "Sin precio sugerido para este servicio: escríbelo tú."; return; }
+      const recargo = $("#e-medicado").checked ? (Number($("#e-recargo").value) || 0) : 0;
+      $("#e-precio").value = Number(fila.precio_sugerido) + recargo;
+      $("#e-sugerido").textContent = `Precio sugerido ${fila.origen === "mascota" ? "(el que suele pagar)" : "por su raza"}: ${dinero(fila.precio_sugerido)}${recargo ? " + recargo medicado" : ""}. Puedes cambiarlo.`;
+    } catch (error) { /* si falla, se deja el precio como estaba */ }
   });
   $("#e-volver").addEventListener("click", () => cerrarDialogo());
   $("#form-cita").addEventListener("submit", async (evento) => {

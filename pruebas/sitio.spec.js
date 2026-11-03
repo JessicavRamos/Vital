@@ -13,6 +13,16 @@ const EXCEL_FALSO = `window.XLSX = { utils: {
   sheet_add_aoa: () => {}, encode_cell: () => "A1", decode_range: () => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } }), encode_range: () => "A1:A1",
 }, writeFile: (libro, nombre) => { window.__excel = { nombre, hojas: libro.SheetNames }; } };`;
 
+// config.js usa la base de pruebas fuera de vital.dalu.pro. Aquí se le ponen datos de mentira
+// (Supabase es falso en estas pruebas), así funcionan aunque aún no hayas pegado la base de pruebas.
+const fs = require("fs");
+const CONFIG_PRUEBAS = fs.readFileSync(path.join(__dirname, "..", "config.js"), "utf8")
+  .replace("PEGA_AQUI_LA_URL_DE_PRUEBAS", "https://pruebas-automaticas.supabase.co")
+  .replace("PEGA_AQUI_LA_CLAVE_DE_PRUEBAS", "clave-de-mentira");
+test.beforeEach(async ({ page }) => {
+  await page.route(/\/config\.js(\?|$)/, (r) => r.fulfill({ body: CONFIG_PRUEBAS, contentType: "text/javascript" }));
+});
+
 // Abre el sitio como administrador (por defecto) o como colaborador.
 async function abrir(page, ruta, { colaborador = false, extra = "" } = {}) {
   const errores = [];
@@ -499,7 +509,7 @@ test.describe("Ronda 2: enlaces, invitaciones, roles y reportes", () => {
     await abrir(page, "usuarios");
     await expect(page.locator("#pantalla .tabla-permisos")).toHaveCount(0);
     await page.getByRole("button", { name: "Ver qué puede hacer cada rol" }).click();
-    await expect(page.locator("#dialogo .tabla-permisos")).toContainText("Reportes y Excel");
+    await expect(page.locator("#dialogo .tabla-permisos")).toContainText("Reportes, Excel y respaldo");
   });
 
   test("invitar abre el mensaje para enviar y se puede reenviar", async ({ page }) => {
@@ -664,5 +674,99 @@ test.describe("Sedes y planes", () => {
     await usuariosBasico.blur();
     await expect(aviso(page)).toContainText("Plan actualizado");
     expect(await page.evaluate(() => window.__T.planes.find((p) => p.id === "basico").max_usuarios)).toBe(4);
+  });
+});
+
+test.describe("Arreglos de la ronda E2E (B02–B11)", () => {
+  test("B02: A quién buscar no muestra mascotas que ya tienen cita del mismo grupo", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "conagendada" });
+    await expect(page.locator("#h-pendientes")).toContainText("Luna");
+    await expect(page.locator("#h-pendientes")).not.toContainText("Simba");
+  });
+
+  test("B03: las fechas con hora se muestran en el día de Bogotá", async ({ page }) => {
+    await abrir(page, "hoy");
+    expect(await page.evaluate(() => fechaCorta("2026-10-29T03:50:00Z"))).toBe("28/10/2026");
+    expect(await page.evaluate(() => fechaCorta("2026-10-29"))).toBe("29/10/2026");
+  });
+
+  test("B04: los mensajes de la base se muestran sin «Detalle técnico»", async ({ page }) => {
+    await abrir(page, "hoy");
+    const mensajes = await page.evaluate(() => [
+      "Ese teléfono ya pertenece a otro cliente.", "El segundo teléfono no puede ser igual al primero.",
+      "La fecha de la visita anterior no puede ser futura.", "No tienes acceso a esa sede.",
+      "Tu plan permite 1 sede(s). Para agregar más, cambia de plan con DALU.",
+    ].map((m) => mensajeError({ message: m })));
+    mensajes.forEach((m) => expect(m).not.toContain("Detalle técnico"));
+    expect(mensajes[0]).toBe("Ese teléfono ya pertenece a otro cliente.");
+  });
+
+  test("B05: Catálogos muestra los precios de la sede elegida arriba", async ({ page }) => {
+    await abrir(page, "catalogos", { extra: "dossedes" });
+    await page.selectOption("#cat-sede", { label: "Sede Norte" });
+    await page.selectOption("#sede-actual", { label: "Sede principal" });
+    await page.goto("/index.html?dossedes#/hoy");
+    await page.goto("/index.html?dossedes#/catalogos");
+    await expect(page.locator("#cat-sede")).toHaveValue("1");
+    await page.selectOption("#sede-actual", { label: "Sede Norte" });
+    await expect(page.locator("#cat-sede")).toHaveValue("2");
+  });
+
+  test("B06: el selector de arriba se actualiza al agregar y renombrar una sede", async ({ page }) => {
+    await abrir(page, "sedes");
+    await expect(page.locator("#sede-actual")).toHaveCount(0);
+    await page.fill("#sd-nombre", "Sede Sur");
+    await page.getByRole("button", { name: "Agregar sede" }).click();
+    await expect(aviso(page)).toContainText("Sede Sur quedó creada");
+    await expect(page.locator("#sede-actual option")).toHaveText(["Sede principal", "Sede Sur"]);
+    const nombre = page.locator('#sd-lista input[value="Sede Sur"]');
+    await nombre.fill("Sede Sur 2");
+    await nombre.blur();
+    await expect(aviso(page)).toContainText("Guardado.");
+    await expect(page.locator("#sede-actual option")).toHaveText(["Sede principal", "Sede Sur 2"]);
+  });
+
+  test("B07: en celular el selector de sede se lee completo", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await abrir(page, "hoy", { extra: "dossedes" });
+    const medida = await page.locator("#sede-actual").evaluate((s) => ({ ancho: s.clientWidth, texto: s.scrollWidth }));
+    expect(medida.ancho).toBeGreaterThan(150);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  });
+
+  test("B08: la tabla de roles habla de Sedes y no de Videos", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.getByRole("button", { name: "Ver qué puede hacer cada rol" }).click();
+    const tabla = page.locator(".tabla-permisos");
+    await expect(tabla).toContainText("Sedes");
+    await expect(tabla).toContainText("Solo sus sedes");
+    await expect(tabla).not.toContainText("videos");
+  });
+
+  test("B10: al editar una cita y cambiar el servicio se propone su precio", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.locator('[data-menu="100"]').first().click();
+    await page.getByRole("menuitem", { name: "Editar cita" }).click();
+    await page.selectOption("#e-servicio", { label: "Corte y baño" });
+    await expect(page.locator("#e-precio")).toHaveValue("65000");
+    await expect(page.locator("#e-sugerido")).toContainText("$65.000");
+  });
+
+  test("B10: si ya escribiste el precio a mano, no se cambia", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.locator('[data-menu="100"]').first().click();
+    await page.getByRole("menuitem", { name: "Editar cita" }).click();
+    await page.fill("#e-precio", "50000");
+    await page.selectOption("#e-servicio", { label: "Corte y baño" });
+    await page.waitForTimeout(300);
+    await expect(page.locator("#e-precio")).toHaveValue("50000");
+  });
+
+  test("B11: en un portátil (1280 px) la tabla de Clientes no se corta", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await abrir(page, "clientes");
+    await expect(page.locator("#c-lista table")).toBeVisible();
+    const medida = await page.locator("#c-lista").evaluate((c) => ({ visible: c.clientWidth, contenido: c.scrollWidth }));
+    expect(medida.contenido).toBeLessThanOrEqual(medida.visible + 1);
   });
 });

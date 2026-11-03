@@ -79,7 +79,7 @@ const numeroONulo = (id) => ($(id).value === "" ? null : Number($(id).value));
 /* ---------- Razas y precios ---------- */
 // La lista de razas es de toda la empresa; los PRECIOS son de cada sede (tabla precios_sede).
 const CAMPOS_PRECIO = ["precio_bano", "precio_corte", "precio_corte_bano", "precio_unas"];
-let sedePrecios = null; // sede cuyos precios se están viendo en Catálogos
+let sedePrecios = null; // sede cuyos precios se están viendo en Catálogos (al abrir la pantalla: la sede de arriba)
 
 // Guarda un precio de una raza en una sede (crea la fila si no existía).
 async function guardarPrecioSede(razaId, entrada) {
@@ -344,6 +344,7 @@ PANTALLAS.catalogos = {
       <div id="cat-contenido"><p class="suave">Cargando…</p></div>
     </div>`,
   despues: async () => {
+    sedePrecios = null; // al abrir Catálogos (o cambiar la sede de arriba) se ven los precios de la sede de arriba (B05)
     $$("[data-pestana]").forEach((b) => b.addEventListener("click", () => {
       pestanaCat = b.dataset.pestana;
       montarPantalla("catalogos");

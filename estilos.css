@@ -275,6 +275,9 @@ tfoot th{color:var(--tinta);font-size:.9rem;text-transform:none;letter-spacing:0
 @media (prefers-reduced-motion:reduce){.tira{scroll-behavior:auto}.interruptor .perilla,.interruptor .perilla::after{transition:none}}
 /* Las columnas no se estiran por una tabla ancha: la tabla se desplaza por dentro */
 .columnas>*{min-width:0}
+/* Pantallas con tablas anchas (Clientes, Usuarios): en portátiles la tabla va arriba y la ficha abajo,
+   para que las columnas no queden cortadas ni con desplazamiento de lado (B11). */
+@media (max-width:1400px){.columnas.ancha{grid-template-columns:1fr}}
 
 /* ===== Versión 4: botones compactos, menú ⋯, cancelaciones y diseño para celular ===== */
 
@@ -516,7 +519,7 @@ dialog .aviso-fijo{font-size:.9rem}
 /* ===== Versión 10: roles y Usuarios ===== */
 .lateral .usuario .rol-usuario{display:block;font:600 .75rem Nunito,sans-serif;opacity:.8;margin-top:2px;padding-left:24px}
 .tabla-permisos{font-size:.88rem}
-.tabla-permisos td:not(:first-child),.tabla-permisos th:not(:first-child){text-align:center;width:72px}
+.tabla-permisos td:not(:first-child),.tabla-permisos th:not(:first-child){text-align:center;width:96px}
 .pasos{padding-left:20px;margin:6px 0 10px}
 .pasos li{margin-bottom:6px}
 @media (max-width:860px){ .lateral .usuario .rol-usuario{display:inline;padding-left:6px} }
@@ -566,11 +569,17 @@ details.plegable table.interactiva thead{position:sticky;top:0;z-index:2;backgro
 .oculto-visual{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .sede-actual{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--marca);white-space:nowrap}
 .sede-actual select{font-weight:700;padding:6px 8px;border-radius:10px}
+/* Celular: la sede va en su propia fila, a todo lo ancho, para que se lea completa (B07) */
+@media (max-width:860px){
+  .barra{flex-wrap:wrap}
+  .barra .sede-actual{order:3;flex:1 1 100%;white-space:normal}
+  .barra .sede-actual select{flex:1;min-width:0}
+}
 .casillas{display:flex;flex-wrap:wrap;gap:6px 16px;border:0;padding:0;margin:8px 0}
 .casillas legend{font-weight:700;margin-bottom:4px;padding:0}
 .fila-sede{display:flex;align-items:center;gap:10px;margin:6px 0 12px;flex-wrap:wrap}
 .fila-sede label{margin:0}
-.tabla-planes input[type=number]{width:80px}
+.tabla-planes input[type=number]{width:110px}
 .tabla-planes td,.tabla-planes th{text-align:center}
 .tabla-planes td:first-child{text-align:left}
 .lista-plan{list-style:none;padding:0;margin:6px 0;display:grid;gap:4px}

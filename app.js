@@ -183,7 +183,7 @@ function mensajeError(error) {
     return "Ese correo no tiene invitación. Pide al administrador de tu negocio que te invite y vuelve a intentar.";
   if (/user already registered/i.test(texto)) return "Ese correo ya tiene cuenta. Inicia sesión o usa «¿Olvidaste tu contraseña?».";
   if (/negocios_slug_key|duplicate key.*slug/i.test(texto)) return "Ya existe un negocio con esa dirección corta. Usa otra.";
-  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio de la cita|Debe quedar al menos un administrador)/.test(texto)) return texto;
+  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite)/.test(texto)) return texto;
   return `No se pudo completar. Detalle técnico: ${texto}`;
 }
 
@@ -340,7 +340,11 @@ function cargarScript(url) {
 /* ---------- Fechas cortas (dd/mm/aaaa) ---------- */
 const fechaCorta = (f) => {
   if (!f) return "—";
-  const [a, m, d] = String(f).slice(0, 10).split("-");
+  // Una fecha con hora (creado_en, anulado_en…) viene en UTC: se pasa al día de Bogotá.
+  // Ej.: 2026-10-29T03:50Z es el 28/10 a las 10:50 p. m. en Bogotá.
+  const texto = String(f);
+  const dia = /[T ]\d{2}:\d{2}/.test(texto) ? diaDe(texto) : texto.slice(0, 10);
+  const [a, m, d] = dia.split("-");
   return `${d}/${m}/${a}`;
 };
 // "2026-11-04" → "4 de noviembre de 2026"
@@ -828,12 +832,27 @@ async function cargarSedes() {
     // Base sin sedes (antes del SQL v13): una sola agenda, como antes.
     estado.conSedes = false;
   }
+  refrescarSelectorSede();
 }
 function cambiarSede(id) {
   estado.sede = estado.sedesMias.find((s) => s.id === Number(id)) || estado.sede;
   try { localStorage.setItem(claveSede(), String(estado.sede.id)); } catch (error) { /* sin almacenamiento */ }
   aviso(`Estás en ${estado.sede.nombre}.`);
   montarPantalla(claveActual());
+}
+// Vuelve a dibujar el selector de sede de arriba (al agregar, renombrar o pausar una sede) (B06).
+function refrescarSelectorSede() {
+  const barra = $(".barra");
+  if (!barra) return;
+  const viejo = $(".sede-actual", barra);
+  const plantilla = document.createElement("div");
+  plantilla.innerHTML = htmlSelectorSede();
+  const nuevo = plantilla.firstElementChild;
+  if (viejo && nuevo) viejo.replaceWith(nuevo);
+  else if (viejo) viejo.remove();
+  else if (nuevo) $("#buscador", barra).after(nuevo);
+  const selector = $("#sede-actual", barra);
+  if (selector) selector.addEventListener("change", () => cambiarSede(selector.value));
 }
 function htmlSelectorSede() {
   if (!estado.conSedes || !estado.sede) return "";

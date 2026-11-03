@@ -54,6 +54,22 @@ async function cargarHoy() {
   try {
     descartes = await q(db.from("pendientes_descartados").select("id,mascota_id,grupo,ultima_fecha"));
   } catch (error) { /* si la tabla aún no existe, se muestran todos */ }
+  // Mascotas que YA tienen una cita pendiente (de hoy en adelante) para ese mismo grupo de servicios:
+  // no hay que buscarlas, ya vienen. Una cita sin servicio cuenta para todos los grupos.
+  let yaAgendadas = new Set();
+  if (todosPendientes.length) {
+    try {
+      const [proximas, tipos, grupos] = await Promise.all([
+        q(db.from("citas").select("mascota_id,tipo_id").eq("estado", "pendiente").gte("fecha_hora", inicioDiaBogota(hoy))),
+        q(db.from("tipos_servicio").select("id,grupo_id")),
+        q(db.from("grupos_recordatorio").select("id,nombre")),
+      ]);
+      const grupoDeTipo = new Map(tipos.map((t) => [t.id, (grupos.find((g) => g.id === t.grupo_id) || {}).nombre]));
+      yaAgendadas = new Set(proximas.map((c) => `${c.mascota_id}|${c.tipo_id ? grupoDeTipo.get(c.tipo_id) ?? "*" : "*"}`));
+    } catch (error) { /* si falla, se muestran todos como antes */ }
+  }
+  const tieneCita = (p) => yaAgendadas.has(`${p.mascota_id}|${p.grupo}`) || yaAgendadas.has(`${p.mascota_id}|*`);
+  todosPendientes = todosPendientes.filter((p) => !tieneCita(p));
   if (!$("#h-citas")) return; // cambiaste de pantalla
 
   // Con sedes: cada sede busca a los clientes cuyo último servicio fue en ella.

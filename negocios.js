@@ -182,7 +182,7 @@ async function pintarFichaNegocio(id) {
         <p class="sus-etiqueta">Ficha de la empresa</p>
         <h2 class="ficha-nombre">${esc(n.nombre)} ${n.activo ? '<span class="etiqueta ok">Activa</span>' : '<span class="etiqueta gris">Pausada</span>'}</h2>
         <p class="suave"><a href="${esc(enlacePublico(n.slug))}" target="_blank" rel="noopener">${esc(enlacePublico(n.slug))}</a>
-          · Cliente desde ${esc(fechaCorta(String(n.creado_en).slice(0, 10)))}</p>
+          · Cliente desde ${esc(fechaCorta(n.creado_en))}</p>
       </div>
       <div class="acciones-tabla">
         <button type="button" class="btn alt chico" id="f-activo">${n.activo ? "Pausar" : "Activar"}</button>
@@ -231,7 +231,7 @@ async function pintarFichaNegocio(id) {
       <div id="f-usuarios"><p class="suave">Cargando…</p></div>
       ${invitaciones.length ? `<h4>Invitaciones pendientes</h4>
         <ul class="lista-simple" id="f-invitaciones">${invitaciones.map((i) => `<li>${esc(i.correo)} · ${esc(ROLES[i.rol] || i.rol)}
-          <span class="suave">· ${esc(fechaCorta(String(i.creado_en).slice(0, 10)))}</span>
+          <span class="suave">· ${esc(fechaCorta(i.creado_en))}</span>
           <button type="button" class="btn alt chico" data-reenviar="${esc(i.correo)}">Reenviar</button></li>`).join("")}</ul>` : ""}
       <form id="form-invitar-negocio" class="fila-form invitar-ficha">
         <div><label for="ni-correo">Invitar a alguien a ${esc(n.nombre)}</label><input id="ni-correo" type="email" required placeholder="correo@empresa.com"></div>
@@ -283,7 +283,7 @@ async function cargarUsuariosFichaNegocio(n) {
   if (!$("#f-usuarios") || FICHA_ID !== n.id) return;
   caja.innerHTML = usuarios.length ? `<div class="tabla-scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Desde</th><th>Último ingreso</th></tr></thead>
     <tbody>${usuarios.map((x) => `<tr><td>${esc(x.nombre || "—")}</td><td>${esc(x.correo || "")}</td><td>${esc(ROLES[x.rol] || x.rol)}</td>
-      <td>${esc(fechaCorta(String(x.creado_en).slice(0, 10)))}</td><td>${"ultimo_ingreso" in x ? esc(haceCuanto(x.ultimo_ingreso)) : "—"}</td></tr>`).join("")}</tbody></table></div>`
+      <td>${esc(fechaCorta(x.creado_en))}</td><td>${"ultimo_ingreso" in x ? esc(haceCuanto(x.ultimo_ingreso)) : "—"}</td></tr>`).join("")}</tbody></table></div>`
     : '<p class="suave">Todavía nadie ha creado su cuenta.</p>';
 }
 

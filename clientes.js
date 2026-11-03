@@ -70,7 +70,7 @@ async function abrirFicha(mascotaId) {
     C.sel = { m, cliente };
     pintarFichaCliente();
     // En el celular la ficha queda debajo de la lista: se baja hasta ella.
-    if (!enDialogo() && window.matchMedia("(max-width: 860px)").matches) ficha.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!enDialogo() && window.matchMedia("(max-width: 1400px)").matches) ficha.scrollIntoView({ behavior: "smooth", block: "start" });
     await cargarHistorialCliente();
     listarClientes(); // resalta la fila elegida (si la lista está en pantalla)
   } catch (error) {
@@ -421,7 +421,7 @@ async function editarServicio(id, alGuardar) {
 PANTALLAS.clientes = {
   html: () => `<h1>Clientes y mascotas</h1>
     <p class="suave">Busca por mascota, dueño o cualquiera de los dos teléfonos, y abre la ficha para ver y editar todo. Haz clic en un encabezado para ordenar.</p>
-    <div class="columnas derecha">
+    <div class="columnas derecha ancha">
       <div class="tarjeta">
         <label for="c-buscar">Buscar</label>
         <input id="c-buscar" type="search" placeholder="Mascota, dueño o teléfono">

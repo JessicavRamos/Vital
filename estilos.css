@@ -642,3 +642,34 @@ tr.fila-elegida{background:var(--realce)}
 @media (max-width:860px){.ficha-grilla,.fila-form.invitar-ficha{grid-template-columns:1fr}}
 
 .aviso-futura{border:1px solid #e9c46a;background:rgba(233,196,106,.12);border-radius:10px;padding:10px 12px;margin:8px 0}.aviso-futura p{margin:0 0 6px}.aviso-futura .casilla{margin:0}
+
+/* v19 · Listas de Hoy como tarjetas (A quién buscar y Citas de hoy) */
+.lista-hoy{container-type:inline-size;display:flex;flex-direction:column;gap:8px}
+.item.persona{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:8px 12px;border:1px solid var(--linea);border-radius:12px;background:var(--fondo);transition:border-color .15s}
+.item.persona:last-child{border:1px solid var(--linea)}
+.item.persona:hover{border-color:var(--marca)}
+.item.persona.hecha{opacity:.8}
+.persona-avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--realce);color:var(--marca);font:700 1.05rem Fredoka,Nunito,sans-serif}
+.persona-hora{display:flex;flex-direction:column;align-items:center;line-height:1.1;color:var(--marca)}
+.persona-hora b{font:700 1.05rem Fredoka,Nunito,sans-serif}
+.persona-hora span{font-size:.72rem;color:var(--suave)}
+.persona-datos{min-width:0}
+.persona-titulo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.persona-nombre{font-size:1.02rem}
+.persona-sub{margin-top:1px;line-height:1.35}
+.persona-acciones{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+.etiqueta.hoy{background:var(--marca);color:var(--sobre-marca)}
+.etiqueta.leve{background:var(--sol);color:var(--sobre-sol)}
+.btn.wa{background:#1F9D55;border-color:#1F9D55;color:#fff}
+.btn.wa svg{width:14px;height:14px;fill:currentColor;vertical-align:-2px;margin-right:5px}
+@container (max-width:520px){
+  .item.persona{grid-template-columns:38px minmax(0,1fr)}
+  .persona-acciones{grid-column:2/-1;justify-content:flex-start;flex-wrap:wrap}
+}
+.tramos-buscar{margin:0 0 8px}
+.tramos-buscar .chip b{margin-left:4px}
+.tramos-buscar .chip:disabled{opacity:.45;cursor:default}
+.buscar-lista{width:100%;margin:0 0 10px}
+#h-buscar-mas{text-align:center;margin-top:10px}
+#h-cuantos-buscar{font-weight:400}
+@media (min-width:861px){.columnas.hoy-columnas{grid-template-columns:minmax(0,2fr) minmax(0,3fr)}}

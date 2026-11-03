@@ -251,3 +251,38 @@ Característica: No buscar a quien ya agendó
     Dado que "Max" tenía una cita de Spa ayer que nadie terminó
     Entonces "Max" vuelve a aparecer en "A quién buscar"
 ```
+
+## Novedades v19: listas de Hoy más ordenadas
+
+### Reglas
+1. «A quién buscar hoy» muestra el total en el título y se divide en tres pestañas con su cantidad: **Hasta 30 días**, **1 a 3 meses** y **Más de 3 meses** (según los días de retraso).
+2. Se abre en la primera pestaña que tenga mascotas. Las pestañas vacías se ven apagadas.
+3. Se muestran **10 a la vez**; «Ver 10 más (quedan N)» carga las siguientes.
+4. El buscador «Buscar mascota o dueño en la lista» busca en **toda** la lista (sin importar tildes ni mayúsculas) y apaga las pestañas mientras tenga texto.
+5. Cada mascota es una tarjeta: inicial, nombre, etiqueta de retraso, y debajo dueño · grupo · último servicio. Los botones WhatsApp (verde), Agendar y ✕ van a la derecha si caben, o debajo.
+6. Colores de la etiqueta: **Toca hoy** azul, hasta 30 días amarillo, más de 30 días rojo.
+7. «Citas de hoy» usa el mismo diseño con la hora a la izquierda.
+
+```gherkin
+# language: es
+Característica: A quién buscar sin una lista interminable
+
+  Escenario: Se abre en lo más reciente
+    Dado 12 mascotas con hasta 30 días de retraso, 30 con 1 a 3 meses y 58 con más de 3 meses
+    Cuando abro Hoy
+    Entonces el título dice "A quién buscar hoy (100)"
+    Y está elegida la pestaña "Hasta 30 días 12"
+    Y veo 10 mascotas y el botón "Ver 2 más (quedan 2)"
+
+  Escenario: Cambiar de tramo
+    Cuando elijo "Más de 3 meses"
+    Entonces veo las 10 primeras de ese tramo y "Ver 10 más (quedan 48)"
+
+  Escenario: Buscar a alguien
+    Cuando escribo "garzon" en el buscador de la lista
+    Entonces veo las mascotas de "Sara Garzón" de cualquier tramo
+
+  Escenario: Nadie coincide
+    Cuando escribo "zzz"
+    Entonces veo "Nadie coincide con «zzz»."
+```

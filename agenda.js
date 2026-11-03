@@ -20,10 +20,18 @@ async function abrirTerminarCita(cita, alGuardar) {
   const guiaPrevia = ultima.length ? ultima[0].guia_id : null;
   const precio = cita.precio_acordado ?? cita.precio ?? "";
   const bano = SERVICIOS_CON_BANO.includes(cita.servicio);
+  // B09: una cita de un día que aún no llega no se puede dar por hecha en su fecha futura.
+  // Se pide confirmar y, si se hizo, se mueve a hoy (así Reportes y Suscripción cuentan igual).
+  const esFutura = !!cita.fecha_hora && diaDe(cita.fecha_hora) > hoyISO();
 
   abrirDialogo(`<form id="form-terminar">
     <h2>Terminar cita</h2>
     <p><strong>${esc(cita.mascota)}</strong> · ${esc(cita.servicio ?? "sin servicio")} · ${esc(fechaHoraTexto(cita.fecha_hora))}</p>
+    ${esFutura ? `<div class="aviso-futura" role="note">
+      <p><strong>Esta cita es del ${esc(diaTexto(diaDe(cita.fecha_hora)))}</strong>, todavía no ha llegado ese día.
+      Si ya la atendiste, al marcarla como realizada <strong>se moverá a hoy</strong> con la hora actual.</p>
+      <label class="casilla"><input type="checkbox" id="t-confirmar-hoy" required> Sí, ya se hizo hoy</label>
+    </div>` : ""}
     <label for="t-guia">Guía usada${guiaPrevia ? " (viene la de la última vez)" : ""}</label>
     <select id="t-guia"><option value="">(sin guía)</option>${guias.map((g) =>
       `<option value="${g.id}"${g.id === guiaPrevia ? " selected" : ""}>${esc(g.nombre)}</option>`).join("")}</select>
@@ -54,6 +62,7 @@ async function abrirTerminarCita(cita, alGuardar) {
         notas_servicio: $("#t-notas").value.trim() || null,
         medicado,
         recargo_medicado: medicado && $("#t-recargo").value !== "" ? Number($("#t-recargo").value) : null,
+        ...(esFutura ? { fecha_hora: new Date().toISOString() } : {}),
       }).eq("id", cita.id));
       cerrarDialogo();
       if (alGuardar) alGuardar();

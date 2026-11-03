@@ -640,3 +640,5 @@ tr.fila-elegida{background:var(--realce)}
 .fila-form.invitar-ficha{grid-template-columns:2fr 1fr auto;margin-top:12px}
 .form-angosto{max-width:520px}
 @media (max-width:860px){.ficha-grilla,.fila-form.invitar-ficha{grid-template-columns:1fr}}
+
+.aviso-futura{border:1px solid #e9c46a;background:rgba(233,196,106,.12);border-radius:10px;padding:10px 12px;margin:8px 0}.aviso-futura p{margin:0 0 6px}.aviso-futura .casilla{margin:0}

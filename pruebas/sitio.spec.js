@@ -762,6 +762,32 @@ test.describe("Arreglos de la ronda E2E (B02–B11)", () => {
     await expect(page.locator("#e-precio")).toHaveValue("50000");
   });
 
+  test("B09: terminar una cita de un día futuro pide confirmar y la mueve a hoy", async ({ page }) => {
+    await abrir(page, "agenda");
+    const futura = new Date(Date.now() + 3 * 86400000).toISOString();
+    await page.evaluate((f) => abrirTerminarCita({ id: 100, mascota_id: 1, mascota: "Luna", servicio: "Corte", fecha_hora: f, precio_acordado: 30000 }), futura);
+    await expect(page.locator(".aviso-futura")).toContainText("se moverá a hoy");
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toBeVisible(); // sin confirmar no se guarda
+    await page.check("#t-confirmar-hoy");
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toHaveCount(0);
+    const guardado = await page.evaluate(() => window.__log.filter((l) => l[0] === "update" && l[1] === "citas").pop()[2]);
+    expect(guardado.estado).toBe("realizada");
+    const dia = (f) => new Date(f).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+    expect(dia(guardado.fecha_hora)).toBe(dia(new Date()));
+  });
+
+  test("B09: una cita de hoy se termina sin aviso y sin cambiar su fecha", async ({ page }) => {
+    await abrir(page, "agenda");
+    await page.evaluate(() => abrirTerminarCita({ id: 100, mascota_id: 1, mascota: "Luna", servicio: "Corte", fecha_hora: new Date().toISOString(), precio_acordado: 30000 }));
+    await expect(page.locator(".aviso-futura")).toHaveCount(0);
+    await page.getByRole("button", { name: "Marcar como realizada" }).click();
+    await expect(page.locator("#form-terminar")).toHaveCount(0);
+    const guardado = await page.evaluate(() => window.__log.filter((l) => l[0] === "update" && l[1] === "citas").pop()[2]);
+    expect(guardado.fecha_hora).toBeUndefined();
+  });
+
   test("B11: en un portátil (1280 px) la tabla de Clientes no se corta", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await abrir(page, "clientes");

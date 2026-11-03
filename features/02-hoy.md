@@ -8,17 +8,21 @@
 
 ## Reglas de negocio
 
-1. **Indicadores** (arriba):
-   - *Citas de hoy*: citas del día actual (hora Bogotá), sin contar las canceladas.
-   - *Clientes por buscar*: número de clientes **distintos** en la vista `pendientes`.
-   - *Servicios este mes*: servicios con fecha desde el día 1 del mes actual.
-2. **Citas de hoy** se ordenan por hora. Cada una muestra hora, mascota (enlace a la ficha), dueño, servicio, "(medicado)" si aplica y precio.
+1. **Saludo y resumen** (arriba, en lugar de los recuadros de cifras):
+   - Título: "Buenos días / Buenas tardes / Buenas noches, {primer nombre}" según la hora de Bogotá (antes de 12 / antes de 19 / después). Sin nombre guardado: solo el saludo.
+   - Debajo, una frase: fecha, cuántas citas hay hoy (sin canceladas), cuántas terminaron y cuántas quedan por atender, cuánto falta por cobrar (suma del precio de las pendientes) y cuántos servicios van en el mes.
+2. **La jornada**: las citas de hoy van en una línea de tiempo ordenada por hora. Todas miden lo mismo (no se usa la duración). Cada una muestra hora, ícono de perro o gato, mascota (enlace a la ficha), "Medicado" si aplica, dueño, servicio, guía y precio.
+   - Punto sobre el hilo: verde con chulo = terminada; círculo vacío = pendiente; aro turquesa = la cita **actual**.
+   - Cita **actual**: la última cita pendiente cuya hora ya llegó. Se resalta con fondo suave y su botón "Terminar" es el principal.
+   - **Línea amarilla de ahora** con la hora actual: queda entre la última cita que ya empezó y la siguiente (al final si ya pasaron todas, al inicio si ninguna ha empezado).
 3. Precio mostrado: si la cita está **realizada** → `precio_cobrado`; si no → `precio_acordado` o, si no hay, el precio sugerido.
-4. Citas **pendientes** muestran el botón **Terminar**; las demás muestran su estado como etiqueta.
-5. **A quién buscar hoy** se ordena por más días de retraso primero. Etiqueta:
-   - `dias_de_retraso <= 0` → "Toca hoy"
-   - `1` → "Hace 1 día"
-   - `> 1` → "Hace N días" (en estilo atrasado)
+4. Citas **pendientes**: botones Terminar, Recordar y menú (⋯). Citas **realizadas**: "Terminada", botón Avisar y menú.
+5. **A quién buscar hoy** se ordena por más días de retraso primero. El retraso va dentro de la frase:
+   - `dias_de_retraso <= 0` → "le toca hoy"
+   - `1` → "1 día tarde"
+   - `> 1` → "N días tarde" (amarillo hasta 30 días, rojo después)
+   - El botón de WhatsApp es solo ícono (verde) con su texto para lectores de pantalla.
+   - **Ícono de especie**: perro o gato según `mascotas.especie`. Lo traen las vistas `agenda` y `pendientes` desde el **sql-v19**; si la vista no trae la especie, no se muestra ícono.
 6. Los clientes inactivos no aparecen en "A quién buscar" (lo resuelve la vista `pendientes`).
 7. **WhatsApp**: abre `wa.me` en otra pestaña. Si el teléfono tiene 10 dígitos se le antepone `57` (Colombia). El mensaje incluye nombre del cliente, nombre del negocio, nombre de la mascota, fecha de la última visita y grupo del servicio.
 8. **Agendar** desde un pendiente lleva a "Agendar" con la mascota y el teléfono ya llenos.
@@ -33,11 +37,22 @@ Característica: Pantalla Hoy
     Dado que inicié sesión
     Y estoy en la pantalla "Hoy"
 
-  Escenario: Indicadores del día
-    Dado que hoy hay 3 citas pendientes, 1 realizada y 1 cancelada
-    Y hay 4 mascotas pendientes de 3 clientes distintos
-    Entonces "Citas de hoy" muestra 4
-    Y "Clientes por buscar" muestra 3
+  Escenario: Saludo y resumen del día
+    Dado que son las 3:00 p. m. y me llamo "Jessica"
+    Y hoy hay 3 citas pendientes, 1 realizada y 1 cancelada
+    Entonces el título dice "Buenas tardes, Jessica"
+    Y el resumen dice "Tienes 4 citas: una ya terminó y quedan 3 por atender."
+
+  Escenario: Línea de ahora y cita actual
+    Dado que hay citas pendientes a las 9:00 a. m. y a la 1:00 p. m.
+    Y son las 11:20 a. m.
+    Entonces la línea amarilla "11:20 a. m." queda entre las dos citas
+    Y la cita de las 9:00 a. m. se ve resaltada con "Terminar" como botón principal
+
+  Escenario: Ícono de perro o gato
+    Dado que "Luna" es perro y "Simba" es gato
+    Entonces junto a "Luna" veo el ícono de perro
+    Y junto a "Simba" veo el ícono de gato
 
   Escenario: Sin citas para hoy
     Dado que no hay citas para hoy
@@ -50,7 +65,7 @@ Característica: Pantalla Hoy
 
   Escenario: Cita realizada muestra el precio cobrado
     Dado que la cita de "Toby" está realizada con precio cobrado $35.000
-    Entonces veo $35.000 y la etiqueta "realizada"
+    Entonces veo $35.000 y "Terminada"
     Y no veo el botón "Terminar"
 
   Escenario: Terminar una cita desde Hoy
@@ -64,14 +79,14 @@ Característica: Pantalla Hoy
 
   Esquema del escenario: Etiqueta de retraso en "A quién buscar"
     Dado una mascota pendiente con <dias> días de retraso
-    Entonces veo la etiqueta "<etiqueta>"
+    Entonces en la frase veo "<etiqueta>"
 
     Ejemplos:
       | dias | etiqueta     |
-      | 0    | Toca hoy     |
-      | -2   | Toca hoy     |
-      | 1    | Hace 1 día   |
-      | 12   | Hace 12 días |
+      | 0    | le toca hoy  |
+      | -2   | le toca hoy  |
+      | 1    | 1 día tarde  |
+      | 12   | 12 días tarde|
 
   Escenario: Orden de "A quién buscar"
     Dado pendientes con 2, 15 y 7 días de retraso
@@ -110,7 +125,7 @@ Característica: Pantalla Hoy
 1. **Descartar**: cada mascota de "A quién buscar" tiene el botón **Descartar**. La saca de la lista **solo en este ciclo**: cuando tenga un servicio nuevo y le vuelva a tocar, aparece otra vez.
 2. Se guarda en `pendientes_descartados` (mascota, grupo y fecha del último servicio).
 3. Tras descartar aparece el aviso con el botón **Deshacer** durante 7 segundos.
-4. "Clientes por buscar" ya no cuenta a los descartados.
+4. El número junto a "A quién buscar hoy (N)" no cuenta a los descartados. (El recuadro "Clientes por buscar" se quitó con el diseño La jornada.)
 5. Casilla **"Ver descartados (N)"** para verlos y devolverlos con **"Volver a la lista"**.
 6. Las citas **realizadas** de hoy tienen el botón **📲 Avisar** (WhatsApp para recoger la mascota).
 7. Al **Terminar** una cita se abre "✔ Servicio terminado" con el botón **📲 Avisar por WhatsApp** (ver Feature 04).
@@ -133,10 +148,10 @@ Característica: Descartar de "A quién buscar"
     Cuando presiono "Deshacer"
     Entonces "Simba" vuelve a la lista
 
-  Escenario: Contador de clientes
-    Dado que "Simba" y "Luna" son del mismo cliente
+  Escenario: Contador de A quién buscar
+    Dado que "Simba" y "Luna" aparecen en "A quién buscar hoy (2)"
     Cuando descarto solo a "Simba"
-    Entonces "Clientes por buscar" sigue contando a Ana una vez
+    Entonces veo "A quién buscar hoy (1)"
 
   Escenario: Ver y restaurar descartados
     Dado que descarté a "Simba"

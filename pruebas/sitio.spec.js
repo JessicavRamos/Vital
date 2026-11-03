@@ -168,7 +168,7 @@ test.describe("Videos (oculto)", () => {
     await abrir(page, "hoy");
     await expect(page.locator("#menu-secciones")).not.toContainText("Videos");
     await page.goto("/index.html#/videos");
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
   });
 
   test("la entrada ya no tiene el enlace a videos", async ({ page }) => {
@@ -346,7 +346,7 @@ test.describe("Suscripción y pagos", () => {
     await page.locator("#h-renovacion-cerrar").click();
     await expect(page.locator("#h-renovacion")).toBeEmpty();
     await page.reload();
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
   });
@@ -356,7 +356,7 @@ test.describe("Suscripción y pagos", () => {
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
     await page.goto("/index.html?empleado&renuevapronto#/hoy");
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
   });
@@ -866,3 +866,25 @@ test.describe("v19 · Estados de empresa, avisos de pago e invitaciones", () => 
   });
 });
 
+
+test.describe("Diseño La jornada (Hoy)", () => {
+  test("saludo, resumen del día en una frase y línea de ahora", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator("#h-saludo")).toContainText(/Buen(os|as) (días|tardes|noches)/);
+    await expect(page.locator("#h-resumen")).toContainText("Tienes 2 citas");
+    await expect(page.locator("#h-citas .jornada-ahora")).toHaveCount(1);
+    await expect(page.locator("#h-citas .jornada-cita")).toHaveCount(2);
+  });
+
+  test("cada mascota muestra su ícono de perro o gato", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator('#h-citas .ico-especie[aria-label="perro"]').first()).toBeVisible();
+    await expect(page.locator('#h-pendientes .ico-especie[aria-label="gato"]')).toHaveCount(1);
+  });
+
+  test("el menú tiene íconos y marca la sección actual", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator('#menu-secciones a[aria-current="page"] svg')).toHaveCount(1);
+    await expect(page.locator("#menu-secciones a svg").first()).toBeVisible();
+  });
+});

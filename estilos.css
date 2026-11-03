@@ -697,3 +697,104 @@ tr.fila-elegida{background:var(--realce)}
 #form-invitar button[type=submit]{grid-column:1/-1;justify-self:start;min-width:140px}
 @media (max-width:700px){#form-invitar{grid-template-columns:1fr}}
 .solo-lectura [data-whatsapp],.solo-lectura [data-recordar],.solo-lectura [data-recoger]{display:none!important}
+
+/* =====================================================================
+   DISEÑO "LA JORNADA" (nov. 2026): íconos, menú y pantalla Hoy
+   ===================================================================== */
+/* Íconos de línea */
+.ico{display:inline-block;flex:0 0 auto;vertical-align:middle}
+.sin-logo .ico{width:58%;height:58%;color:var(--marca)}
+
+/* Menú lateral: ícono + texto; la sección actual en blanco */
+.lateral nav a{display:flex;align-items:center;gap:12px;font-weight:600}
+.lateral nav a .ico{opacity:.85}
+.lateral nav a[aria-current="page"]{background:var(--sobre-marca);color:var(--marca)}
+.lateral nav a[aria-current="page"] .ico{opacity:1}
+.lateral .usuario{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}
+.lateral .usuario .rol-usuario{flex-basis:100%;padding-left:26px}
+.sede-actual .ico{color:var(--marca)}
+
+/* Encabezado: saludo y resumen del día en una frase */
+.hoy-cabeza{margin:6px 0 22px}
+.hoy-cabeza h1{font-size:clamp(1.7rem,3.2vw,2.4rem);line-height:1.1;letter-spacing:-.01em}
+.hoy-resumen{font-size:1.1rem;color:var(--suave);margin:10px 0 0;max-width:62ch;line-height:1.55}
+.hoy-resumen strong{color:var(--tinta);font-weight:700}
+
+/* Una sola hoja: la jornada a la izquierda y "A quién buscar" a la derecha */
+.hoja-hoy{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);background:var(--tarjeta);border-radius:24px;overflow:hidden;border:1px solid var(--linea)}
+.hoja-hoy.sin-lado{grid-template-columns:minmax(0,1fr)}
+.jornada{padding:22px 22px 22px 14px;min-width:0}
+.lado-hoy{padding:22px 22px 18px;border-left:1px solid var(--linea);background:var(--fondo);min-width:0}
+.lado-hoy h2{font-size:1.15rem}
+.lado-ayuda{margin:2px 0 12px}
+
+/* Línea de tiempo: hora, punto sobre el hilo y datos. Todas las citas miden lo mismo. */
+.jornada-riel{position:relative;--col-hora:74px;--col-punto:44px}
+.jornada-riel::before{content:"";position:absolute;left:calc(var(--col-hora) + var(--col-punto) / 2 - 1px);top:24px;bottom:24px;width:2px;background:var(--linea)}
+.jornada-cita{position:relative;display:grid;grid-template-columns:var(--col-hora) var(--col-punto) minmax(0,1fr) auto;align-items:center;padding:14px 12px 14px 0;border-radius:16px}
+.jornada-hora{text-align:right;line-height:1.1}
+.jornada-hora b{display:block;font:600 1.15rem Fredoka,Nunito,sans-serif;font-variant-numeric:tabular-nums}
+.jornada-hora span{font-size:.75rem;color:var(--suave)}
+.jornada-punto{position:relative;z-index:1;justify-self:center;width:14px;height:14px;border-radius:50%;background:var(--tarjeta);border:2px solid #B9CFD3;display:grid;place-items:center;color:#fff}
+.jornada-cita.hecha .jornada-punto{width:16px;height:16px;background:var(--ok);border-color:var(--ok)}
+.jornada-cita.hecha .jornada-punto .ico{stroke-width:3}
+.jornada-cita.actual{background:var(--realce)}
+.jornada-cita.actual .jornada-punto{width:18px;height:18px;border:4px solid var(--marca)}
+.jornada-titulo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.jornada-nombre{font:600 1.2rem Fredoka,Nunito,sans-serif;text-decoration:none;color:var(--tinta)}
+.jornada-nombre:hover{text-decoration:underline;color:var(--marca)}
+.jornada-sub{color:var(--suave);font-size:.92rem;margin-top:2px}
+.ico-especie{color:var(--suave)}
+.jornada-cita.actual .ico-especie{color:var(--marca)}
+.jornada-cita.hecha .jornada-hora,.jornada-cita.hecha .jornada-nombre,.jornada-cita.hecha .jornada-precio,
+.jornada-cita.hecha .jornada-sub,.jornada-cita.hecha .ico-especie{opacity:.6}
+.nota-cita{font-size:.78rem;font-weight:700;border-radius:8px;padding:1px 8px}
+.nota-cita.medicado{background:#FFF4CC;color:#7A5C00}
+.nota-cita.terminada{color:var(--ok);padding:0}
+.jornada-der{display:flex;align-items:center;gap:14px;justify-content:flex-end;padding-left:12px}
+.jornada-precio{font:500 1rem Fredoka,Nunito,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.jornada-acciones{display:flex;gap:6px;align-items:center}
+.jornada-acciones .btn .ico{margin:-2px 5px 0 -2px}
+.jornada-vacia{padding:16px 20px}
+
+/* Línea amarilla de "ahora" */
+.jornada-ahora{display:grid;grid-template-columns:var(--col-hora) var(--col-punto) 1fr;align-items:center;margin:2px 0}
+.jornada-ahora b{justify-self:end;background:var(--sol);color:var(--sobre-sol);font-size:.78rem;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.jornada-ahora i{grid-column:2/4;height:2px;background:var(--sol);position:relative;margin-left:calc(var(--col-punto) / 2 - 6px)}
+.jornada-ahora i::before{content:"";position:absolute;left:0;top:-5px;width:12px;height:12px;border-radius:50%;background:var(--sol)}
+
+/* A quién buscar: lista limpia, con el retraso dentro de la frase */
+.lista-buscar{display:flex;flex-direction:column}
+.buscar-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--linea)}
+.buscar-datos{flex:1;min-width:0}
+.buscar-titulo{display:flex;align-items:center;gap:7px}
+.buscar-nombre{font:600 1.05rem Fredoka,Nunito,sans-serif;text-decoration:none;color:var(--tinta)}
+.buscar-nombre:hover{text-decoration:underline;color:var(--marca)}
+.buscar-sub{font-size:.87rem;color:var(--suave);margin-top:1px}
+.retraso{font-weight:700}
+.retraso.hoy{color:var(--marca)}.retraso.leve{color:#8A6A00}.retraso.atrasada{color:var(--alerta)}
+.buscar-acciones{display:flex;gap:6px;align-items:center}
+.btn.wa.solo-icono{padding:5px 8px}
+.btn.wa.solo-icono svg.ico{margin:0;fill:none;width:18px;height:18px}
+.lado-hoy .tramos-buscar .chip{font-size:.8rem;padding:5px 10px}
+.lado-hoy .buscar-lista{background:var(--tarjeta)}
+
+/* Pantallas medianas: "A quién buscar" pasa debajo */
+@media (max-width:1180px){
+  .hoja-hoy{grid-template-columns:minmax(0,1fr)}
+  .lado-hoy{border-left:0;border-top:1px solid var(--linea)}
+}
+/* Celular: la hora y el hilo más angostos; precio y botones bajo los datos */
+@media (max-width:700px){
+  .hoja-hoy{border-radius:18px;margin:0 -4px}
+  .jornada{padding:14px 10px 14px 4px}
+  .jornada-riel{--col-hora:52px;--col-punto:34px}
+  .jornada-cita{grid-template-columns:var(--col-hora) var(--col-punto) minmax(0,1fr);padding:12px 8px 12px 0}
+  .jornada-hora b{font-size:1rem}
+  .jornada-der{grid-column:3;justify-content:space-between;padding:8px 0 0;flex-wrap:wrap;gap:8px}
+  .jornada-nombre{font-size:1.1rem}
+  .lado-hoy{padding:18px 14px}
+  .hoy-resumen{font-size:1rem}
+  .jornada-ahora b{grid-column:1/3;justify-self:start;margin-left:6px;position:relative;z-index:1}
+  .jornada-ahora i{grid-column:2/4;margin-left:calc(var(--col-punto) / 2 - 6px)}
+}

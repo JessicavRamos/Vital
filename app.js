@@ -16,6 +16,35 @@ const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&
 // Siempre se escapa el texto que viene de la base antes de mostrarlo.
 const esc = (texto) => String(texto ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
+/* ---------- Íconos (línea, mismo grosor en toda la app) ---------- */
+// Se dibujan con el color del texto (currentColor). Para agregar uno: el contenido de un SVG de 24×24.
+const ICONOS = {
+  hoy: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  agendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M12 13v5M9.5 15.5h5"/>',
+  agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M7.5 14h3M13.5 14h3M7.5 17.5h3"/>',
+  clientes: '<circle cx="6.5" cy="10" r="1.8"/><circle cx="10" cy="6.3" r="1.8"/><circle cx="14" cy="6.3" r="1.8"/><circle cx="17.5" cy="10" r="1.8"/><path d="M8 17.2c0-2.8 1.8-4.7 4-4.7s4 1.9 4 4.7c0 1.4-1.1 2.3-2.4 2l-1.6-.4-1.6.4C9.1 19.5 8 18.6 8 17.2z"/>',
+  reportes: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
+  catalogos: '<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+  sedes: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  usuarios: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
+  suscripcion: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/>',
+  negocios: '<path d="M4 21V5.5L12 3v18M12 8.5l8 2.5v10M3 21h18M7.5 8.5v.01M7.5 12v.01M7.5 15.5v.01M15.5 14v.01M15.5 17.5v.01"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  whatsapp: '<path d="M4 20l1.3-3.9A8 8 0 1 1 12 20a8 8 0 0 1-4-1.1L4 20z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8c-.9-.4-1.6-1.1-2-2l.8-1-1-2L9 9.5z"/>',
+  // Mascotas: perro y gato de frente (Hoy, y donde se quiera mostrar la especie)
+  perro: '<path d="M4.2 14.5V9.6C4.2 5.9 7.6 3.5 12 3.5s7.8 2.4 7.8 6.1v4.9"/><path d="M7.6 8.8v6.1c0 2.8 2 4.6 4.4 4.6s4.4-1.8 4.4-4.6V8.8"/><circle cx="10.1" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="13.9" cy="12" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.2" rx="1.25" ry=".85" fill="currentColor" stroke="none"/>',
+  gato: '<path d="M5 5.2l3.4 3.1a8.6 8.6 0 0 1 7.2 0L19 5.2v8.2c0 3.9-3.1 6.6-7 6.6s-7-2.7-7-6.6z"/><circle cx="9.6" cy="12.6" r=".8" fill="currentColor" stroke="none"/><circle cx="14.4" cy="12.6" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.3" rx="1.05" ry=".7" fill="currentColor" stroke="none"/>',
+};
+function icono(nombre, { tam = 20, clase = "ico", titulo = "" } = {}) {
+  const dibujo = ICONOS[nombre];
+  if (!dibujo) return "";
+  const accesible = titulo ? `role="img" aria-label="${esc(titulo)}"` : 'aria-hidden="true"';
+  return `<svg class="${clase}" width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${accesible}>${dibujo}</svg>`;
+}
+// Perro o gato según la especie de la mascota. Si la vista aún no trae la especie, no muestra nada.
+const iconoEspecie = (especie, tam = 18) =>
+  especie === "perro" || especie === "gato" ? icono(especie, { tam, clase: "ico ico-especie", titulo: especie }) : "";
+
 const dinero = (n) =>
   n === null || n === undefined || n === "" ? "—" : "$" + Number(n).toLocaleString("es-CO");
 
@@ -884,8 +913,8 @@ function refrescarSelectorSede() {
 }
 function htmlSelectorSede() {
   if (!estado.conSedes || !estado.sede) return "";
-  if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">📍 ${esc(estado.sede.nombre)}</span>`;
-  return `<label class="sede-actual">📍 <span class="oculto-visual">Sede</span>
+  if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">${icono("sedes", { tam: 17 })}${esc(estado.sede.nombre)}</span>`;
+  return `<label class="sede-actual">${icono("sedes", { tam: 17 })}<span class="oculto-visual">Sede</span>
     <select id="sede-actual" aria-label="Sede en la que estás trabajando" title="Sede en la que estás trabajando ahora. Las sedes de cada colaborador se asignan en Usuarios → Cambiar sedes.">${estado.sedesMias.map((s) =>
       `<option value="${s.id}"${s.id === estado.sede.id ? " selected" : ""}>${esc(s.nombre)}</option>`).join("")}</select></label>`;
 }
@@ -966,7 +995,7 @@ async function cargarLogo() {
 }
 const htmlLogo = (clase) => estado.logoUrl
   ? `<img class="${clase}" src="${esc(estado.logoUrl)}" alt="Logo de ${esc(nombreNegocio())}">`
-  : `<span class="${clase} sin-logo" aria-hidden="true">🐾</span>`;
+  : `<span class="${clase} sin-logo" aria-hidden="true">${icono("clientes", { tam: 24 })}</span>`;
 
 function nombreUsuario() {
   const u = estado.sesion && estado.sesion.user;
@@ -1300,7 +1329,7 @@ function htmlPublico() {
 
 function htmlPanel(clave) {
   const enlaces = MENU.filter(puedeVer).map((m) =>
-    `<a href="#/${m.clave}"${m.clave === clave ? ' aria-current="page"' : ""}>${esc(m.titulo)}</a>`).join("");
+    `<a href="#/${m.clave}"${m.clave === clave ? ' aria-current="page"' : ""}>${icono(m.clave)}<span>${esc(m.titulo)}</span></a>`).join("");
   const nombre = nombreUsuario();
   return `<div class="app">
     <aside class="lateral">
@@ -1311,7 +1340,7 @@ function htmlPanel(clave) {
       </div>
       <nav aria-label="Secciones" id="menu-secciones">${enlaces}</nav>
       <div class="pie">
-        <button id="perfil" class="usuario" title="Cambiar mi nombre">${nombre ? "👤 " + esc(nombre) : "👤 Escribe tu nombre"}
+        <button id="perfil" class="usuario" title="Cambiar mi nombre">${icono("usuarios", { tam: 18 })}<span class="usuario-nombre">${nombre ? esc(nombre) : "Escribe tu nombre"}</span>
           <span class="rol-usuario">${esc(esAdmin() ? "Administrador" : "Colaborador")}</span></button>
         <button id="salir" class="btn alt">Cerrar sesión</button>
         <p class="firma-producto">${esc(NOMBRE_PRODUCTO)}</p>

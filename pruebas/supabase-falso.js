@@ -31,8 +31,8 @@
     citas: [],
     agenda: [],
     pendientes: [
-      { mascota_id: 1, cliente_id: 1, mascota: "Luna", cliente: "Ana", telefono: "3001234567", grupo: "Spa", ultima_fecha: dia(-35), dias_de_retraso: 5 },
-      { mascota_id: 2, cliente_id: 1, mascota: "Simba", cliente: "Ana", telefono: "3001234567", grupo: "Spa", ultima_fecha: dia(-40), dias_de_retraso: 10 },
+      { mascota_id: 1, cliente_id: 1, mascota: "Luna", especie: "perro", cliente: "Ana", telefono: "3001234567", grupo: "Spa", ultima_fecha: dia(-35), dias_de_retraso: 5 },
+      { mascota_id: 2, cliente_id: 1, mascota: "Simba", especie: "gato", cliente: "Ana", telefono: "3001234567", grupo: "Spa", ultima_fecha: dia(-40), dias_de_retraso: 10 },
     ],
     pendientes_descartados: [],
     servicios_anulados: [],
@@ -98,9 +98,9 @@
   }
   // Citas de hoy
   T.agenda.push(
-    { id: 100, fecha_hora: hoy + "T14:00:00.000Z", mascota_id: 1, mascota: "Luna", cliente: "Ana", telefono: "3001234567", telefono2: "3159998877", servicio: "Baño", tipo_id: 1, estado: "pendiente", precio_acordado: 40000, medicado: false },
-    { id: 101, fecha_hora: hoy + "T16:00:00.000Z", mascota_id: 3, mascota: "Rocky", cliente: "Carlos", telefono: "3105556677", servicio: "Corte", tipo_id: 2, estado: "realizada", precio_cobrado: 35000, medicado: false, guia: "#10" },
-    { id: 102, fecha_hora: hoy + "T18:00:00.000Z", mascota_id: 2, mascota: "Simba", cliente: "Ana", telefono: "3001234567", servicio: "Corte y baño", tipo_id: 3, estado: "cancelada", precio_acordado: 60000 },
+    { id: 100, fecha_hora: hoy + "T14:00:00.000Z", mascota_id: 1, mascota: "Luna", especie: "perro", cliente: "Ana", telefono: "3001234567", telefono2: "3159998877", servicio: "Baño", tipo_id: 1, estado: "pendiente", precio_acordado: 40000, medicado: false },
+    { id: 101, fecha_hora: hoy + "T16:00:00.000Z", mascota_id: 3, mascota: "Rocky", especie: "perro", cliente: "Carlos", telefono: "3105556677", servicio: "Corte", tipo_id: 2, estado: "realizada", precio_cobrado: 35000, medicado: false, guia: "#10" },
+    { id: 102, fecha_hora: hoy + "T18:00:00.000Z", mascota_id: 2, mascota: "Simba", especie: "gato", cliente: "Ana", telefono: "3001234567", servicio: "Corte y baño", tipo_id: 3, estado: "cancelada", precio_acordado: 60000 },
   );
   T.citas.push({ id: 100, estado: "pendiente" }, { id: 101, estado: "realizada" }, { id: 102, estado: "cancelada" });
   // ?conagendada: Simba ya tiene una cita de Spa en 2 días (no debe salir en "A quién buscar")

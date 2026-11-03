@@ -78,7 +78,8 @@ Característica: Clientes y mascotas
 
   Escenario: Teléfono repetido
     Cuando cambio el teléfono a uno que ya tiene otro cliente y guardo
-    Entonces veo "Ya existe un registro con ese dato (por ejemplo, otro cliente con ese teléfono o una raza repetida)."
+    Entonces veo "Ese teléfono ya pertenece a otro cliente."
+    # v18 (B04): antes salía un mensaje genérico con «Detalle técnico»
 
   Escenario: Cambiar especie reinicia la raza
     Dado que "Luna" es perro con raza "Criollo"
@@ -215,4 +216,26 @@ Característica: Visita anterior
     Dado que hay 1.203 mascotas registradas
     Cuando abro Clientes
     Entonces veo "Mostrando 1203 de 1203 registros"
+```
+
+## Novedades v18 (ronda E2E · B04 y B11)
+
+### Reglas
+1. Los mensajes que vienen de la base de datos y ya están escritos para el usuario (teléfono repetido, segundo teléfono, teléfono obligatorio, fecha de la visita, sede sin acceso, límite del plan, elegir el servicio) se muestran **tal cual**, sin «Detalle técnico» (B04).
+2. En pantallas de hasta 1400 px (portátiles) la ficha se muestra **debajo** de la lista, para que la tabla de Clientes use todo el ancho y no se corte (B11). En pantallas más anchas siguen lado a lado.
+
+```gherkin
+# language: es
+Característica: Mensajes claros y tabla que cabe
+
+  Escenario: Teléfono de otro cliente
+    Dado que edito el teléfono de "QA Toby" y pongo uno que ya tiene otro cliente
+    Cuando guardo
+    Entonces veo solo "Ese teléfono ya pertenece a otro cliente."
+    Y no veo "Detalle técnico"
+
+  Escenario: Tabla de Clientes en un portátil
+    Dado que abro Clientes y mascotas en una pantalla de 1280 px
+    Entonces la tabla se ve completa sin desplazarse de lado
+    Y al abrir una ficha aparece debajo de la lista
 ```

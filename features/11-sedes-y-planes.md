@@ -43,7 +43,7 @@ La parte de pagos y Suscripción está en [10-multinegocio.md](10-multinegocio.m
 9. La **agenda** y los **precios** son de **cada sede**. Una sede nueva arranca con los precios de la primera.
 10. El administrador ve todas las sedes y las administra en **Sedes** (agregar, cambiar el nombre, pausar/activar). Debe quedar al menos una sede activa.
 11. Cada colaborador ve solo sus sedes (Usuarios → Sedes → Cambiar, o al invitarlo). Sin sede asignada ve «Aún no tienes sede asignada».
-12. Arriba se elige la sede en la que se trabaja (se recuerda en ese navegador).
+12. Arriba se elige la sede en la que se trabaja (se recuerda en ese navegador). El selector se actualiza solo al agregar, renombrar o pausar una sede, y en celular ocupa todo el ancho (v18).
 13. Hoy, Agendar y Agenda trabajan con la sede elegida; la ficha de la mascota muestra en qué sede la atendieron; Reportes tiene filtro por sede.
 14. Las sedes de una empresa solo las ve esa empresa (ni siquiera DALU ve sus nombres; solo cuántas usa).
 15. Mientras una empresa tenga una sola sede, si se cambian precios en la versión anterior del panel (tabla `razas`), pasan solos a los precios de su sede.
@@ -97,4 +97,24 @@ Característica: Sedes y planes
     Dado que DALU pausó mi empresa
     Cuando inicio sesión
     Entonces veo "Tu empresa está pausada" y ningún dato
+```
+
+## Novedades v18 (ronda E2E · B06 y B07)
+
+```gherkin
+# language: es
+Característica: Selector de sede siempre al día
+
+  Escenario: Renombrar una sede actualiza el selector
+    Dado que en Sedes cambio "Sede Norte" por "Sede Norte · Centro"
+    Entonces el selector 📍 de arriba muestra "Sede Norte · Centro" sin recargar la página
+
+  Escenario: Agregar una sede
+    Dado que agrego la sede "Sede Sur"
+    Entonces aparece en el selector 📍 de arriba sin recargar
+
+  Escenario: Selector en el celular
+    Dado que abro el panel en un celular de 375 px
+    Entonces el selector de sede ocupa todo el ancho debajo del buscador
+    Y el nombre de la sede se lee completo
 ```

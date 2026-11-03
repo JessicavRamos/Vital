@@ -230,3 +230,17 @@ Característica: Multinegocio
     Dado que inicié sesión como colaborador
     Entonces el menú no tiene "Suscripción"
 ```
+
+## Novedades v18 (ronda E2E · B03)
+
+- Las fechas que vienen con hora (ej. la fecha de creación de cada empresa en el panel DALU) se muestran en el **día de Bogotá**. Antes, una empresa creada de noche aparecía con el día siguiente.
+
+```gherkin
+# language: es
+Característica: Fechas con hora en el día de Bogotá
+
+  Escenario: Empresa creada de noche
+    Dado que una empresa se creó el 28/10/2026 a las 9:00 p. m. hora de Bogotá
+    Cuando DALU la ve en Negocios · DALU
+    Entonces la fecha de creación dice 28/10/2026
+```

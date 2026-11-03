@@ -197,3 +197,25 @@ Característica: Catálogos por rol (v13)
     Cuando presiono "Volver"
     Entonces la guía sigue en la tabla
 ```
+
+## Novedades v18 (ronda E2E · B05)
+
+### Reglas
+1. Al entrar a Catálogos → *Razas y precios*, el selector «Precios de la sede» muestra la **sede elegida arriba** (📍).
+2. Si se cambia la sede de arriba estando en Catálogos, la tabla de precios cambia a esa sede.
+3. Dentro de Catálogos se puede mirar otra sede con su propio selector; al salir y volver, se alinea otra vez con la de arriba.
+
+```gherkin
+# language: es
+Característica: Precios de la sede en la que trabajo
+
+  Escenario: Catálogos sigue la sede de arriba
+    Dado que arriba elegí "Sede Norte"
+    Cuando abro Catálogos → Razas y precios
+    Entonces "Precios de la sede" muestra "Sede Norte" y sus precios
+
+  Escenario: Cambiar la sede de arriba
+    Dado que estoy en Catálogos viendo "Sede principal"
+    Cuando arriba cambio a "Sede Norte"
+    Entonces la tabla muestra los precios de "Sede Norte"
+```

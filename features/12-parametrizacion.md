@@ -77,8 +77,11 @@ Ordenada de lo más fácil (desde la app, sin tocar código) a lo más técnico.
 
 | Constante | Valor actual | Para qué |
 |---|---|---|
-| `SUPABASE_URL` | `https://hkzaxvijtomwhzmvyqkq.supabase.co` | Dirección de la base. Supabase → Project Settings → API |
-| `SUPABASE_ANON_KEY` | clave pública | Clave pública (no secreta). Nunca pongas aquí la clave `service_role` |
+| `BASES.produccion` | `https://hkzaxvijtomwhzmvyqkq.supabase.co` + clave publishable | Base **real** de los negocios. Supabase → Project Settings → API |
+| `BASES.pruebas` | `https://fejdjrnocouxjhjkjrgo.supabase.co` + clave publishable | Base de **pruebas** (copia de los datos reales). Para probar sin tocar producción |
+| `ENTORNO` | automático | En `vital.dalu.pro` (o cualquier `*.dalu.pro`) usa **producción**; en cualquier otra dirección (localhost, archivo) usa **pruebas**. No se cambia a mano |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | salen de `BASES[ENTORNO]` | Las usa el resto del sitio. Son claves públicas (no secretas). Nunca pongas aquí la clave `service_role` |
+| Franja «🧪 BASE DE PRUEBAS» | automática | Fuera de producción sale una franja roja arriba y la pestaña empieza con «🧪 PRUEBAS». En vital.dalu.pro no aparece |
 | `NEGOCIO_POR_DEFECTO` | `"petgarden"` | Empresa que se muestra si alguien entra a `vital.dalu.pro` sin dirección corta |
 | `NOMBRE_NEGOCIO` | `"Pet Garden"` | Solo para bases antiguas sin multinegocio (hoy no se usa) |
 | `DALU_WHATSAPP` | `"3223050787"` | WhatsApp de DALU: «Quiero mejorar mi plan», «Ya pagué», «Quiero <plan>». Se escribe sin espacios; el 57 se agrega solo |
@@ -180,6 +183,20 @@ Los mensajes usan solo el primer nombre del dueño y el nombre de la empresa que
 | **Dominio** | Archivo `CNAME` (`vital.dalu.pro`) y Settings → Pages → *Custom domain* + *Enforce HTTPS* |
 | **DNS** | Namecheap → dalu.pro → Advanced DNS: registro `CNAME vital → jessicavramos.github.io` |
 | **Enlaces cortos** (`/petgarden`) | Archivo `404.html` (no se cambia) |
+| **Publicar** | Pull request de la rama de trabajo a `main` → revisar → *Merge*. Antes: pruebas automáticas, pruebas en la base de pruebas y **respaldo** (ver I) |
+
+---
+
+## I. Respaldos de la base real
+
+| Qué | Dónde / cómo | Notas |
+|---|---|---|
+| **Hacer una copia** | Terminal del Mac → `respaldar-vital` | Pide la contraseña de la base y la **clave de respaldo**. Script: `Escritorio/respaldo-vital/respaldar.sh` (fuera del repositorio) |
+| **Dónde quedan** | Mac: `Escritorio/respaldo-vital/copias/respaldo-AAAA-MM-DD.dump` · Drive: `Mi unidad/Respaldos Vital/respaldo-AAAA-MM-DD.dump.enc` (cifrada) | Se borran solas las de más de 31 días |
+| **Qué tienen** | Esquemas `public` (todos los datos de las empresas), `auth` (usuarios) y `storage` (registro de archivos) | Los archivos subidos (logos, videos) **no** van en la copia |
+| **Cada cuánto** | Cada semana (recordatorio los lunes) y **siempre** antes de un merge a `main`, de correr SQL o de borrar datos | |
+| **Abrir la copia de Drive** | `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in <archivo>.enc -out respaldo.dump` | Pide la clave de respaldo. Sin ella no se puede abrir |
+| **Nunca** | Subir copias ni datos reales al repositorio | Tienen teléfonos de clientes y datos de usuarios |
 
 ---
 

@@ -360,6 +360,7 @@ Característica: Fecha del servicio = fecha de la cita
     Y "A quién buscar" calcula el regreso desde el 03/08/2026
 
   Escenario: Terminar una cita futura
+    # Reemplazado en la v18 (B09): ahora pide confirmar y la mueve a hoy
     Dado una cita de "Luna" para el 25/10/2026
     Cuando la termino hoy
     Entonces el servicio queda con fecha 25/10/2026
@@ -419,3 +420,51 @@ Característica: Mensajes de WhatsApp por cita
 
 1. **Buscar** trae **todas** las citas (antes las últimas 500).
 2. Las fechas se ven en un solo formato: `dd/mm/aaaa` (también en Hoy, Agendar y Reportes). En los mensajes de WhatsApp se escribe "15 de marzo".
+
+## Novedades v18 (ronda E2E · B09 y B10)
+
+### Reglas
+1. **Terminar una cita de un día que aún no llega** (B09): la ventana «Terminar cita» muestra un aviso amarillo con el día de la cita y la casilla **«Sí, ya se hizo hoy»**, que es obligatoria.
+2. Al confirmar, la cita y su servicio quedan con la **fecha y hora de hoy**. Así Reportes («hasta hoy») y Suscripción («lo logrado en el mes») cuentan lo mismo.
+3. Las citas de hoy o de días anteriores se terminan como siempre, sin aviso y sin cambiar su fecha (sigue la regla de la v7).
+4. **Editar cita → cambiar el servicio** (B10): se pone solo el **precio sugerido** de ese servicio para la mascota (su precio habitual o el de su raza en la sede de la cita), más el recargo de baño medicado si aplica. Debajo dice «Precio sugerido … Puedes cambiarlo».
+5. Si el precio ya se escribió a mano, cambiar el servicio **no lo reemplaza**.
+
+```gherkin
+# language: es
+Característica: Terminar citas futuras y precio al editar
+
+  Escenario: Terminar una cita de mañana
+    Dado que hoy es 02/11/2026 y "QA Max" tiene cita el 03/11/2026 a las 9:00 a. m.
+    Cuando presiono "Terminar"
+    Entonces veo "Esta cita es del martes, 3 de noviembre, todavía no ha llegado ese día"
+    Y la casilla "Sí, ya se hizo hoy"
+
+  Escenario: Sin confirmar no se guarda
+    Dado que estoy terminando una cita futura
+    Cuando presiono "Marcar como realizada" sin marcar la casilla
+    Entonces la ventana sigue abierta y no se guarda nada
+
+  Escenario: Confirmar mueve la cita a hoy
+    Dado que estoy terminando una cita futura
+    Cuando marco "Sí, ya se hizo hoy" y presiono "Marcar como realizada"
+    Entonces la cita queda realizada con la fecha y hora de hoy
+    Y el servicio del historial queda con fecha de hoy
+    Y Reportes y Suscripción cuentan el mismo número de servicios del mes
+
+  Escenario: Una cita de hoy no muestra aviso
+    Dado una cita pendiente de hoy
+    Cuando la termino
+    Entonces no veo el aviso y la cita conserva su hora
+
+  Escenario: Cambiar el servicio propone su precio
+    Dado que edito una cita de "Corte y baño" de $85.000
+    Cuando cambio el servicio a "Baño"
+    Entonces el precio cambia a $90.000
+    Y veo "Precio sugerido por su raza: $90.000. Puedes cambiarlo."
+
+  Escenario: El precio escrito a mano se respeta
+    Dado que edito una cita y escribo el precio $99.000
+    Cuando cambio el servicio
+    Entonces el precio sigue en $99.000
+```

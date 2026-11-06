@@ -791,3 +791,44 @@ tr.fila-elegida{background:var(--realce)}
   .lado-hoy{padding:18px 14px}
   .hoy-resumen{font-size:1rem}
 }
+
+/* ---------- La jornada en Agenda y Clientes (nov. 2026) ---------- */
+/* Hoja blanca grande, como en Hoy */
+.tarjeta.hoja-vital{border-radius:24px;padding:20px 22px}
+/* Encabezados de tabla en minúscula normal (sin MAYÚSCULAS espaciadas) */
+th{text-transform:none;letter-spacing:0;font-size:.85rem;font-weight:700}
+/* Nombre de mascota con su ícono de perro o gato */
+.nombre-con-especie{display:inline-flex;align-items:center;gap:7px}
+.nombre-con-especie .enlace{text-decoration:none;font-family:Fredoka,Nunito,sans-serif;font-weight:600;font-size:1.02rem}
+.nombre-con-especie .enlace:hover{text-decoration:underline}
+
+/* Agenda: resumen en una frase y citas sobre el hilo */
+.resumen-agenda{display:block;background:none;padding:0;margin:4px 0 12px;font-size:1rem;color:var(--suave);border-radius:0}
+.resumen-agenda strong{color:var(--tinta);font-weight:700}
+.resumen-agenda .suave{font-size:inherit}
+.lista-citas.jornada-riel{gap:2px}
+.jornada-hora small{display:block;font-size:.72rem;color:var(--suave);margin-bottom:2px}
+.jornada-cita.cancelada .jornada-punto{background:var(--linea);border-color:var(--linea);color:var(--suave)}
+.x-punto{font:700 .8rem/1 Nunito,sans-serif}
+.jornada-cita.cancelada .jornada-hora,.jornada-cita.cancelada .jornada-nombre,.jornada-cita.cancelada .jornada-sub,
+.jornada-cita.cancelada .jornada-precio,.jornada-cita.cancelada .ico-especie{opacity:.55}
+.nota-cita.anulada{color:var(--suave);padding:0}
+.jornada-cita .auditoria{margin-top:4px}
+.canceladas-dia .jornada-cita{margin-bottom:0}
+.vacio-dia{margin-left:4px}
+
+/* Ficha de la mascota: encabezado con su ícono, nombre grande y estado del cliente */
+.ficha-cabeza{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;margin-bottom:6px}
+.ficha-especie{width:54px;height:54px;border-radius:50%;background:var(--tarjeta);color:var(--marca);display:grid;place-items:center;border:1px solid var(--linea)}
+.ficha-cabeza h2{font-size:1.6rem;margin:0;line-height:1.1}
+.ficha-sub{margin:4px 0 0;color:var(--suave)}
+.estado-cliente{font-size:.82rem;font-weight:700;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.estado-cliente.activo{background:#E3F3E9;color:var(--ok)}
+.estado-cliente.inactivo{background:var(--linea);color:var(--suave)}
+@media (prefers-color-scheme:dark){.estado-cliente.activo{background:rgba(111,207,151,.15)}}
+@media (max-width:560px){
+  .ficha-cabeza{grid-template-columns:auto minmax(0,1fr)}
+  .estado-cliente{grid-column:2;justify-self:start}
+}
+/* Tablas convertidas en tarjetas (celular): etiquetas en minúscula normal */
+@media (max-width:860px){table.interactiva td::before{text-transform:none;letter-spacing:0;font-size:.8rem}}

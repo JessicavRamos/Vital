@@ -45,7 +45,7 @@ async function listarClientes() {
         { titulo: "Última visita", valor: (f) => f.ultima_visita ?? "", filtro: "fecha" },
       ],
       fila: (f) => `<tr${C.sel && C.sel.m.mascota_id === f.mascota_id ? ' class="activa"' : ""}>
-        <td><button class="enlace" data-id="${f.mascota_id}">${esc(f.mascota)}</button>${f.activo ? "" : ' <span class="suave">· inactivo</span>'}</td>
+        <td><span class="nombre-con-especie">${iconoEspecie(f.especie, 16)}<button class="enlace" data-id="${f.mascota_id}">${esc(f.mascota)}</button></span>${f.activo ? "" : ' <span class="suave">(inactivo)</span>'}</td>
         <td>${esc(f.especie)}</td><td>${esc(f.raza ?? "—")}</td>
         <td>${esc(f.cliente)}</td><td>${esc([f.telefono, f.telefono2].filter(Boolean).join(" / "))}</td>
         <td class="num">${f.visitas}</td><td>${esc(fechaCorta(f.ultima_visita))}</td></tr>`,
@@ -103,9 +103,14 @@ function opcionesRaza(especie, actual) {
 function pintarFichaCliente() {
   const { m, cliente } = C.sel;
   $("#c-ficha").innerHTML = `
-    <h2>${esc(m.mascota)} <span class="suave">${esc(m.especie)}</span></h2>
-    <div class="suave">${esc(cliente.nombre)} · ${esc([cliente.telefono, cliente.telefono2].filter(Boolean).join(" / "))} ·
-      <span class="etiqueta ${cliente.activo ? "ok" : "gris"}">${cliente.activo ? "cliente activo" : "cliente inactivo"}</span></div>
+    <header class="ficha-cabeza">
+      <span class="ficha-especie">${iconoEspecie(m.especie, 30) || icono("clientes", { tam: 28 })}</span>
+      <div>
+        <h2>${esc(m.mascota)}</h2>
+        <p class="ficha-sub">${m.raza ? `${esc(m.raza)}, ` : ""}de ${esc(cliente.nombre)}. ${esc([cliente.telefono, cliente.telefono2].filter(Boolean).join(" o "))}.</p>
+      </div>
+      <span class="estado-cliente ${cliente.activo ? "activo" : "inactivo"}">${cliente.activo ? "Cliente activo" : "Cliente inactivo"}</span>
+    </header>
     <form id="f-form">
       <h3>Mascota</h3>
       <div class="dos">
@@ -302,7 +307,7 @@ async function cargarHistorialCliente() {
     const total = filas.reduce((suma, f) => suma + (Number(f.precio_cobrado) || 0), 0);
     const lista = (C.verAnulados ? filas.concat(anulados) : filas).slice()
       .sort((a, b) => comparar(b.fecha ?? "", a.fecha ?? ""));
-    let h = `<div class="hist-barra"><p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"} · Total ${dinero(total)}</p>
+    let h = `<div class="hist-barra"><p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"}, en total ${dinero(total)}</p>
       ${anulados.length ? `<label class="casilla pequena"><input type="checkbox" id="f-anulados"${C.verAnulados ? " checked" : ""}> Ver cancelados (${anulados.length})</label>` : ""}</div>`;
     h += lista.length ? lista.map((f) => f.anulado
       ? `<div class="item anulado">
@@ -312,7 +317,7 @@ async function cargarHistorialCliente() {
           <div class="acciones-tabla"><s>${dinero(f.precio_cobrado)}</s></div></div>`
       : `<div class="item">
           <div><strong>${esc(f.servicio)}</strong>${f.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${C.todas ? ` · ${esc(f.mascota)}` : ""}
-            <div class="suave">${esc(fechaCorta(f.fecha))}${f.sede && estado.sedes.length > 1 ? " · 📍 " + esc(f.sede) : ""}${f.guia ? " · guía " + esc(f.guia) : ""}${f.notas ? " · " + esc(f.notas) : ""}</div></div>
+            <div class="suave">${esc(fechaCorta(f.fecha))}${f.sede && estado.sedes.length > 1 ? ", sede " + esc(f.sede) : ""}${f.guia ? ", guía " + esc(f.guia) : ""}${f.notas ? ". " + esc(f.notas) : ""}</div></div>
           <div class="acciones-tabla"><strong>${dinero(f.precio_cobrado)}</strong>
             <button class="btn chico alt" data-corregir="${f.id}">Editar</button></div></div>`).join("")
       : '<p class="suave">Todavía no tiene servicios registrados.</p>';
@@ -422,7 +427,7 @@ PANTALLAS.clientes = {
   html: () => `<h1>Clientes y mascotas</h1>
     <p class="suave">Busca por mascota, dueño o cualquiera de los dos teléfonos, y abre la ficha para ver y editar todo. Haz clic en un encabezado para ordenar.</p>
     <div class="columnas derecha ancha">
-      <div class="tarjeta">
+      <div class="tarjeta hoja-vital">
         <label for="c-buscar">Buscar</label>
         <input id="c-buscar" type="search" placeholder="Mascota, dueño o teléfono">
         <label class="casilla"><input type="checkbox" id="c-inactivos"> Mostrar clientes inactivos</label>

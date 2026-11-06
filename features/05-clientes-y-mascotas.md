@@ -239,3 +239,22 @@ Característica: Mensajes claros y tabla que cabe
     Entonces la tabla se ve completa sin desplazarse de lado
     Y al abrir una ficha aparece debajo de la lista
 ```
+
+## Novedades: diseño "La jornada" (nov. 2026)
+
+### Reglas
+1. En la tabla, cada mascota lleva el ícono de perro o gato junto a su nombre.
+2. Los encabezados de las tablas van en minúscula normal (sin MAYÚSCULAS), también en el celular.
+3. La ficha abre con un encabezado: ícono de la especie en un círculo, nombre grande, "{raza}, de {dueño}. {teléfono} o {segundo teléfono}." y a la derecha "Cliente activo" o "Cliente inactivo".
+4. En el historial, los datos se separan con comas: "01/10/2026, guía #7"; el total dice "12 servicios, en total $488.000".
+
+```gherkin
+# language: es
+Característica: Ficha con el estilo La jornada
+
+  Escenario: Encabezado de la ficha
+    Dado que "Luna" es una perra criolla de Ana
+    Cuando abro su ficha
+    Entonces veo el ícono de perro, "Luna" y "Criollo, de Ana."
+    Y veo "Cliente activo"
+```

@@ -886,4 +886,19 @@ test.describe("Diseño La jornada (Hoy)", () => {
     await expect(page.locator('#menu-secciones a[aria-current="page"] svg')).toHaveCount(1);
     await expect(page.locator("#menu-secciones a svg").first()).toBeVisible();
   });
+
+  test("Agenda: citas con ícono de especie y resumen en una frase", async ({ page }) => {
+    await abrir(page, "agenda");
+    await expect(page.locator('#lista-agenda .ico-especie[aria-label="perro"]').first()).toBeVisible();
+    await expect(page.locator("#lista-agenda .resumen-agenda")).toContainText("2 citas: 1 pendiente y 1 realizada");
+    await expect(page.locator("#agenda-titulo")).toContainText("Hoy, ");
+  });
+
+  test("Clientes: la tabla y la ficha muestran perro o gato", async ({ page }) => {
+    await abrir(page, "clientes");
+    await expect(page.locator('#c-lista .ico-especie[aria-label="gato"]')).toHaveCount(1);
+    await page.locator("#c-lista button.enlace", { hasText: "Luna" }).click();
+    await expect(page.locator('#c-ficha .ficha-cabeza .ico-especie[aria-label="perro"]')).toBeVisible();
+    await expect(page.locator("#c-ficha .estado-cliente")).toHaveText("Cliente activo");
+  });
 });

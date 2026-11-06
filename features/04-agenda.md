@@ -468,3 +468,27 @@ Característica: Terminar citas futuras y precio al editar
     Cuando cambio el servicio
     Entonces el precio sigue en $99.000
 ```
+
+## Novedades: diseño "La jornada" (nov. 2026)
+
+### Reglas
+1. Cada cita se ve igual que en Hoy: hora, punto sobre el hilo (verde con chulo = realizada, gris con × = cancelada, vacío = pendiente), ícono de perro o gato, mascota, "De {dueño}, {teléfono}. {servicio}, guía {n}." y el precio.
+2. El estado va en palabras junto al nombre ("Terminada", "Cancelada"); las pendientes no llevan etiqueta.
+3. El botón **Recordar** es solo el ícono de WhatsApp (con su texto para lectores de pantalla). Sigue también en el menú ⋯.
+4. El resumen del día o de los 7 días es una frase: "2 citas: 1 pendiente y 1 realizada (1 cancelada). Cobrado $35.000, por cobrar $40.000."
+5. El título del día dice "Hoy, jueves 5 de noviembre" (o "Mañana, …" / "Ayer, …").
+6. En **Buscar**, la columna Mascota lleva el ícono de perro o gato.
+
+```gherkin
+# language: es
+Característica: Agenda con el estilo La jornada
+
+  Escenario: Resumen en una frase
+    Dado que hoy hay 1 cita pendiente, 1 realizada y 1 cancelada
+    Cuando abro la Agenda en "Día"
+    Entonces veo "2 citas: 1 pendiente y 1 realizada (1 cancelada)."
+
+  Escenario: Ícono de la especie
+    Dado que "Luna" es perro
+    Entonces su cita muestra el ícono de perro junto al nombre
+```

@@ -165,3 +165,11 @@ Característica: Tabla de roles al día
     Entonces veo la fila "Sedes (agregar, renombrar, pausar)" con ✖ para el colaborador
     Y no veo filas de Videos
 ```
+
+## Novedades v19: Usuarios con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- Una hoja: usuarios e «Invitar a alguien» a la izquierda; «Roles» y «Agregar un usuario» a la derecha (abajo en pantallas medianas y celular).
+- La tabla «Ver qué puede hacer cada rol» usa íconos de chulo y equis (con texto «Sí» / «No» para lectores de pantalla).
+- Invitaciones pendientes en frase: «nueva@pet.co, colaborador, 3001234567.»

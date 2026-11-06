@@ -50,7 +50,7 @@ async function cargarSuscripcion() {
       </div>
       <span class="etiqueta ${est.clase}" id="s-estado-pago">${esc(est.texto)}</span>
     </div>
-    ${pagoReciente ? `<p class="sus-gracias" id="s-gracias">✔ Recibimos tu pago del ${esc(fechaPago(datos.ultimo_pago))}.</p>` : ""}
+    ${pagoReciente ? `<p class="sus-gracias" id="s-gracias">${icono("check", { tam: 18 })} Recibimos tu pago del ${esc(fechaPago(datos.ultimo_pago))}.</p>` : ""}
     <div class="sus-fechas">
       <div><span>Tu plan se renueva el</span><b id="s-proximo">${esc(fechaPago(datos && datos.proximo_pago))}</b>
         ${precio ? `<small id="s-valor">Valor: ${esc(dinero(precio))}</small>` : ""}</div>
@@ -71,12 +71,9 @@ async function cargarSuscripcion() {
     const vacio = !n("citas_agendadas") && !n("servicios");
     mes.innerHTML = `<h2>Tu ${esc(nombreMes)} con ${esc(NOMBRE_PRODUCTO)}</h2>
       ${vacio ? `<p class="suave">Tu mes apenas empieza. Agenda tus citas aquí y verás crecer estos números.</p>` : `
-      <div class="stats stats-4" id="s-resumen">
-        <div class="stat"><b>${n("citas_agendadas")}</b>Citas agendadas</div>
-        <div class="stat"><b>${n("servicios")}</b>Servicios realizados</div>
-        <div class="stat"><b>${n("mascotas_atendidas")}</b>Mascotas atendidas</div>
-        <div class="stat"><b>${n("mascotas_regresaron")}</b>Mascotas que regresaron</div>
-      </div>
+      <p class="resumen-frase" id="s-resumen">Este mes agendaste <strong>${n("citas_agendadas")} ${n("citas_agendadas") === 1 ? "cita" : "citas"}</strong>,
+        hiciste <strong>${n("servicios")} ${n("servicios") === 1 ? "servicio" : "servicios"}</strong> y atendiste <strong>${n("mascotas_atendidas")} ${n("mascotas_atendidas") === 1 ? "mascota" : "mascotas"}</strong>.
+        <strong>${n("mascotas_regresaron")} ${n("mascotas_regresaron") === 1 ? "mascota regresó" : "mascotas regresaron"}</strong> a otro servicio.</p>
       <p class="suave">${n("mascotas_nuevas") ? `<strong>${n("mascotas_nuevas")}</strong> ${n("mascotas_nuevas") === 1 ? "mascota llegó" : "mascotas llegaron"} por primera vez. ` : ""}${moduloActivo("recordatorios") ? "Los recordatorios por WhatsApp ayudan a que tus clientes regresen a tiempo." : ""}</p>`}`;
   } else {
     mes.hidden = true;
@@ -98,7 +95,7 @@ async function cargarSuscripcion() {
   const incluido = $("#s-plan");
   if (!plan) { incluido.hidden = true; return; }
   const sedesActivas = estado.sedes.filter((x) => x.activo).length;
-  const item = (si, texto) => `<li class="${si ? "si" : "no"}"><span class="marca" aria-hidden="true">${si ? "✔" : "✖"}</span><span>${texto}</span>${si ? "" : '<span class="oculto-visual"> (no incluido)</span>'}</li>`;
+  const item = (si, texto) => `<li class="${si ? "si" : "no"}"><span class="marca" aria-hidden="true">${si ? icono("check", { tam: 16 }) : icono("no", { tam: 16 })}</span><span>${texto}</span>${si ? "" : '<span class="oculto-visual"> (no incluido)</span>'}</li>`;
   incluido.innerHTML = `<h2>Lo que incluye tu plan</h2>
     <ul class="lista-plan beneficios">
       ${item(true, `Hasta <strong>${plan.max_sedes} ${plan.max_sedes === 1 ? "sede" : "sedes"}</strong> <span class="suave">(usas ${sedesActivas})</span>`)}
@@ -121,8 +118,8 @@ async function cargarSuscripcion() {
         ${conPrecio ? `<tr><td>Valor mensual</td>${planes.map((p) => celda(p, Number(p.precio_mensual) > 0 ? esc(dinero(p.precio_mensual)) : "—")).join("")}</tr>` : ""}
         <tr><td>Sedes</td>${planes.map((p) => celda(p, `Hasta ${p.max_sedes}`)).join("")}</tr>
         <tr><td>Usuarios</td>${planes.map((p) => celda(p, `Hasta ${p.max_usuarios}`)).join("")}</tr>
-        <tr><td>Agenda, clientes e historial</td>${planes.map((p) => celda(p, "✔")).join("")}</tr>
-        ${BENEFICIOS_PLAN.map(([campo, texto]) => `<tr><td>${esc(texto.split(":")[0])}</td>${planes.map((p) => celda(p, p[campo] ? "✔" : '<span class="suave">—</span>')).join("")}</tr>`).join("")}
+        <tr><td>Agenda, clientes e historial</td>${planes.map((p) => celda(p, icono("check", { tam: 18, titulo: "Incluido" }))).join("")}</tr>
+        ${BENEFICIOS_PLAN.map(([campo, texto]) => `<tr><td>${esc(texto.split(":")[0])}</td>${planes.map((p) => celda(p, p[campo] ? icono("check", { tam: 18, titulo: "Incluido" }) : '<span class="suave">—</span>')).join("")}</tr>`).join("")}
         <tr><td></td>${planes.map((p) => celda(p, p.orden > actual.orden
           ? `<a class="btn chico" target="_blank" rel="noopener" data-quiero="${esc(p.id)}" href="${esc(enlaceDalu(mensajeMejorarPlan(p.nombre)))}">Quiero ${esc(p.nombre)}</a>` : "")).join("")}</tr>
       </tbody></table></div>
@@ -132,12 +129,14 @@ async function cargarSuscripcion() {
 PANTALLAS.suscripcion = {
   html: () => `<h1>Suscripción</h1>
     <p class="suave">${esc(nombreNegocio())} en ${esc(NOMBRE_PRODUCTO)}.</p>
-    <div class="tarjeta sus-tarjeta" id="s-estado"><p class="suave">Cargando…</p></div>
-    <div class="tarjeta" id="s-mes"></div>
-    <div class="columnas">
-      <div class="tarjeta" id="s-plan"></div>
-      <div class="tarjeta" id="s-pagar"></div>
-    </div>
-    <div class="tarjeta" id="s-comparar"></div>`,
+    <div class="hoja-unica">
+      <section class="hoja-seccion sus-tarjeta" id="s-estado"><p class="suave">Cargando…</p></section>
+      <section class="hoja-seccion" id="s-mes"></section>
+      <div class="hoja-dos-col">
+        <section class="hoja-seccion" id="s-plan"></section>
+        <section class="hoja-seccion" id="s-pagar"></section>
+      </div>
+      <section class="hoja-seccion" id="s-comparar"></section>
+    </div>`,
   despues: cargarSuscripcion,
 };

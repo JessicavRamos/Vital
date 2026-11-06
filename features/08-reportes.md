@@ -130,3 +130,11 @@ Característica: Respaldo
     Y hay una hoja por cada tabla
     Y veo "Respaldo descargado. Guárdalo en un lugar seguro (por ejemplo, Google Drive)."
 ```
+
+## Novedades v19: Reportes con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- El resumen ya no son 8 recuadros de cifras: es una frase. «Del 01/11/2026 a 05/11/2026 hiciste **1 servicio** por **$35.000**, en promedio **$35.000** cada uno. Atendiste **1 mascota** de **1 cliente**.» y otra con mascotas y clientes registrados y las citas del período.
+- «Por servicio» y «Por mes» van dentro de la misma hoja.
+- Botones de descarga con ícono de línea (sin «⬇»).

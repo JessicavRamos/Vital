@@ -127,24 +127,15 @@ async function pestanaRazas(caja) {
     <p class="suave">Escribe aquí tus precios. Al cambiar una celda se guarda sola.${porSede && estado.sedes.length > 1
       ? " <strong>Cada sede tiene sus propios precios</strong>; el nombre de la raza es el mismo para todas." : ""}
     El recargo del baño medicado se elige al agendar o al terminar la cita.</p>
-    ${selector}
-    <form id="nueva-raza" class="fila-nueva">
-      <div><label for="r-nombre">Raza</label><input id="r-nombre" required></div>
-      <div><label for="r-especie">Especie</label><select id="r-especie"><option value="perro">Perro</option><option value="gato">Gato</option></select></div>
-      <div><label for="r-bano">Baño</label><input id="r-bano" type="number" min="0" step="any"></div>
-      <div><label for="r-corte">Corte</label><input id="r-corte" type="number" min="0" step="any"></div>
-      <div><label for="r-cb">Corte y baño</label><input id="r-cb" type="number" min="0" step="any"></div>
-      <div><label for="r-unas">Uñas</label><input id="r-unas" type="number" min="0" step="any"></div>
-      <div><button class="btn" type="submit">Agregar raza</button></div>
-      <p class="error" role="alert"></p>
-    </form>
-    <div class="tabla-scroll"><table><thead><tr><th>Raza</th><th>Especie</th><th>Baño</th><th>Corte</th><th>Corte y baño</th><th>Uñas</th><th></th></tr></thead>
+    <div class="razas-barra">${selector}
+      <button type="button" class="btn" id="abrir-nueva-raza">${icono("mas", { tam: 16 })} Agregar raza</button></div>
+    <div class="tabla-scroll"><table class="tabla-razas"><thead><tr><th>Raza</th><th>Especie</th><th>Baño</th><th>Corte</th><th>Corte y baño</th><th>Uñas</th><th><span class="oculto-visual">Quitar</span></th></tr></thead>
     <tbody id="tabla-razas">${razas.map((r) => `<tr data-id="${r.id}">
-      <td><input data-campo="nombre" value="${esc(r.nombre)}" aria-label="Nombre de la raza"></td>
-      <td>${esc(r.especie)}</td>
+      <td class="raza-nombre"><input data-campo="nombre" value="${esc(r.nombre)}" aria-label="Nombre de la raza"></td>
+      <td class="raza-especie">${iconoEspecie(r.especie, 18)} ${esc(r.especie === "gato" ? "Gato" : r.especie === "perro" ? "Perro" : r.especie)}</td>
       ${CAMPOS_PRECIO.map((c) =>
-        `<td><input data-campo="${c}" data-precio type="number" min="0" step="any" value="${esc(r[c])}" aria-label="${c}"></td>`).join("")}
-      <td><button class="btn alt" data-quitar="${r.id}">Quitar</button></td></tr>`).join("")}</tbody></table></div>`;
+        `<td data-etiqueta="${{ precio_bano: "Baño", precio_corte: "Corte", precio_corte_bano: "Corte y baño", precio_unas: "Uñas" }[c] || c}"><input data-campo="${c}" data-precio type="number" min="0" step="any" value="${esc(r[c])}" aria-label="${c}"></td>`).join("")}
+      <td class="raza-quitar"><button class="btn alt chico" data-quitar="${r.id}">Quitar</button></td></tr>`).join("")}</tbody></table></div>`;
 
   conectarSelector();
   // El nombre se guarda en la raza (toda la empresa); los precios, en la sede elegida.
@@ -157,7 +148,29 @@ async function pestanaRazas(caja) {
   });
   $$("[data-quitar]", caja).forEach((b) => b.addEventListener("click", () =>
     quitarFila("razas", Number(b.dataset.quitar), "¿Quitar esta raza de TODAS las sedes? Las mascotas que la tengan quedarán sin raza.")));
-  $("#nueva-raza").addEventListener("submit", async (evento) => {
+  // "Agregar raza" se abre en una ventana (en el celular ya no ocupa toda la pantalla).
+  $("#abrir-nueva-raza").addEventListener("click", () => {
+    abrirDialogo(`<form id="nueva-raza">
+      <h2>Agregar raza</h2>
+      <div class="dos">
+        <div><label for="r-nombre">Raza</label><input id="r-nombre" required></div>
+        <div><label for="r-especie">Especie</label><select id="r-especie"><option value="perro">Perro</option><option value="gato">Gato</option></select></div>
+        <div><label for="r-bano">Baño</label><input id="r-bano" type="number" min="0" step="any" inputmode="numeric"></div>
+        <div><label for="r-corte">Corte</label><input id="r-corte" type="number" min="0" step="any" inputmode="numeric"></div>
+        <div><label for="r-cb">Corte y baño</label><input id="r-cb" type="number" min="0" step="any" inputmode="numeric"></div>
+        <div><label for="r-unas">Uñas</label><input id="r-unas" type="number" min="0" step="any" inputmode="numeric"></div>
+      </div>
+      <p class="suave">${porSede && estado.sedes.length > 1 ? `Los precios quedan para <strong>${esc(nombreSede(sedePrecios))}</strong>.` : "Puedes dejar en blanco los precios que no uses."}</p>
+      <p class="error" role="alert"></p>
+      <div class="acciones">
+        <button type="button" class="btn alt" id="r-volver">Volver</button>
+        <button class="btn" type="submit">Agregar raza</button>
+      </div></form>`);
+    $("#r-volver").addEventListener("click", () => cerrarDialogo());
+    $("#nueva-raza").addEventListener("submit", guardarNuevaRaza);
+    $("#r-nombre").focus();
+  });
+  async function guardarNuevaRaza(evento) {
     evento.preventDefault();
     const precios = {
       precio_bano: numeroONulo("#r-bano"),
@@ -166,18 +179,21 @@ async function pestanaRazas(caja) {
       precio_unas: numeroONulo("#r-unas"),
     };
     const datos = { nombre: $("#r-nombre").value.trim(), especie: $("#r-especie").value };
-    if (!porSede) return agregar("razas", { ...datos, ...precios }, evento.target);
     const caja = $(".error", evento.target);
     caja.textContent = "";
     try {
-      const [raza] = await q(db.from("razas").insert(datos).select("id"));
-      await q(db.from("precios_sede").upsert({ sede_id: sedePrecios, raza_id: raza.id, ...precios }, { onConflict: "sede_id,raza_id" }));
-      aviso("Agregado.");
+      if (!porSede) await q(db.from("razas").insert({ ...datos, ...precios }));
+      else {
+        const [raza] = await q(db.from("razas").insert(datos).select("id"));
+        await q(db.from("precios_sede").upsert({ sede_id: sedePrecios, raza_id: raza.id, ...precios }, { onConflict: "sede_id,raza_id" }));
+      }
+      cerrarDialogo();
+      aviso(`${datos.nombre} quedó agregada.`);
       cargarCatalogos();
     } catch (error) {
       caja.textContent = mensajeError(error);
     }
-  });
+  }
 }
 
 /* ---------- Guías ---------- */
@@ -337,7 +353,7 @@ async function cargarCatalogos() {
 PANTALLAS.catalogos = {
   html: () => `<h1>Catálogos</h1>
     <p class="suave">Tu lista de precios por raza, las guías de la máquina, los servicios y el logo.</p>
-    <div class="tarjeta">
+    <div class="tarjeta hoja-vital">
       <div class="filtros">${Object.entries(PESTANAS_CAT).map(([clave, texto]) =>
         `<button class="chip" data-pestana="${clave}" aria-pressed="${clave === pestanaCat}">${texto}</button>`).join("")}</div>
       <div id="cat-contenido"><p class="suave">Cargando…</p></div>

@@ -244,3 +244,11 @@ Característica: Fechas con hora en el día de Bogotá
     Cuando DALU la ve en Negocios · DALU
     Entonces la fecha de creación dice 28/10/2026
 ```
+
+## Novedades v19: Suscripción y panel DALU con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- Suscripción en una sola hoja con secciones. «Tu noviembre con DALU Vital» en frase: «Este mes agendaste **42 citas**, hiciste **38 servicios** y atendiste **30 mascotas**. **24 mascotas regresaron** a otro servicio.» El estado («Al día», «Renovación pendiente») en palabras de color.
+- Avisos de pago con ícono de campana o alerta, sin emojis.
+- Panel DALU: resumen en frase: «Tienes **2 empresas activas**. Esperas **$260.000** al mes y este mes recibiste **$0**. **1 renovación pendiente**.»

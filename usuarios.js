@@ -84,6 +84,10 @@ function pintarUsoUsuarios(cuentas, invitaciones) {
   }
 }
 
+// Sí / no en la tabla de roles (íconos de línea, con texto para lectores de pantalla)
+const SI_ROL = `<span class="si-no si">${icono("check", { tam: 18 })}<span class="oculto-visual">Sí</span></span>`;
+const NO_ROL = `<span class="si-no no">${icono("no", { tam: 18 })}<span class="oculto-visual">No</span></span>`;
+
 // Casillas de sedes (para invitar o cambiar las sedes de alguien)
 const htmlCasillasSedes = (prefijo, marcadas) => estado.sedes.filter((x) => x.activo).map((x) =>
   `<label class="casilla"><input type="checkbox" name="${prefijo}-sede" value="${x.id}"${marcadas.includes(x.id) ? " checked" : ""}> ${esc(x.nombre)}</label>`).join("");
@@ -136,7 +140,7 @@ async function cargarInvitaciones() {
     pintarUsoUsuarios(undefined, filas.length);
     caja.innerHTML = filas.length
       ? `<ul class="lista-invitaciones">${filas.map((i) => `<li>
-          <span><strong>${esc(i.correo)}</strong> · ${esc(ROLES[i.rol] || i.rol)}${i.telefono ? ` · <span class="suave">${esc(i.telefono)}</span>` : ""}</span>
+          <span><strong>${esc(i.correo)}</strong>, ${esc((ROLES[i.rol] || i.rol).toLowerCase())}${i.telefono ? `, <span class="suave">${esc(i.telefono)}</span>` : ""}.</span>
           <span class="acciones-invitacion">
             <button type="button" class="btn alt chico" data-reenviar="${esc(i.correo)}">Reenviar</button>
             <button type="button" class="btn alt chico" data-quitar="${esc(i.correo)}">Quitar</button></span></li>`).join("")}</ul>`
@@ -221,15 +225,15 @@ function verPermisosRoles() {
       <thead><tr><th></th><th>Admin.</th><th>Colaborador</th></tr></thead>
       <tbody>
         <tr><td>Hoy, Agendar, Agenda</td><td>Todas las sedes</td><td>Solo sus sedes</td></tr>
-        <tr><td>Clientes, mascotas e historial</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Ver precios</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Cancelar citas y servicios</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Guías</td><td>✔</td><td>✔</td></tr>
-        <tr><td>Precios por raza y sede, servicios, recordatorios y logo</td><td>✔</td><td>Solo ver</td></tr>
-        <tr><td>Sedes (agregar, renombrar, pausar)</td><td>✔</td><td>✖</td></tr>
-        <tr><td>Reportes, Excel y respaldo</td><td>✔</td><td>✖</td></tr>
-        <tr><td>Usuarios, roles e invitaciones</td><td>✔</td><td>✖</td></tr>
-        <tr><td>Suscripción (pagos a DALU)</td><td>✔</td><td>✖</td></tr>
+        <tr><td>Clientes, mascotas e historial</td><td>${SI_ROL}</td><td>${SI_ROL}</td></tr>
+        <tr><td>Ver precios</td><td>${SI_ROL}</td><td>${SI_ROL}</td></tr>
+        <tr><td>Cancelar citas y servicios</td><td>${SI_ROL}</td><td>${SI_ROL}</td></tr>
+        <tr><td>Guías</td><td>${SI_ROL}</td><td>${SI_ROL}</td></tr>
+        <tr><td>Precios por raza y sede, servicios, recordatorios y logo</td><td>${SI_ROL}</td><td>Solo ver</td></tr>
+        <tr><td>Sedes (agregar, renombrar, pausar)</td><td>${SI_ROL}</td><td>${NO_ROL}</td></tr>
+        <tr><td>Reportes, Excel y respaldo</td><td>${SI_ROL}</td><td>${NO_ROL}</td></tr>
+        <tr><td>Usuarios, roles e invitaciones</td><td>${SI_ROL}</td><td>${NO_ROL}</td></tr>
+        <tr><td>Suscripción (pagos a DALU)</td><td>${SI_ROL}</td><td>${NO_ROL}</td></tr>
       </tbody>
     </table>
     <div class="acciones"><button type="button" class="btn" id="roles-cerrar">Cerrar</button></div></div>`);
@@ -240,10 +244,10 @@ PANTALLAS.usuarios = {
   html: () => `<h1>Usuarios</h1>
     <p class="suave">Quién usa el sistema en ${esc(nombreNegocio())} y qué puede hacer. Solo el administrador ve esta pantalla.</p>
     ${estado.sinRoles ? '<p class="aviso-fijo">Los roles aún no están activos: falta ejecutar en Supabase el SQL de roles (v8). Mientras tanto, todos tienen acceso completo.</p>' : ""}
-    <div class="columnas derecha ancha">
-      <div>
-        <div class="tarjeta"><div id="u-lista"><p class="suave">Cargando…</p></div></div>
-        <div class="tarjeta">
+    <div class="hoja-doble ancha">
+      <div class="hoja-principal">
+        <div id="u-lista"><p class="suave">Cargando…</p></div>
+        <div class="hoja-seccion">
           <h2>Invitar a alguien</h2>
           <form id="form-invitar" class="fila-form">
             <div><label for="i-correo">Correo</label>
@@ -263,7 +267,7 @@ PANTALLAS.usuarios = {
           <div id="u-invitaciones"><p class="suave">Cargando…</p></div>
         </div>
       </div>
-      <div class="tarjeta">
+      <div class="hoja-lado">
         <h2>Roles</h2>
         <p class="suave"><strong>Administrador:</strong> todo. <strong>Colaborador:</strong> el día a día, sin Reportes, Usuarios ni cambios de precios.</p>
         <p><button type="button" class="btn alt chico" id="ver-roles">Ver qué puede hacer cada rol</button></p>

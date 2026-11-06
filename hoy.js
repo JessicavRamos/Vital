@@ -198,7 +198,7 @@ async function cargarHoy() {
       const cuando = retraso <= 0 ? "le toca hoy" : `${cuenta(retraso, "día", "días")} tarde`;
       return `<div class="buscar-item">
         <div class="buscar-datos">
-          <div class="buscar-titulo">${iconoEspecie(p.especie, 17)}<button class="enlace buscar-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button></div>
+          <div class="buscar-titulo">${iconoEspecie(p.especie, 19)}<button class="enlace buscar-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button></div>
           <div class="buscar-sub">De ${esc(p.cliente)}, ${esc(p.grupo.toLowerCase())}, <span class="retraso ${urgencia}">${cuando}</span>. Vino el ${esc(fechaTexto(p.ultima_fecha))}.</div>
         </div>
         <div class="buscar-acciones">
@@ -311,7 +311,7 @@ async function avisoRenovacion() {
   try { if (localStorage.getItem(clave)) return; } catch (error) { /* sin almacenamiento: se muestra */ }
   const texto = esc(textoAvisoPago(datos.proximo_pago, datos.plan || ""));
   caja.innerHTML = `<div class="aviso-fijo aviso-renovacion${est.dias < 0 ? " atrasada" : ""}" role="status">
-    <span>${texto}</span>
+    <span class="aviso-con-icono">${icono(est.dias < 0 ? "alerta" : "campana", { tam: 18 })} ${texto}</span>
     <span class="acciones-tabla"><a class="btn chico" href="#/suscripcion">Ver cómo pagar</a>
     <button type="button" class="btn alt chico" id="h-renovacion-cerrar" aria-label="Cerrar aviso">✕</button></span></div>`;
   $("#h-renovacion-cerrar").addEventListener("click", () => {

@@ -258,3 +258,11 @@ Característica: Ficha con el estilo La jornada
     Entonces veo el ícono de perro, "Luna" y "Criollo, de Ana."
     Y veo "Cliente activo"
 ```
+
+## Novedades v19: ficha de la mascota con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- «Registrar visita anterior» ya no queda pegado a «Guardar cambios»: está en la sección Historial, separada por una línea.
+- Historial como lista de frases: «Baño, el 01/10/2026.» y debajo «Guía #7, sede Norte.»; «Medicado» como nota amarilla; «Cancelado» en palabras; «Editar» como ícono de lápiz.
+- Las caritas de perro y gato se redibujaron (más simples y claras) y se ven en toda la app.

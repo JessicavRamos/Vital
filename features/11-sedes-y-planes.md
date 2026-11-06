@@ -118,3 +118,9 @@ Característica: Selector de sede siempre al día
     Entonces el selector de sede ocupa todo el ancho debajo del buscador
     Y el nombre de la sede se lee completo
 ```
+
+## Novedades v19: Sedes con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- Una hoja: la lista de sedes a la izquierda y «Agregar una sede» a la derecha (abajo en celular). «Activa» / «Pausada» en palabras.

@@ -45,7 +45,7 @@ async function listarClientes() {
         { titulo: "Última visita", valor: (f) => f.ultima_visita ?? "", filtro: "fecha" },
       ],
       fila: (f) => `<tr${C.sel && C.sel.m.mascota_id === f.mascota_id ? ' class="activa"' : ""}>
-        <td><span class="nombre-con-especie">${iconoEspecie(f.especie, 16)}<button class="enlace" data-id="${f.mascota_id}">${esc(f.mascota)}</button></span>${f.activo ? "" : ' <span class="suave">(inactivo)</span>'}</td>
+        <td><span class="nombre-con-especie">${iconoEspecie(f.especie, 19)}<button class="enlace" data-id="${f.mascota_id}">${esc(f.mascota)}</button></span>${f.activo ? "" : ' <span class="suave">(inactivo)</span>'}</td>
         <td>${esc(f.especie)}</td><td>${esc(f.raza ?? "—")}</td>
         <td>${esc(f.cliente)}</td><td>${esc([f.telefono, f.telefono2].filter(Boolean).join(" / "))}</td>
         <td class="num">${f.visitas}</td><td>${esc(fechaCorta(f.ultima_visita))}</td></tr>`,
@@ -134,10 +134,12 @@ function pintarFichaCliente() {
         <button type="submit" class="btn">Guardar cambios</button>
       </div>
     </form>
-    <div class="hist-cabeza"><h3>Historial</h3>
-      <button type="button" class="btn chico alt" id="f-visita" title="Para servicios que se hicieron antes de usar el sistema">Registrar visita anterior</button></div>
-    <label class="casilla"><input type="checkbox" id="f-todas"${C.todas ? " checked" : ""}> Incluir las demás mascotas del cliente</label>
-    <div id="f-historial"><p class="suave">Cargando…</p></div>`;
+    <section class="ficha-historial">
+      <div class="hist-cabeza"><h3>Historial</h3>
+        <button type="button" class="btn chico alt" id="f-visita" title="Para servicios que se hicieron antes de usar el sistema">${icono("mas", { tam: 16 })} Registrar visita anterior</button></div>
+      <label class="casilla"><input type="checkbox" id="f-todas"${C.todas ? " checked" : ""}> Incluir las demás mascotas del cliente</label>
+      <div id="f-historial"><p class="suave">Cargando…</p></div>
+    </section>`;
 
   $("#f-especie").addEventListener("change", (e) => { $("#f-raza").innerHTML = opcionesRaza(e.target.value, null); });
   $("#f-form").addEventListener("submit", guardarFicha);
@@ -307,19 +309,21 @@ async function cargarHistorialCliente() {
     const total = filas.reduce((suma, f) => suma + (Number(f.precio_cobrado) || 0), 0);
     const lista = (C.verAnulados ? filas.concat(anulados) : filas).slice()
       .sort((a, b) => comparar(b.fecha ?? "", a.fecha ?? ""));
-    let h = `<div class="hist-barra"><p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"}, en total ${dinero(total)}</p>
+    let h = `<div class="hist-barra"><p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"}, en total ${dinero(total)}.</p>
       ${anulados.length ? `<label class="casilla pequena"><input type="checkbox" id="f-anulados"${C.verAnulados ? " checked" : ""}> Ver cancelados (${anulados.length})</label>` : ""}</div>`;
-    h += lista.length ? lista.map((f) => f.anulado
-      ? `<div class="item anulado">
-          <div><strong>${esc(f.servicio ?? "Servicio")}</strong> <span class="etiqueta gris">cancelado</span>${C.todas ? ` · ${esc(f.mascota)}` : ""}
-            <div class="suave">${esc(fechaCorta(f.fecha))}</div>
+    // Cada servicio como una frase: "Baño, el 01/10/2026." y debajo guía, sede y notas.
+    const detalle = (f) => [f.guia ? `Guía ${String(f.guia).replace(/^#/, "#")}` : "",
+      f.sede && estado.sedes.length > 1 ? `sede ${f.sede}` : "", f.notas || ""].filter(Boolean).join(", ");
+    h += lista.length ? `<ul class="hist-ficha">${lista.map((f) => f.anulado
+      ? `<li class="hist-item anulado">
+          <div class="hist-texto"><p class="hist-frase">${C.todas ? `<strong>${esc(f.mascota)}</strong>, ` : ""}${esc(f.servicio ?? "Servicio")}, el ${esc(fechaCorta(f.fecha))}. <span class="nota-cita anulada">Cancelado</span></p>
             ${htmlAuditoria(f.anulado_por, f.anulado_en, f.motivo)}</div>
-          <div class="acciones-tabla"><s>${dinero(f.precio_cobrado)}</s></div></div>`
-      : `<div class="item">
-          <div><strong>${esc(f.servicio)}</strong>${f.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${C.todas ? ` · ${esc(f.mascota)}` : ""}
-            <div class="suave">${esc(fechaCorta(f.fecha))}${f.sede && estado.sedes.length > 1 ? ", sede " + esc(f.sede) : ""}${f.guia ? ", guía " + esc(f.guia) : ""}${f.notas ? ". " + esc(f.notas) : ""}</div></div>
-          <div class="acciones-tabla"><strong>${dinero(f.precio_cobrado)}</strong>
-            <button class="btn chico alt" data-corregir="${f.id}">Editar</button></div></div>`).join("")
+          <div class="hist-der"><s class="hist-valor">${dinero(f.precio_cobrado)}</s></div></li>`
+      : `<li class="hist-item">
+          <div class="hist-texto"><p class="hist-frase">${C.todas ? `<strong>${esc(f.mascota)}</strong>, ` : ""}${esc(f.servicio)}, el ${esc(fechaCorta(f.fecha))}.${f.medicado ? ' <span class="nota-cita medicado">Medicado</span>' : ""}</p>
+            ${detalle(f) ? `<p class="hist-sub">${esc(detalle(f))}.</p>` : ""}</div>
+          <div class="hist-der"><span class="hist-valor">${dinero(f.precio_cobrado)}</span>
+            <button class="btn chico alt solo-icono" data-corregir="${f.id}" title="Editar este servicio" aria-label="Editar ${esc(f.servicio)} del ${esc(fechaCorta(f.fecha))}">${icono("editar", { tam: 16 })}</button></div></li>`).join("")}</ul>`
       : '<p class="suave">Todavía no tiene servicios registrados.</p>';
     caja.innerHTML = h;
     $$("[data-corregir]", caja).forEach((b) => b.addEventListener("click", () =>

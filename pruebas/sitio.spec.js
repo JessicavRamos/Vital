@@ -279,8 +279,8 @@ test.describe("Suscripción y pagos", () => {
     await expect(page.locator("#s-proximo")).toHaveText(await page.evaluate((f) => fechaPago(f), proximo));
     await expect(page.locator("#s-valor")).toHaveText("Valor: $180.000");
     await expect(page.locator("#s-gracias")).toHaveCount(0);
-    await expect(page.locator("#s-resumen")).toContainText("42Citas agendadas");
-    await expect(page.locator("#s-resumen")).toContainText("24Mascotas que regresaron");
+    await expect(page.locator("#s-resumen")).toContainText("42 citas");
+    await expect(page.locator("#s-resumen")).toContainText("24 mascotas regresaron");
     await expect(page.locator("#s-mes")).toContainText("6 mascotas llegaron por primera vez");
     const texto = await page.locator("body").innerText();
     expect(texto).not.toMatch(/Total pagado|\$95\.000|Septiembre 2026|Octubre 2026|Vet Norte|Último pago/);
@@ -322,7 +322,8 @@ test.describe("Suscripción y pagos", () => {
     await expect(tabla).toContainText("$120.000");
     await expect(tabla.locator("[data-quiero]")).toHaveCount(2);
     await expect(page.locator("#s-plan li.no")).toHaveCount(1);
-    await expect(page.locator("#s-plan li.no")).toContainText("✖Historia clínica");
+    await expect(page.locator("#s-plan li.no")).toContainText("Historia clínica");
+    await expect(page.locator("#s-plan li.no")).toContainText("(no incluido)");
     const quiero = decodeURIComponent(await tabla.locator('[data-quiero="premium"]').getAttribute("href"));
     expect(quiero).toContain("pasar al plan Premium");
   });
@@ -412,9 +413,9 @@ test.describe("Suscripción y pagos", () => {
 
   test("Panel DALU: resumen arriba e información de cada empresa en la lista", async ({ page }) => {
     await abrir(page, "negocios", { extra: "dalu" });
-    await expect(page.locator("#n-resumen")).toContainText("2Empresas activas");
-    await expect(page.locator("#n-resumen")).toContainText("$260.000Ingreso mensual esperado");
-    await expect(page.locator("#n-resumen")).toContainText("1Renovaciones pendientes");
+    await expect(page.locator("#n-resumen")).toContainText("2 empresas activas");
+    await expect(page.locator("#n-resumen")).toContainText("Esperas $260.000 al mes");
+    await expect(page.locator("#n-resumen")).toContainText("1 renovación pendiente");
     await expect(page.locator("#n-lista")).toContainText("52 servicios este mes");
     await expect(page.locator("#n-lista")).toContainText("Último ingreso: hoy");
     await expect(page.locator("#n-ficha")).toBeHidden();
@@ -934,3 +935,49 @@ test.describe("Restablecer contraseña", () => {
   });
 });
 
+
+test.describe("v19 · Diseño La jornada en todas las pantallas", () => {
+  test("Agendar en celular: la ficha queda justo debajo de mascota y teléfono", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await abrir(page, "agendar");
+    await page.locator("#a-mascota").fill("Luna");
+    await page.locator("#a-telefono").fill("3001234567");
+    await page.locator("#a-telefono").blur();
+    await expect(page.locator("#a-ficha")).toContainText("Ya vino antes");
+    const orden = await page.evaluate(() => document.querySelector("#a-sugerencias").nextElementSibling.id);
+    expect(orden).toBe("a-ficha");
+  });
+
+  test("Agendar en computador: la ficha va a la derecha y habla en frases", async ({ page }) => {
+    await abrir(page, "agendar");
+    await page.locator("#a-mascota").fill("Luna");
+    await page.locator("#a-telefono").fill("3001234567");
+    await page.locator("#a-telefono").blur();
+    await expect(page.locator(".hoja-agendar > #a-ficha")).toContainText("De Ana");
+    await expect(page.locator("#a-ficha")).not.toContainText(" · ");
+  });
+
+  test("Catálogos: Agregar raza se abre en una ventana", async ({ page }) => {
+    await abrir(page, "catalogos");
+    await page.locator("#abrir-nueva-raza").click();
+    await page.fill("#r-nombre", "Beagle");
+    await page.fill("#r-bano", "42000");
+    await page.locator("#nueva-raza button[type=submit]").click();
+    await expect(aviso(page)).toContainText("Beagle quedó agregada");
+  });
+
+  test("Reportes: resumen en frase, sin recuadros de cifras", async ({ page }) => {
+    await abrir(page, "reportes");
+    await expect(page.locator(".resumen-frase").first()).toContainText("hiciste");
+    await expect(page.locator("#rep-resultado .stat")).toHaveCount(0);
+  });
+
+  test("sin emojis en las pantallas principales", async ({ page }) => {
+    for (const ruta of ["hoy", "agenda", "agendar", "reportes", "usuarios", "suscripcion"]) {
+      await abrir(page, ruta);
+      await page.waitForTimeout(300);
+      const texto = await page.locator("#raiz").innerText();
+      expect(texto, ruta).not.toMatch(/[📍👤🐾📅⚠✔✖⬇🔔⛔⏸]/u);
+    }
+  });
+});

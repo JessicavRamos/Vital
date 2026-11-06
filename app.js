@@ -30,10 +30,17 @@ const ICONOS = {
   suscripcion: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/>',
   negocios: '<path d="M4 21V5.5L12 3v18M12 8.5l8 2.5v10M3 21h18M7.5 8.5v.01M7.5 12v.01M7.5 15.5v.01M15.5 14v.01M15.5 17.5v.01"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  alerta: '<path d="M12 4 2.8 19.5h18.4L12 4z"/><path d="M12 10v4.5M12 17v.01"/>',
+  descargar: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
+  mas: '<path d="M12 5v14M5 12h14"/>',
+  no: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  pausa: '<path d="M9 5.5v13M15 5.5v13"/>',
+  campana: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15L6 16.5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  editar: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
   whatsapp: '<path d="M4 20l1.3-3.9A8 8 0 1 1 12 20a8 8 0 0 1-4-1.1L4 20z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8c-.9-.4-1.6-1.1-2-2l.8-1-1-2L9 9.5z"/>',
   // Mascotas: perro y gato de frente (Hoy, y donde se quiera mostrar la especie)
-  perro: '<path d="M4.2 14.5V9.6C4.2 5.9 7.6 3.5 12 3.5s7.8 2.4 7.8 6.1v4.9"/><path d="M7.6 8.8v6.1c0 2.8 2 4.6 4.4 4.6s4.4-1.8 4.4-4.6V8.8"/><circle cx="10.1" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="13.9" cy="12" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.2" rx="1.25" ry=".85" fill="currentColor" stroke="none"/>',
-  gato: '<path d="M5 5.2l3.4 3.1a8.6 8.6 0 0 1 7.2 0L19 5.2v8.2c0 3.9-3.1 6.6-7 6.6s-7-2.7-7-6.6z"/><circle cx="9.6" cy="12.6" r=".8" fill="currentColor" stroke="none"/><circle cx="14.4" cy="12.6" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.3" rx="1.05" ry=".7" fill="currentColor" stroke="none"/>',
+  perro: '<path d="M6.5 8.6V14c0 4 2.4 6.8 5.5 6.8s5.5-2.8 5.5-6.8V8.6"/><path d="M6.5 14H4.6C3.2 14 2.2 13 2.2 11.6V9.4C2.2 5.6 6.4 3.2 12 3.2s9.8 2.4 9.8 6.2v2.2c0 1.4-1 2.4-2.4 2.4h-1.9"/><circle cx="9.4" cy="12.2" r="1.25" fill="currentColor" stroke="none"/><circle cx="14.6" cy="12.2" r="1.25" fill="currentColor" stroke="none"/><ellipse cx="12" cy="16.4" rx="1.55" ry="1.05" fill="currentColor" stroke="none"/>',
+  gato: '<path d="M4.2 4.4l4.4 3.7c1.1-.4 2.2-.6 3.4-.6s2.3.2 3.4.6l4.4-3.7v9.4c0 4.4-3.5 7.2-7.8 7.2s-7.8-2.8-7.8-7.2z"/><circle cx="9.4" cy="13.2" r="1.25" fill="currentColor" stroke="none"/><circle cx="14.6" cy="13.2" r="1.25" fill="currentColor" stroke="none"/><ellipse cx="12" cy="16.6" rx="1.2" ry=".8" fill="currentColor" stroke="none"/>',
 };
 function icono(nombre, { tam = 20, clase = "ico", titulo = "" } = {}) {
   const dibujo = ICONOS[nombre];
@@ -42,7 +49,7 @@ function icono(nombre, { tam = 20, clase = "ico", titulo = "" } = {}) {
   return `<svg class="${clase}" width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${accesible}>${dibujo}</svg>`;
 }
 // Perro o gato según la especie de la mascota. Si la vista aún no trae la especie, no muestra nada.
-const iconoEspecie = (especie, tam = 18) =>
+const iconoEspecie = (especie, tam = 20) =>
   especie === "perro" || especie === "gato" ? icono(especie, { tam, clase: "ico ico-especie", titulo: especie }) : "";
 
 const dinero = (n) =>
@@ -440,14 +447,14 @@ function textoAvisoPago(proximo, plan = "") {
   if (!est.aviso) return "";
   const elPlan = plan ? `tu plan ${plan}` : "tu plan";
   const limite = fechaPago(sumarDias(String(proximo).slice(0, 10), DIAS_GRACIA));
-  if (est.dias === 1) return `🔔 Mañana, ${fechaPago(proximo)}, se renueva ${elPlan}. Paga a tiempo para seguir usando ${NOMBRE_PRODUCTO} sin interrupciones.`;
-  if (est.dias === 0) return `🔔 Hoy se renueva ${elPlan}. Cuando pagues, envíanos el comprobante por WhatsApp y lo registraremos.`;
-  if (est.dias === -DIAS_GRACIA) return `⚠️ Hoy es el último día para pagar tu renovación. Desde mañana tu empresa puede pasar a pausa: podrán consultar, pero no agendar ni hacer cambios.`;
+  if (est.dias === 1) return `Mañana, ${fechaPago(proximo)}, se renueva ${elPlan}. Paga a tiempo para seguir usando ${NOMBRE_PRODUCTO} sin interrupciones.`;
+  if (est.dias === 0) return `Hoy se renueva ${elPlan}. Cuando pagues, envíanos el comprobante por WhatsApp y lo registraremos.`;
+  if (est.dias === -DIAS_GRACIA) return `Hoy es el último día para pagar tu renovación. Desde mañana tu empresa puede pasar a pausa: podrán consultar, pero no agendar ni hacer cambios.`;
   if (est.dias < 0 && est.dias > -DIAS_GRACIA) {
     const n = -est.dias;
-    return `⚠️ Tu renovación está pendiente desde el ${fechaPago(proximo)} (hace ${n} ${n === 1 ? "día" : "días"}). Tienes hasta el ${limite} para pagar; después tu empresa puede pasar a pausa (solo consulta).`;
+    return `Tu renovación está pendiente desde el ${fechaPago(proximo)} (hace ${n} ${n === 1 ? "día" : "días"}). Tienes hasta el ${limite} para pagar; después tu empresa puede pasar a pausa (solo consulta).`;
   }
-  return `⛔ Tu renovación está vencida desde el ${fechaPago(proximo)}. Tu empresa puede pasar a pausa (solo consulta) en cualquier momento. Paga y envíanos el comprobante para evitarlo.`;
+  return `Tu renovación está vencida desde el ${fechaPago(proximo)}. Tu empresa puede pasar a pausa (solo consulta) en cualquier momento. Paga y envíanos el comprobante para evitarlo.`;
 }
 
 /* ---------- Planes y contacto con DALU (marketing) ---------- */
@@ -512,8 +519,8 @@ function mejorarFecha(input) {
   if (etiqueta) etiqueta.addEventListener("click", (e) => { e.preventDefault(); boton.focus(); boton.click(); });
   input._pintarFecha = () => {
     boton.innerHTML = input.value
-      ? `<span class="cf-texto">${esc(fechaCorta(input.value))}</span><span class="cf-dia">${esc(diaSemanaCorto(input.value))}</span><span class="cf-icono" aria-hidden="true">📅</span>`
-      : `<span class="cf-texto cf-vacio">${esc(input.dataset.vacio || "Elegir fecha")}</span><span class="cf-icono" aria-hidden="true">📅</span>`;
+      ? `<span class="cf-texto">${esc(fechaCorta(input.value))}</span><span class="cf-dia">${esc(diaSemanaCorto(input.value))}</span><span class="cf-icono" aria-hidden="true">${icono("agenda", { tam: 18 })}</span>`
+      : `<span class="cf-texto cf-vacio">${esc(input.dataset.vacio || "Elegir fecha")}</span><span class="cf-icono" aria-hidden="true">${icono("agenda", { tam: 18 })}</span>`;
   };
   input.addEventListener("change", input._pintarFecha);
   input.addEventListener("input", input._pintarFecha);
@@ -822,7 +829,7 @@ function abrirDialogoWhatsApp({ titulo, intro = "", cita, mensaje, boton = "Envi
 
 function abrirAvisoRecoger(cita) {
   abrirDialogoWhatsApp({
-    titulo: "✔ Servicio terminado",
+    titulo: "Servicio terminado",
     intro: `<p><strong>${esc(cita.mascota)}</strong> quedó registrado en el historial. ¿Le avisas que ya puede recogerlo?</p>`,
     cita,
     mensaje: mensajeRecoger(cita.cliente, cita.mascota),
@@ -1449,7 +1456,7 @@ function htmlAvisoPausa() {
   if (!estado.enPausa || estado.esDalu) return "";
   const empresa = nombreNegocio();
   return `<div class="aviso-pausa" role="status">
-    <p><strong>⏸ ${esc(empresa)} está en pausa.</strong> Puedes consultar tu información (agenda, clientes e historial),
+    <p>${icono("pausa", { tam: 18 })} <strong>${esc(empresa)} está en pausa.</strong> Puedes consultar tu información (agenda, clientes e historial),
     pero no puedes agendar, terminar ni cancelar citas, ni hacer cambios. Para reactivarla, comunícate con DALU.</p>
     <a class="btn chico" target="_blank" rel="noopener" href="${esc(enlaceDalu(`Hola, somos ${empresa}. Nuestra cuenta de ${NOMBRE_PRODUCTO} está en pausa y queremos reactivarla.`))}">Escribir a DALU</a>
   </div>`;

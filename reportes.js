@@ -180,21 +180,18 @@ const plegable = (id, titulo, cantidad, descripcion) => `<details class="tarjeta
 
 function pintarReporte(d) {
   const r = d.resumen;
+  // Resumen en frases (sin recuadros de cifras): lo importante en negrita.
+  const n = (cant, uno, varios) => `<strong>${cant} ${cant === 1 ? uno : varios}</strong>`;
   $("#rep-resultado").innerHTML = `
-    <p class="suave">Período: <strong>${esc(textoRango(d.desde, d.hasta))}</strong></p>
-    <div class="stats stats-4">
-      <div class="stat"><b>${dinero(r.ingresos)}</b>Ingresos por servicios</div>
-      <div class="stat"><b>${r.servicios}</b>Servicios realizados</div>
-      <div class="stat"><b>${dinero(r.promedio)}</b>Valor promedio por servicio</div>
-      <div class="stat"><b>${r.mascotasAtendidas}</b>Mascotas atendidas</div>
-      <div class="stat"><b>${r.clientesAtendidos}</b>Clientes atendidos</div>
-      <div class="stat"><b>${r.medicados}</b>Baños medicados</div>
-      <div class="stat"><b>${r.mascotasRegistradas}</b>Mascotas registradas (total)</div>
-      <div class="stat"><b>${r.clientesRegistrados}</b>Clientes registrados (${r.clientesActivos} activos)</div>
+    <div class="tarjeta hoja-vital hoja-reporte">
+    <p class="resumen-frase">Del <strong>${esc(textoRango(d.desde, d.hasta))}</strong> hiciste ${n(r.servicios, "servicio", "servicios")}
+      por <strong>${dinero(r.ingresos)}</strong>${r.servicios ? `, en promedio <strong>${dinero(r.promedio)}</strong> cada uno` : ""}.
+      Atendiste ${n(r.mascotasAtendidas, "mascota", "mascotas")} de ${n(r.clientesAtendidos, "cliente", "clientes")}${r.medicados ? `, con ${n(r.medicados, "baño medicado", "baños medicados")}` : ""}.</p>
+    <p class="resumen-frase suave-frase">En total tienes ${n(r.mascotasRegistradas, "mascota", "mascotas")} y ${n(r.clientesRegistrados, "cliente", "clientes")} registrados (${r.clientesActivos} activos).
+      En el período hubo ${r.citas} ${r.citas === 1 ? "cita" : "citas"}: ${r.citasRealizadas} ${r.citasRealizadas === 1 ? "realizada" : "realizadas"}, ${r.citasPendientes} ${r.citasPendientes === 1 ? "pendiente" : "pendientes"} y ${r.citasCanceladas} ${r.citasCanceladas === 1 ? "cancelada" : "canceladas"}.</p>
+    ${r.anulados ? `<p class="aviso-fijo con-icono">${icono("alerta", { tam: 18 })} ${r.anulados} ${r.anulados === 1 ? "servicio realizado fue cancelado" : "servicios realizados fueron cancelados"} en este período (${dinero(r.dineroAnulado)} que ya no cuentan). Mira el detalle abajo y en la hoja "Cancelados" del Excel.</p>` : ""}
+    <div class="columnas reporte-tablas">${htmlTablaSimple("Por servicio", d.porServicio)}${htmlTablaSimple("Por mes", d.porMes)}</div>
     </div>
-    <p class="suave">Citas del período: ${r.citas} · ${r.citasRealizadas} realizadas · ${r.citasPendientes} pendientes · ${r.citasCanceladas} canceladas</p>
-    ${r.anulados ? `<p class="aviso-fijo">⚠ ${r.anulados} ${r.anulados === 1 ? "servicio realizado fue cancelado" : "servicios realizados fueron cancelados"} en este período (${dinero(r.dineroAnulado)} que ya no cuentan). Mira el detalle abajo y en la hoja "Cancelados" del Excel.</p>` : ""}
-    <div class="columnas">${htmlTablaSimple("Por servicio", d.porServicio)}${htmlTablaSimple("Por mes", d.porMes)}</div>
     ${plegable("rep-clientes", "Dueños", d.filasClientes.length, "Suma de lo que se le cobró a todas sus mascotas en el período.")}
     ${d.filasAnulados.length ? plegable("rep-anulados", "Servicios cancelados", d.filasAnulados.length, "Quién canceló cada servicio realizado, cuándo y por qué.") : ""}
     ${plegable("rep-mascotas", "Mascotas", d.filasMascotas.length, "Todas las mascotas registradas, con lo cobrado en el período.")}`;
@@ -211,7 +208,7 @@ function pintarReporte(d) {
       { titulo: "Servicios", valor: (c) => c.servicios_periodo, filtro: false, clase: "num" },
       { titulo: "Total", valor: (c) => c.total_periodo, filtro: false, clase: "num" },
     ],
-    fila: (c) => `<tr><td>${esc(c.nombre)}${c.activo === false ? ' <span class="suave">· inactivo</span>' : ""}</td>
+    fila: (c) => `<tr><td>${esc(c.nombre)}${c.activo === false ? ' <span class="suave">(inactivo)</span>' : ""}</td>
       <td>${esc([c.telefono, c.telefono2].filter(Boolean).join(" / "))}</td>
       <td>${c.num_mascotas}<div class="suave">${esc(c.mascotas)}</div></td>
       <td class="num">${c.servicios_periodo}</td><td class="num"><strong>${dinero(c.total_periodo)}</strong></td></tr>`,
@@ -405,7 +402,7 @@ async function descargarExcel() {
     aviso(mensajeError(error), true);
   } finally {
     boton.disabled = false;
-    boton.textContent = "⬇ Descargar Excel";
+    boton.innerHTML = `${icono("descargar", { tam: 17 })} Descargar Excel`;
   }
 }
 
@@ -452,7 +449,7 @@ async function descargarRespaldo() {
   } catch (error) {
     aviso(mensajeError(error), true);
   } finally {
-    if ($("#rep-respaldo")) { boton.disabled = false; boton.textContent = "⬇ Descargar respaldo completo"; }
+    if ($("#rep-respaldo")) { boton.disabled = false; boton.innerHTML = `${icono("descargar", { tam: 17 })} Descargar respaldo completo`; }
   }
 }
 
@@ -475,7 +472,7 @@ PANTALLAS.reportes = {
     return `<h1>Reportes</h1>
     <p class="suave">Elige el período. El resumen se calcula solo y puedes descargar todo en Excel
     (historial, mascotas, dueños, citas, totales por servicio y por mes).</p>
-    <div class="tarjeta">
+    <div class="tarjeta hoja-vital">
       <div class="filtros">${Object.entries(RANGOS).map(([clave, texto]) =>
         `<button class="chip" data-rango="${clave}" aria-pressed="${clave === rangoReporte}">${texto}</button>`).join("")}</div>
       <div class="fila-nueva">
@@ -484,16 +481,16 @@ PANTALLAS.reportes = {
         ${estado.conSedes && estado.sedes.length > 1 ? `<div><label for="rep-sede">Sede</label>
           <select id="rep-sede"><option value="">Todas las sedes</option>${estado.sedes.map((x) =>
             `<option value="${x.id}"${String(x.id) === String(sedeReporte) ? " selected" : ""}>${esc(x.nombre)}${x.activo ? "" : " (pausada)"}</option>`).join("")}</select></div>` : ""}
-        <div><button class="btn" id="rep-excel" type="button" disabled>⬇ Descargar Excel</button></div>
+        <div><button class="btn" id="rep-excel" type="button" disabled>${icono("descargar", { tam: 17 })} Descargar Excel</button></div>
       </div>
     </div>
     <div id="rep-resultado"><p class="suave">Calculando…</p></div>
-    ${moduloActivo("respaldo") ? `<div class="tarjeta">
+    ${moduloActivo("respaldo") ? `<div class="tarjeta hoja-vital">
       <h2>Respaldo de la base de datos</h2>
       <p class="suave">Descarga una copia de <strong>todas</strong> tus tablas (clientes, mascotas, citas, servicios, precios…)
       en un Excel. Si algún día se pierde o se daña algo, con este archivo se puede recuperar.</p>
       <p class="suave" id="rep-ultimo-respaldo"></p>
-      <button class="btn alt" id="rep-respaldo" type="button">⬇ Descargar respaldo completo</button>
+      <button class="btn alt" id="rep-respaldo" type="button">${icono("descargar", { tam: 17 })} Descargar respaldo completo</button>
     </div>` : ""}`;
   },
   despues: async () => {

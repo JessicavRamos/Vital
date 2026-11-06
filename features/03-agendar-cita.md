@@ -241,3 +241,23 @@ Característica: Historial en la pantalla Agendar
 1. El historial del panel trae todos los servicios (antes máximo 500).
 2. Si al agendar no se pudo guardar la raza nueva de la mascota, se avisa: "La cita quedó agendada, pero no se pudo guardar la raza de la mascota."
 3. Calendario con teclado: ← → un día, ↑ ↓ una semana, RePág/AvPág un mes, Inicio/Fin primer y último día, Enter elige, Esc cierra.
+
+## Novedades v19: diseño «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- Formulario y ficha de la mascota en una sola hoja: el formulario a la izquierda y la ficha a la derecha (fondo suave).
+- La ficha empieza con la carita de perro o gato y el nombre grande, «Ya vino antes» o «Primera vez», y los datos en frases: «Criollo, 7 visitas, la última el 01/10/2026.» «De Ana, 3001234567 y 3159998877.»
+- «La última vez fue con baño medicado.» como aviso amarillo con ícono.
+- Historial: «01/10/2026, 10:30 a. m. — Baño» con la nota «Medicado» y, al final, «12 servicios, en total $488.000.»
+- **En el celular la ficha aparece justo debajo de mascota y teléfono**, no al final del formulario.
+
+```gherkin
+# language: es
+Característica: Ficha al agendar
+
+  Escenario: En el celular la ficha va debajo de mascota y teléfono
+    Dado que abro Agendar en un celular
+    Cuando escribo "Luna" y su teléfono
+    Entonces la ficha de Luna aparece debajo del teléfono y antes de "Nombre del dueño"
+```

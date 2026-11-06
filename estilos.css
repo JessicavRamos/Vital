@@ -832,3 +832,137 @@ th{text-transform:none;letter-spacing:0;font-size:.85rem;font-weight:700}
 }
 /* Tablas convertidas en tarjetas (celular): etiquetas en minúscula normal */
 @media (max-width:860px){table.interactiva td::before{text-transform:none;letter-spacing:0;font-size:.8rem}}
+
+/* ---------- La jornada en Agendar (nov. 2026) ---------- */
+.titulo-sede{font:500 1rem Nunito,sans-serif;color:var(--suave);margin-left:6px}
+.hoja-agendar{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);background:var(--tarjeta);border:1px solid var(--linea);border-radius:24px;overflow:hidden;margin-top:14px}
+.agendar-form{padding:22px 24px}
+.ficha.ficha-agendar{margin:0;border-radius:0;background:var(--fondo);border-left:1px solid var(--linea);padding:22px 24px}
+.ficha-ag-cabeza{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.ficha-ag-cabeza .ico-especie{color:var(--marca);flex:0 0 auto}
+.ficha-ag-nombre{font:600 1.45rem Fredoka,Nunito,sans-serif;margin:0;line-height:1.1}
+.ficha-ag-estado{margin:2px 0 0;color:var(--ok);font-weight:700;display:flex;align-items:center;gap:5px}
+.ficha-ag-frase{margin:4px 0;color:var(--suave);line-height:1.5}
+.ficha-agendar .alerta-medicado{display:flex;gap:8px;align-items:center;background:#FFF4CC;color:#7A5C00;border-radius:12px;padding:9px 12px;margin:12px 0;font-weight:700}
+.ficha-agendar .bloque-precio{margin:16px 0;padding-top:14px;border-top:1px solid var(--linea)}
+.ficha-agendar .precio{font:600 2rem Fredoka,Nunito,sans-serif;color:var(--marca);line-height:1.1}
+.ficha-agendar .hist-lista li{border-bottom:1px solid var(--linea)}
+.ficha-agendar .hist-fecha{font-weight:600}
+.ficha-agendar .hist-valor{font:500 .95rem Fredoka,Nunito,sans-serif}
+.ficha-agendar .hist-total{color:var(--tinta)}
+.fecha-bloque{border:0;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);border-radius:0;padding:14px 0;margin:16px 0}
+.dia-texto{text-transform:none}
+.dia-texto::first-letter{text-transform:uppercase}
+.agendar-form .medicado{background:var(--fondo)}
+@media (max-width:860px){
+  .hoja-agendar{grid-template-columns:minmax(0,1fr);border-radius:18px;margin-left:-4px;margin-right:-4px}
+  .agendar-form{padding:16px 14px}
+  .ficha.ficha-agendar{border:1px solid var(--linea);border-radius:16px;padding:14px;margin:4px 0 12px}
+}
+@media (prefers-color-scheme:dark){
+  .ficha-agendar .alerta-medicado,.nota-cita.medicado{background:rgba(246,201,69,.18);color:#F6C945}
+}
+
+/* ---------- La jornada en la ficha de la mascota (nov. 2026) ---------- */
+#f-form h3{margin:18px 0 4px;font-size:1.05rem}
+#f-form .acciones{margin-top:10px}
+.ficha-historial{margin-top:22px;padding-top:18px;border-top:1px solid var(--linea)}
+.ficha-historial .hist-cabeza .btn .ico{margin:-2px 4px 0 -2px}
+.hist-ficha{list-style:none;margin:8px 0 0;padding:0}
+.hist-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid var(--linea)}
+.hist-frase{margin:0;line-height:1.45}
+.hist-frase strong{font-family:Fredoka,Nunito,sans-serif;font-weight:600}
+.hist-sub{margin:2px 0 0;color:var(--suave);font-size:.9rem}
+.hist-der{display:flex;align-items:center;gap:10px}
+.hist-ficha .hist-valor{font:500 1rem Fredoka,Nunito,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hist-item.anulado .hist-frase,.hist-item.anulado .hist-valor{color:var(--suave)}
+.hist-item .btn.solo-icono{padding:5px 8px}.hist-item .btn.solo-icono .ico{margin:0}
+
+/* ---------- La jornada en Catálogos (nov. 2026) ---------- */
+.razas-barra{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0 6px}
+.razas-barra>div{flex:1 1 260px;max-width:360px}
+.razas-barra .btn .ico,.hoja-vital .btn .ico{margin:-2px 5px 0 -2px}
+.tabla-razas td{vertical-align:middle}
+.raza-especie{white-space:nowrap;color:var(--suave)}
+.raza-especie .ico-especie{vertical-align:-3px;margin-right:2px}
+@media (max-width:700px){
+  .tabla-razas thead{display:none}
+  .tabla-razas,.tabla-razas tbody{display:block}
+  .tabla-razas tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:14px 2px;border-bottom:1px solid var(--linea)}
+  .tabla-razas td{display:block;padding:0;border:0}
+  .tabla-razas .raza-nombre{grid-column:1/-1}
+  .tabla-razas .raza-nombre input{font:600 1.05rem Fredoka,Nunito,sans-serif}
+  .tabla-razas .raza-especie{align-self:center}
+  .tabla-razas .raza-quitar{justify-self:end;align-self:center}
+  .tabla-razas td[data-etiqueta]::before{content:attr(data-etiqueta);display:block;font-size:.8rem;font-weight:700;color:var(--suave);margin-bottom:2px}
+  .tabla-razas .raza-quitar{grid-column:2;grid-row:2}
+  .tabla-razas .raza-especie{grid-column:1;grid-row:2}
+  .razas-barra .btn{width:100%}
+}
+
+/* ---------- La jornada en Reportes (nov. 2026) ---------- */
+.resumen-frase{font-size:1.08rem;line-height:1.6;margin:0 0 8px;max-width:75ch}
+.resumen-frase strong{color:var(--tinta)}
+.suave-frase{color:var(--suave);font-size:1rem}
+.hoja-reporte .reporte-tablas{margin-top:14px;padding-top:14px;border-top:1px solid var(--linea)}
+.hoja-reporte .reporte-tablas>.tarjeta{border:0;padding:0;margin:0;background:none;box-shadow:none}
+.aviso-fijo.con-icono{display:flex;gap:8px;align-items:flex-start}
+.plegable{border-radius:24px}
+.btn .ico{vertical-align:-3px}
+.aviso-con-icono{display:inline-flex;gap:8px;align-items:flex-start}
+.aviso-con-icono .ico{flex:0 0 auto;margin-top:2px}
+.aviso-pausa p .ico{vertical-align:-3px;color:#7A5C00}
+.si-no.si{color:var(--ok)}.si-no.no{color:var(--suave)}
+.lista-plan .marca .ico{vertical-align:-3px}
+.lista-plan li.si .marca{color:var(--ok)}.lista-plan li.no .marca{color:var(--suave)}
+.tabla-comparar .ico{color:var(--ok)}
+.sus-gracias .ico{vertical-align:-3px}
+.cf-icono .ico{color:var(--marca);vertical-align:-3px}
+
+/* ---------- La jornada en Sedes, Usuarios, Suscripción y panel DALU (nov. 2026) ---------- */
+/* Una sola hoja: contenido principal y, al lado, la columna de ayuda o de agregar */
+.hoja-doble{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);background:var(--tarjeta);border:1px solid var(--linea);border-radius:24px;overflow:hidden;margin-top:14px}
+.hoja-principal{padding:22px 24px;min-width:0}
+.hoja-lado{padding:22px 24px;background:var(--fondo);border-left:1px solid var(--linea);min-width:0}
+.hoja-lado h2:not(:first-child){margin-top:22px}
+.hoja-seccion{padding-top:18px;margin-top:18px;border-top:1px solid var(--linea)}
+.hoja-unica{background:var(--tarjeta);border:1px solid var(--linea);border-radius:24px;padding:4px 24px 22px;margin-top:14px}
+.hoja-unica>.hoja-seccion:first-child{border-top:0;margin-top:0}
+.hoja-unica .hoja-seccion[hidden]{display:none}
+.hoja-dos-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px}
+.hoja-dos-col>.hoja-seccion{min-width:0}
+.n-resumen{margin:8px 0 14px}
+@media (max-width:1100px){
+  .hoja-doble{grid-template-columns:minmax(0,1fr)}
+  .hoja-lado{border-left:0;border-top:1px solid var(--linea)}
+}
+@media (max-width:760px){
+  .hoja-doble,.hoja-unica{border-radius:18px;margin-left:-4px;margin-right:-4px}
+  .hoja-principal,.hoja-lado{padding:16px 14px}
+  .hoja-unica{padding:4px 14px 16px}
+  .hoja-dos-col{grid-template-columns:minmax(0,1fr)}
+}
+/* Sin etiquetas en MAYÚSCULAS espaciadas (tic de diseño genérico) */
+th,table.interactiva td::before,.cal-semana span,.sus-etiqueta,.firma-producto{text-transform:none;letter-spacing:0}
+.sus-etiqueta{font-weight:700;font-size:.9rem}
+.firma-producto{font-size:.8rem}
+.contenido .tarjeta{border-radius:20px}
+
+/* ---------- Modo oscuro: el menú lateral sigue turquesa (oscuro) con letra blanca ---------- */
+@media (prefers-color-scheme:dark){
+  .lateral{background:#0A4350;color:#F2FAFB}
+  .lateral .btn.alt{color:#F2FAFB;border-color:rgba(242,250,251,.85)}
+  .lateral nav a[aria-current="page"]{background:#F2FAFB;color:#0F5C6B}
+  .lateral .firma-producto{color:#F2FAFB}
+  .menu-movil{color:#F2FAFB}
+  .hoja-agendar,.hoja-doble,.hoja-unica,.hoja-hoy{border-color:#254652}
+}
+/* Suscripción dentro de la hoja: sin el fondo degradado y el estado en palabras */
+.hoja-unica .sus-tarjeta{background:none}
+.sus-cabeza .etiqueta{background:none;padding:0;font-size:.95rem}
+.sus-cabeza .etiqueta.ok{color:var(--ok)}
+.sus-cabeza .etiqueta.atrasada{color:var(--alerta)}
+.sus-cabeza .etiqueta.gris{color:var(--suave)}
+/* Estados en palabras (no píldoras) dentro de las hojas */
+.hoja-principal .etiqueta.ok,.hoja-principal .etiqueta.gris{background:none;padding:0;font-size:.9rem}
+.hoja-principal .etiqueta.ok{color:var(--ok)}.hoja-principal .etiqueta.gris{color:var(--suave)}

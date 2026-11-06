@@ -54,28 +54,42 @@ async function pintarDia() {
   } catch (error) { /* es solo una ayuda */ }
 }
 
+// En el celular la ficha («ya vino antes», precio, historial) va justo debajo de mascota y teléfono;
+// en computador, a la derecha. Se mueve el mismo elemento (sus botones siguen funcionando).
+const CELULAR_AGENDAR = window.matchMedia("(max-width: 860px)");
+function colocarFichaAgendar() {
+  const ficha = $("#a-ficha"), hoja = $(".hoja-agendar"), sugerencias = $("#a-sugerencias");
+  if (!ficha || !hoja || !sugerencias) return;
+  if (CELULAR_AGENDAR.matches) { if (ficha.previousElementSibling !== sugerencias) sugerencias.after(ficha); }
+  else if (ficha.parentElement !== hoja) hoja.append(ficha);
+}
+CELULAR_AGENDAR.addEventListener("change", colocarFichaAgendar);
+
 function pintarFicha() {
   const caja = $("#a-ficha");
   if (!caja) return;
   let h = "";
   if (A.sel) {
     const m = A.sel;
-    const telefonos = [m.telefono, m.telefono2].filter(Boolean).join(" · ");
+    const telefonos = [m.telefono, m.telefono2].filter(Boolean).join(" y ");
     // "Ya vino" solo cuenta si hay servicios TERMINADOS (visitas > 0).
-    const resumen = m.visitas > 0
-      ? `${m.visitas} visita(s) · última: ${fechaTexto(m.ultima_visita)}`
+    const visitas = m.visitas > 0
+      ? `${m.visitas} ${m.visitas === 1 ? "visita" : "visitas"}, la última el ${fechaTexto(m.ultima_visita)}`
       : "aún sin servicios terminados";
-    h += m.visitas > 0
-      ? `<div class="bien">✔ ${esc(m.mascota)} ya vino antes</div>`
-      : `<div class="bien">🐾 Primera vez de ${esc(m.mascota)}</div>`;
-    h += `<div class="suave">${esc(m.raza ?? "Sin raza")} · ${esc(resumen)}${m.activo ? "" : " · cliente inactivo (se reactivará al agendar)"}</div>
-      <div class="suave">${esc(m.cliente)} · ${esc(telefonos)}</div>`;
-    if (m.descripcion_corte) h += `<p><strong>Corte:</strong> ${esc(m.descripcion_corte)}</p>`;
-    if (A.guia) h += `<p><strong>Última guía:</strong> ${esc(A.guia.guia)} (${esc(fechaTexto(A.guia.fecha))})</p>`;
+    h += `<div class="ficha-ag-cabeza">${iconoEspecie(m.especie, 30)}<div>
+        <h2 class="ficha-ag-nombre">${esc(m.mascota)}</h2>
+        <p class="ficha-ag-estado">${m.visitas > 0 ? `${icono("check", { tam: 16 })} Ya vino antes` : "Primera vez"}</p></div></div>`;
+    h += `<p class="ficha-ag-frase">${esc(m.raza ?? "Sin raza")}, ${esc(visitas)}.${m.activo ? "" : " El cliente estaba inactivo y se reactivará al agendar."}</p>
+      <p class="ficha-ag-frase">De ${esc(m.cliente)}, ${esc(telefonos)}.</p>`;
+    if (m.descripcion_corte || A.guia) {
+      h += `<p class="ficha-ag-frase">${m.descripcion_corte ? `Corte: ${esc(m.descripcion_corte)}.` : ""}${
+        A.guia ? ` Última guía #${esc(String(A.guia.guia).replace(/^#/, ""))}, el ${esc(fechaTexto(A.guia.fecha))}.` : ""}</p>`;
+    }
     const ultima = A.historial.find((f) => f.mascota_id === m.mascota_id);
-    if (ultima && ultima.medicado) h += `<div class="alerta-medicado">⚠ La última vez fue con baño medicado</div>`;
+    if (ultima && ultima.medicado) h += `<p class="alerta-medicado">${icono("alerta", { tam: 18 })} La última vez fue con baño medicado.</p>`;
   } else {
-    h += `<strong>Mascota nueva</strong><div class="suave">Se guardará sola (dueño y mascota) al agendar.</div>`;
+    h += `<div class="ficha-ag-cabeza"><div><h2 class="ficha-ag-nombre">Mascota nueva</h2>
+      <p class="ficha-ag-frase">Se guardan solos el dueño y la mascota al agendar.</p></div></div>`;
   }
 
   const p = A.precio;
@@ -84,7 +98,7 @@ function pintarFicha() {
     h += `<div class="bloque-precio"><div class="suave">${p.origen === "mascota"
       ? "Precio habitual de esta mascota" : "Precio sugerido por su raza"}</div>
       <div class="precio">${dinero(p.valor)}</div>`;
-    if (recargo) h += `<div class="suave">+ baño medicado ${dinero(recargo)} = <strong>${dinero(p.valor + recargo)}</strong></div>`;
+    if (recargo) h += `<div class="suave">Con baño medicado (${dinero(recargo)} más) queda en <strong>${dinero(p.valor + recargo)}</strong>.</div>`;
     if (p.origen === "mascota" && p.deRaza !== null && p.deRaza !== p.valor)
       h += `<div class="suave">La raza cuesta ${dinero(p.deRaza)}, pero a esta mascota le cobras ${dinero(p.valor)}.</div>`;
     h += `<div class="suave">Puedes cambiarlo antes de agendar.</div></div>`;
@@ -107,13 +121,13 @@ function htmlHistorialAgendar() {
       Incluir las demás mascotas de ${esc(A.sel.cliente)}</label></div>`;
   if (!filas.length) return h + '<p class="suave">Todavía no tiene servicios terminados.</p></div>';
   h += `<ul class="hist-lista">${visibles.map((f) => `<li>
-      <span class="hist-fecha">${esc(fechaTexto(f.fecha))}${f.hora ? ` · ${esc(f.hora)}` : ""}</span>
-      <span class="hist-detalle">${esc(f.servicio ?? "")}${f.medicado ? " · medicado" : ""}${A.histTodas ? ` · <strong>${esc(f.mascota ?? "")}</strong>` : ""}</span>
+      <span class="hist-fecha">${esc(fechaTexto(f.fecha))}${f.hora ? `, ${esc(f.hora)}` : ""}</span>
+      <span class="hist-detalle">${A.histTodas ? `<strong>${esc(f.mascota ?? "")}</strong>, ` : ""}${esc(f.servicio ?? "")}${f.medicado ? ' <span class="nota-cita medicado">Medicado</span>' : ""}</span>
       <span class="hist-valor">${dinero(f.precio_cobrado)}</span></li>`).join("")}</ul>`;
   if (filas.length > HIST_INICIAL) {
     h += `<button type="button" class="enlace pequeno" data-hist-mas>${A.verTodo ? "Ver menos" : `Ver más (${filas.length - HIST_INICIAL} más)`}</button>`;
   }
-  return h + `<p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"} · Total ${dinero(total)}</p></div>`;
+  return h + `<p class="hist-total">${filas.length} ${filas.length === 1 ? "servicio" : "servicios"}, en total ${dinero(total)}.</p></div>`;
 }
 
 // Trae los servicios terminados (de la mascota o de todas las del dueño) con su hora.
@@ -299,10 +313,10 @@ async function enviarAgendar(evento) {
 }
 
 PANTALLAS.agendar = {
-  html: () => `<h1>Agendar cita${estado.conSedes && estado.sede && estado.sedes.length > 1 ? ` <span class="etiqueta gris">${esc(estado.sede.nombre)}</span>` : ""}</h1>
+  html: () => `<h1>Agendar cita${estado.conSedes && estado.sede && estado.sedes.length > 1 ? ` <span class="titulo-sede">en ${esc(estado.sede.nombre)}</span>` : ""}</h1>
     <p class="suave">Escribe el nombre o cualquiera de los dos teléfonos: si la mascota ya vino, se completan sus datos. Si es nueva, se guarda sola.</p>
-    <div class="columnas derecha">
-      <form id="form-agendar" class="tarjeta" autocomplete="off">
+    <div class="hoja-agendar">
+      <form id="form-agendar" class="agendar-form" autocomplete="off">
         <div class="dos">
           <div><label for="a-mascota">Mascota *</label><input id="a-mascota" required></div>
           <div><label for="a-telefono">Teléfono del dueño *</label><input id="a-telefono" inputmode="tel" required></div>
@@ -337,7 +351,7 @@ PANTALLAS.agendar = {
         <p id="a-error" class="error" role="alert"></p>
         <button class="btn grande" type="submit">Agendar cita</button>
       </form>
-      <div id="a-ficha" class="ficha"></div>
+      <aside id="a-ficha" class="ficha ficha-agendar" aria-live="polite"></aside>
     </div>`,
 
   despues: async () => {
@@ -355,6 +369,7 @@ PANTALLAS.agendar = {
       mostrarError($("#a-ficha"), error);
       return;
     }
+    colocarFichaAgendar();
     $("#a-servicio").innerHTML = A.tipos.map((t) => `<option value="${t.id}">${esc(t.nombre)}</option>`).join("");
     const bano = A.tipos.find((t) => t.nombre === "Baño");
     if (bano) $("#a-servicio").value = bano.id; // predeterminado: Baño, para perros y gatos

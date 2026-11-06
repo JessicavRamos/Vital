@@ -219,3 +219,11 @@ Característica: Precios de la sede en la que trabajo
     Cuando arriba cambio a "Sede Norte"
     Entonces la tabla muestra los precios de "Sede Norte"
 ```
+
+## Novedades v19: Catálogos con «La jornada»
+
+Estilo «La jornada»: una sola hoja blanca por pantalla, datos en frases (sin «·»), estados en palabras, íconos de línea en vez de emojis y sin etiquetas en MAYÚSCULAS. Colores y tipografías de siempre.
+
+- «Agregar raza» abre una **ventana** (en el celular ya no ocupa toda la pantalla). Al guardar dice «Persa quedó agregada.»
+- En el celular cada raza es una fila clara: nombre grande, especie con su carita, «Quitar» y los 4 precios en 2 columnas con su nombre encima.
+- La especie se muestra con su carita: «Gato», «Perro».

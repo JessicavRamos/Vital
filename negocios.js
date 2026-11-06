@@ -99,15 +99,12 @@ function pintarResumenDalu() {
   const pendientes = activas.filter((n) => { const u = ultimoPagoDe(n.id); return u && diasHasta(u.proximo_pago) < 0; }).length;
   const mes = hoyISO().slice(0, 8) + "01";
   const recibido = PAGOS.filter((p) => p.fecha >= mes).reduce((suma, p) => suma + Number(p.valor || 0), 0);
-  caja.innerHTML = `
-    <div class="stat"><b>${NEG.filter((n) => estadoDe(n) === "activo").length}</b>Empresas activas${(() => {
-      const enPausa = NEG.filter((n) => estadoDe(n) === "pausa").length, fin = NEG.filter((n) => estadoDe(n) === "finalizada").length;
-      const partes = [enPausa ? `${enPausa} en pausa` : "", fin ? `${fin} finalizada${fin === 1 ? "" : "s"}` : ""].filter(Boolean);
-      return partes.length ? ` <span class="suave">(${partes.join(", ")})</span>` : "";
-    })()}</div>
-    <div class="stat"><b>${esc(dinero(esperado))}</b>Ingreso mensual esperado</div>
-    <div class="stat"><b class="${pendientes ? "texto-alerta" : ""}">${pendientes}</b>Renovaciones pendientes</div>
-    <div class="stat"><b>${esc(dinero(recibido))}</b>Recibido este mes</div>`;
+  const enPausa = NEG.filter((n) => estadoDe(n) === "pausa").length, finalizadas = NEG.filter((n) => estadoDe(n) === "finalizada").length;
+  const otras = [enPausa ? `${enPausa} en pausa` : "", finalizadas ? `${finalizadas} ${finalizadas === 1 ? "finalizada" : "finalizadas"}` : ""].filter(Boolean);
+  const activasN = NEG.filter((n) => estadoDe(n) === "activo").length;
+  caja.innerHTML = `<p class="resumen-frase">Tienes <strong>${activasN} ${activasN === 1 ? "empresa activa" : "empresas activas"}</strong>${otras.length ? ` (${otras.join(" y ")})` : ""}.
+    Esperas <strong>${esc(dinero(esperado))}</strong> al mes y este mes recibiste <strong>${esc(dinero(recibido))}</strong>.
+    ${pendientes ? `<span class="texto-alerta"><strong>${pendientes} ${pendientes === 1 ? "renovación pendiente" : "renovaciones pendientes"}</strong>.</span>` : "No hay renovaciones pendientes."}</p>`;
 }
 
 /* ---------- Lista de empresas ---------- */
@@ -197,7 +194,7 @@ async function pintarFichaNegocio(id) {
         <p class="sus-etiqueta">Ficha de la empresa</p>
         <h2 class="ficha-nombre">${esc(n.nombre)} ${etiquetaEstado(n)}</h2>
         <p class="suave"><a href="${esc(enlacePublico(n.slug))}" target="_blank" rel="noopener">${esc(enlacePublico(n.slug))}</a>
-          · Cliente desde ${esc(fechaCorta(n.creado_en))}</p>
+          <br>Cliente desde el ${esc(fechaCorta(n.creado_en))}.</p>
       </div>
       <div class="acciones-tabla">
         <label class="estado-empresa">Estado
@@ -215,7 +212,7 @@ async function pintarFichaNegocio(id) {
         <div class="datos-ficha">
           ${p ? dato("Usuarios", `${(u.usuarios || 0) + (u.invitaciones || 0)} de ${p.max_usuarios}${u.invitaciones ? ` <span class="suave">(${u.invitaciones} invitación${u.invitaciones === 1 ? "" : "es"})</span>` : ""}`) : ""}
           ${p ? dato("Sedes activas", `${u.sedes || 0} de ${p.max_sedes}`) : ""}
-          ${p ? dato("Módulos", Object.entries(MODULOS_PLAN).map(([c, t]) => `<span class="${p[c] ? "" : "tachado"}">${p[c] ? "✔" : "✖"} ${esc(t)}</span>`).join("<br>")) : ""}
+          ${p ? dato("Módulos", Object.entries(MODULOS_PLAN).map(([c, t]) => `<span class="${p[c] ? "" : "tachado"}">${p[c] ? icono("check", { tam: 15 }) : icono("no", { tam: 15 })} ${esc(t)}</span>`).join("<br>")) : ""}
         </div>
       </section>
 
@@ -224,7 +221,7 @@ async function pintarFichaNegocio(id) {
         <div class="datos-ficha">
           ${dato("Estado", `<span class="etiqueta ${est.clase}">${esc(est.texto)}</span>`)}
           ${dato("Próximo pago", ultimo ? esc(fechaPago(ultimo.proximo_pago)) : "—")}
-          ${dato("Último pago", ultimo ? `${esc(fechaCorta(ultimo.fecha))} · ${esc(dinero(ultimo.valor))}` : "—")}
+          ${dato("Último pago", ultimo ? `${esc(fechaCorta(ultimo.fecha))}, ${esc(dinero(ultimo.valor))}` : "—")}
           ${dato("Valor del plan", p && Number(p.precio_mensual) > 0 ? `${esc(dinero(p.precio_mensual))}/mes` : '<span class="suave">sin precio</span>')}
           ${dato("Total pagado", `${esc(dinero(totalPagado))} <span class="suave">(${pagos.length} pago${pagos.length === 1 ? "" : "s"})</span>`)}
         </div>
@@ -247,7 +244,7 @@ async function pintarFichaNegocio(id) {
       <h3>Usuarios</h3>
       <div id="f-usuarios"><p class="suave">Cargando…</p></div>
       ${invitaciones.length ? `<h4>Invitaciones pendientes</h4>
-        <ul class="lista-simple" id="f-invitaciones">${invitaciones.map((i) => `<li>${esc(i.correo)} · ${esc(ROLES[i.rol] || i.rol)}
+        <ul class="lista-simple" id="f-invitaciones">${invitaciones.map((i) => `<li>${esc(i.correo)}, ${esc((ROLES[i.rol] || i.rol).toLowerCase())}
           <span class="suave">· ${esc(fechaCorta(i.creado_en))}</span>
           <button type="button" class="btn alt chico" data-reenviar="${esc(i.correo)}">Reenviar</button></li>`).join("")}</ul>` : ""}
       <form id="form-invitar-negocio" class="fila-form invitar-ficha">
@@ -494,7 +491,7 @@ function pintarTodosLosPagos() {
   const mes = hoyISO().slice(0, 8) + "01";
   const total = PAGOS.reduce((s, p) => s + Number(p.valor || 0), 0);
   const delMes = PAGOS.filter((p) => p.fecha >= mes).reduce((s, p) => s + Number(p.valor || 0), 0);
-  $("#np-totales").innerHTML = `${PAGOS.length} pago${PAGOS.length === 1 ? "" : "s"} · Total recibido <strong>${esc(dinero(total))}</strong> · Este mes <strong>${esc(dinero(delMes))}</strong>`;
+  $("#np-totales").innerHTML = `${PAGOS.length} pago${PAGOS.length === 1 ? "" : "s"}. Total recibido <strong>${esc(dinero(total))}</strong>; este mes, <strong>${esc(dinero(delMes))}</strong>.`;
   tablaPagos(caja, PAGOS, true, "pagos-dalu");
 }
 
@@ -540,7 +537,7 @@ async function quitarPago(pago) {
   if (!pago) return;
   if (!(await confirmar({
     titulo: "¿Quitar este pago?",
-    texto: `${nombreNegocioDe(pago.negocio_id)} · ${fechaCorta(pago.fecha)} · ${dinero(pago.valor)}`,
+    texto: `${nombreNegocioDe(pago.negocio_id)}, ${fechaCorta(pago.fecha)}, ${dinero(pago.valor)}.`,
     boton: "Sí, quitar", peligro: true,
   }))) return;
   try {
@@ -555,7 +552,7 @@ async function quitarPago(pago) {
 PANTALLAS.negocios = {
   html: () => `<h1>Negocios · DALU</h1>
     <p class="suave">Las empresas que usan ${esc(NOMBRE_PRODUCTO)}. Solo DALU ve esta pantalla; de cada empresa ves conteos, no los datos de sus clientes.</p>
-    <div class="stats stats-4" id="n-resumen"></div>
+    <div id="n-resumen" class="n-resumen"></div>
     <div class="tarjeta ficha-empresa" id="n-ficha" hidden></div>
     <div class="tarjeta"><h2>Empresas</h2><div id="n-lista"><p class="suave">Cargando…</p></div></div>
 

@@ -404,7 +404,7 @@ function filaCitaTabla(c) {
   const clase = { pendiente: "", realizada: "ok", cancelada: "gris" }[c.estado] ?? "";
   return `<tr${c.estado === "cancelada" ? ' class="cancelada"' : ""}>
     <td>${htmlFechaHora(c.fecha_hora)}</td>
-    <td><span class="nombre-con-especie">${iconoEspecie(c.especie, 16)}<button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button></span></td>
+    <td><span class="nombre-con-especie">${iconoEspecie(c.especie, 19)}<button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button></span></td>
     <td>${esc(c.cliente)}<div class="suave">${esc([c.telefono, c.telefono2].filter(Boolean).join(" / "))}</div></td>
     <td>${esc(c.servicio ?? "—")}${c.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${c.guia ? `<div class="suave">guía ${esc(c.guia)}</div>` : ""}</td>
     <td class="num">${c.estado === "cancelada" ? `<s>${dinero(c.precio_cobrado ?? c.precio_acordado ?? c.precio)}</s>` : dinero(precioCita(c))}</td>

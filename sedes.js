@@ -92,9 +92,9 @@ PANTALLAS.sedes = {
     <p class="suave">Clientes, mascotas e historial son de toda la empresa: una mascota puede ir a cualquier sede.
     La <strong>agenda</strong> y los <strong>precios</strong> son de cada sede. Asigna a tus colaboradores sus sedes en <strong>Usuarios</strong>.</p>
     <p id="sd-plan" class="suave"></p>
-    <div class="columnas derecha">
-      <div class="tarjeta"><div id="sd-lista"><p class="suave">Cargando…</p></div></div>
-      <div class="tarjeta">
+    <div class="hoja-doble">
+      <div class="hoja-principal"><div id="sd-lista"><p class="suave">Cargando…</p></div></div>
+      <div class="hoja-lado">
         <h2>Agregar una sede</h2>
         <form id="form-sede">
           <label for="sd-nombre">Nombre de la sede</label>

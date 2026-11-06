@@ -213,7 +213,23 @@ function mensajeError(error) {
   if (/user already registered/i.test(texto)) return "Ese correo ya tiene cuenta. Inicia sesión o usa «¿Olvidaste tu contraseña?».";
   if (/negocios_slug_key|duplicate key.*slug/i.test(texto)) return "Ya existe un negocio con esa dirección corta. Usa otra.";
   if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite|Tu empresa está en pausa|Escribe un celular válido)/.test(texto)) return texto;
-  return `No se pudo completar. Detalle técnico: ${texto}`;
+  // Errores de inicio de sesión y contraseñas (Supabase responde en inglés)
+  if (/auth session missing|session.not.found|invalid refresh token|refresh token not found/i.test(texto))
+    return "Tu sesión se cerró antes de terminar. Si estabas cambiando tu contraseña, pide un enlace nuevo en «¿Olvidaste tu contraseña?»; si no, vuelve a iniciar sesión.";
+  if (/token has expired or is invalid|otp_expired|email link is invalid|link is invalid or has expired/i.test(texto))
+    return "Este enlace ya se usó o venció. Pide uno nuevo en «¿Olvidaste tu contraseña?».";
+  if (/error sending .*email|smtp|email address not authorized/i.test(texto))
+    return "No pudimos enviar el correo en este momento. Espera unos minutos e intenta de nuevo; si sigue pasando, avísale a DALU.";
+  if (/password should contain/i.test(texto)) return "La contraseña debe combinar letras minúsculas, mayúsculas y números.";
+  if (/weak|pwned|known to be/i.test(texto) && /password/i.test(texto)) return "Esa contraseña es muy fácil de adivinar. Usa otra.";
+  if (/unable to validate email|invalid format|email address .* is invalid/i.test(texto)) return "Escribe un correo válido.";
+  if (/reauthenticat/i.test(texto)) return "Por seguridad, vuelve a iniciar sesión y cambia la contraseña de nuevo.";
+  if (/signups? not allowed|signup is disabled/i.test(texto)) return "En este momento no se pueden crear cuentas. Avísale a DALU.";
+  if (/user not found/i.test(texto)) return "No encontramos una cuenta con ese correo.";
+  // Cualquier otro error: mensaje en español para la persona; el detalle queda en la consola del navegador
+  // (F12 → Consola) y en window.__ultimoError, para soporte.
+  try { console.warn("[DALU Vital] Error sin traducir:", texto); window.__ultimoError = texto; } catch (e) { /* nada */ }
+  return "No se pudo completar. Intenta de nuevo en un momento; si sigue pasando, avísale a DALU.";
 }
 
 function mostrarError(caja, error) {
@@ -1176,6 +1192,22 @@ function htmlNuevaClave() {
   </main>`;
 }
 
+// El enlace para cambiar la contraseña ya no tiene sesión: se explica y se ofrece pedir otro.
+function enlaceRecuperacionInactivo(caja) {
+  caja.innerHTML = `Tu enlace para cambiar la contraseña ya no está activo (pudo vencer, o se cerró la sesión en otra pestaña).
+    <button type="button" class="enlace" id="pedir-otro-enlace">Pedir un enlace nuevo</button>`;
+  const boton = $("#form-clave button[type=submit]");
+  if (boton) { boton.disabled = true; boton.textContent = "Guardar contraseña"; }
+  $("#pedir-otro-enlace").addEventListener("click", async () => {
+    // Se limpia la sesión aquí mismo (así el aviso de "salió" no vuelve a dibujar y cierra la ventana).
+    estado.recuperacion = null; estado.sesion = null; estado.usuarioId = null;
+    try { await db.auth.signOut(); } catch (e) { /* ya no había sesión */ }
+    history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    pintar();
+    pedirRecuperacion();
+  });
+}
+
 function montarNuevaClave() {
   const formulario = $("#form-clave");
   $("#ver-clave").addEventListener("change", (e) => {
@@ -1196,8 +1228,15 @@ function montarNuevaClave() {
     boton.disabled = true;
     boton.textContent = "Guardando…";
     try {
+      // La sesión que abre el enlace del correo pudo cerrarse (otra pestaña cerró sesión, pasó mucho tiempo
+      // o se abrió en otro navegador). Se revisa antes de guardar para explicarlo bien.
+      const { data: actual } = await db.auth.getSession();
+      if (!actual || !actual.session) { enlaceRecuperacionInactivo(caja); return; }
       const { error } = await db.auth.updateUser({ password: clave });
-      if (error) throw error;
+      if (error) {
+        if (/auth session missing|session.not.found|refresh token/i.test(error.message || "")) { enlaceRecuperacionInactivo(caja); return; }
+        throw error;
+      }
       estado.recuperacion = null;
       history.replaceState(null, "", location.pathname + location.search + "#/hoy");
       pintar();

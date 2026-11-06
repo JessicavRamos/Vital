@@ -902,3 +902,35 @@ test.describe("Diseño La jornada (Hoy)", () => {
     await expect(page.locator("#c-ficha .estado-cliente")).toHaveText("Cliente activo");
   });
 });
+
+test.describe("Restablecer contraseña", () => {
+  test("enlace de recuperación: guardar la contraseña nueva", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.goto("/index.html?rec#access_token=abc&type=recovery");
+    await page.fill("#nueva-clave", "nueva123"); await page.fill("#nueva-clave2", "nueva123");
+    await page.locator("#form-clave button[type=submit]").click();
+    await expect(aviso(page)).toContainText("contraseña quedó actualizada");
+  });
+
+  test("si la sesión del enlace se perdió: mensaje claro y pedir otro enlace", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sesionperdida" });
+    await page.goto("/index.html?sesionperdida&rec#access_token=abc&type=recovery");
+    await page.fill("#nueva-clave", "nueva123"); await page.fill("#nueva-clave2", "nueva123");
+    await page.locator("#form-clave button[type=submit]").click();
+    await expect(page.locator("#error-clave")).toContainText("ya no está activo");
+    await expect(page.locator("#error-clave")).not.toContainText("Auth session");
+    await page.locator("#pedir-otro-enlace").click();
+    await expect(page.locator("#form-olvide")).toBeVisible();
+  });
+
+  test("errores de Supabase en inglés salen en español y sin detalle técnico", async ({ page }) => {
+    await abrir(page, "hoy");
+    const r = await page.evaluate(() => [
+      "Auth session missing!", "Error sending recovery email", "Token has expired or is invalid",
+      "Password should contain at least one character of each: abc", "Algo raro que no conocemos",
+    ].map((m) => mensajeError({ message: m })));
+    for (const t of r) { expect(t).not.toMatch(/Detalle técnico|missing|sending|expired|should contain|raro/i); }
+    expect(r[4]).toContain("avísale a DALU");
+  });
+});
+

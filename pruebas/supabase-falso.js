@@ -322,7 +322,11 @@
         onAuthStateChange: (fn) => { oyente = fn; return { data: { subscription: {} } }; },
         signInWithPassword: async () => ({ error: { message: "Invalid login credentials" } }),
         signOut: async () => { sesion = null; oyente && oyente("SIGNED_OUT", null); return {}; },
-        updateUser: async (d) => { window.__log.push(["updateUser", d]); return { data: { user: sesion && sesion.user }, error: null }; },
+        updateUser: async (d) => {
+          window.__log.push(["updateUser", d]);
+          if (location.search.includes("sesionperdida")) return { data: { user: null }, error: { message: "Auth session missing!" } };
+          return { data: { user: sesion && sesion.user }, error: null };
+        },
         resetPasswordForEmail: async (e, o) => { window.__log.push(["reset", e, o]); return { error: null }; },
         signUp: async (d) => {
           window.__log.push(["signUp", d.email, d.options]);

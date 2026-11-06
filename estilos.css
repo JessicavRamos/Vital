@@ -679,3 +679,156 @@ tr.fila-elegida{background:var(--realce)}
   .item.persona.sin-avatar{grid-template-columns:minmax(0,1fr)}
   .item.persona.sin-avatar .persona-acciones{grid-column:1/-1}
 }
+
+/* v19 · Empresa en pausa (solo lectura) y finalizada */
+.aviso-pausa{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 12px;padding:12px 14px;border-radius:12px;border:1px solid var(--sol);background:rgba(246,201,69,.16)}
+.aviso-pausa p{margin:0;flex:1 1 320px}
+.solo-lectura [data-terminar],.solo-lectura [data-descartar],.solo-lectura [data-agendar],.solo-lectura [data-menu],
+.solo-lectura [data-restaurar],.solo-lectura #form-invitar,.solo-lectura #i-sedes{display:none!important}
+.tarjeta.sin-acceso p{margin:.4em 0}
+.tarjeta.sin-acceso .acciones{margin-top:14px}
+.aviso-fijo.atrasada{border-color:var(--alerta)}
+.estado-empresa{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.85rem}
+.estado-empresa select{padding:4px 8px}
+.envio-invitacion .btn.wa{background:#1F9D55;border-color:#1F9D55;color:#fff}
+#form-invitar{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) minmax(0,1fr);gap:10px 12px;align-items:end}
+#form-invitar>*{min-width:0}
+#form-invitar #i-sedes{grid-column:1/-1;margin:0}
+#form-invitar button[type=submit]{grid-column:1/-1;justify-self:start;min-width:140px}
+@media (max-width:700px){#form-invitar{grid-template-columns:1fr}}
+.solo-lectura [data-whatsapp],.solo-lectura [data-recordar],.solo-lectura [data-recoger]{display:none!important}
+
+/* =====================================================================
+   DISEÑO "LA JORNADA" (nov. 2026): íconos, menú y pantalla Hoy
+   ===================================================================== */
+/* Íconos de línea */
+.ico{display:inline-block;flex:0 0 auto;vertical-align:middle}
+.sin-logo .ico{width:58%;height:58%;color:var(--marca)}
+
+/* Menú lateral: ícono + texto; la sección actual en blanco */
+.lateral nav a{display:flex;align-items:center;gap:12px;font-weight:600}
+.lateral nav a .ico{opacity:.85}
+.lateral nav a[aria-current="page"]{background:var(--sobre-marca);color:var(--marca)}
+.lateral nav a[aria-current="page"] .ico{opacity:1}
+.lateral .usuario{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}
+.lateral .usuario .rol-usuario{flex-basis:100%;padding-left:26px}
+.sede-actual .ico{color:var(--marca)}
+
+/* Encabezado: saludo y resumen del día en una frase */
+.hoy-cabeza{margin:6px 0 22px}
+.hoy-cabeza h1{font-size:clamp(1.7rem,3.2vw,2.4rem);line-height:1.1;letter-spacing:-.01em}
+.hoy-resumen{font-size:1.1rem;color:var(--suave);margin:10px 0 0;max-width:62ch;line-height:1.55}
+.hoy-resumen strong{color:var(--tinta);font-weight:700}
+
+/* Una sola hoja: la jornada a la izquierda y "A quién buscar" a la derecha */
+.hoja-hoy{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);background:var(--tarjeta);border-radius:24px;overflow:hidden;border:1px solid var(--linea)}
+.hoja-hoy.sin-lado{grid-template-columns:minmax(0,1fr)}
+.jornada{padding:22px 22px 22px 14px;min-width:0}
+.lado-hoy{padding:22px 26px 18px;border-left:1px solid var(--linea);background:var(--fondo);min-width:0}
+.lado-hoy h2{font-size:1.15rem}
+.jornada-acciones .btn.solo-icono{padding:5px 8px}.jornada-acciones .btn.solo-icono .ico{margin:0}
+.lado-ayuda{margin:2px 0 12px}
+
+/* Línea de tiempo: hora, punto sobre el hilo y datos. Todas las citas miden lo mismo. */
+.jornada-riel{position:relative;--col-hora:66px;--col-punto:40px}
+.jornada-riel::before{content:"";position:absolute;left:calc(var(--col-hora) + var(--col-punto) / 2 - 1px);top:24px;bottom:24px;width:2px;background:var(--linea)}
+.jornada-cita{position:relative;display:grid;grid-template-columns:var(--col-hora) var(--col-punto) minmax(0,1fr) auto;align-items:center;padding:11px 12px 11px 0;border-radius:16px}
+.jornada-hora{text-align:right;line-height:1.1}
+.jornada-hora b{display:block;font:600 1.05rem Fredoka,Nunito,sans-serif;font-variant-numeric:tabular-nums}
+.jornada-hora span{font-size:.75rem;color:var(--suave)}
+.jornada-punto{position:relative;z-index:1;justify-self:center;width:14px;height:14px;border-radius:50%;background:var(--tarjeta);border:2px solid #B9CFD3;display:grid;place-items:center;color:#fff}
+.jornada-cita.hecha .jornada-punto{width:16px;height:16px;background:var(--ok);border-color:var(--ok)}
+.jornada-cita.hecha .jornada-punto .ico{stroke-width:3}
+.jornada-cita.actual{background:var(--realce)}
+.jornada-cita.actual .jornada-punto{width:18px;height:18px;border:4px solid var(--marca)}
+.jornada-titulo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.jornada-nombre{font:600 1.1rem Fredoka,Nunito,sans-serif;text-decoration:none;color:var(--tinta)}
+.jornada-nombre:hover{text-decoration:underline;color:var(--marca)}
+.jornada-sub{color:var(--suave);font-size:.92rem;margin-top:2px}
+.ico-especie{color:var(--suave)}
+.jornada-cita.actual .ico-especie{color:var(--marca)}
+.jornada-cita.hecha .jornada-hora,.jornada-cita.hecha .jornada-nombre,.jornada-cita.hecha .jornada-precio,
+.jornada-cita.hecha .jornada-sub,.jornada-cita.hecha .ico-especie{opacity:.6}
+.nota-cita{font-size:.78rem;font-weight:700;border-radius:8px;padding:1px 8px}
+.nota-cita.medicado{background:#FFF4CC;color:#7A5C00}
+.nota-cita.terminada{color:var(--ok);padding:0}
+.jornada-der{display:flex;align-items:center;gap:14px;justify-content:flex-end;padding-left:12px}
+.jornada-precio{font:500 1rem Fredoka,Nunito,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}
+.jornada-acciones{display:flex;gap:6px;align-items:center}
+.jornada-acciones .btn .ico{margin:-2px 5px 0 -2px}
+.jornada-vacia{padding:16px 20px}
+
+/* A quién buscar: lista limpia, con el retraso dentro de la frase */
+.lista-buscar{display:flex;flex-direction:column}
+.buscar-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--linea)}
+.buscar-datos{flex:1;min-width:0}
+.buscar-titulo{display:flex;align-items:center;gap:7px}
+.buscar-nombre{font:600 1.05rem Fredoka,Nunito,sans-serif;text-decoration:none;color:var(--tinta)}
+.buscar-nombre:hover{text-decoration:underline;color:var(--marca)}
+.buscar-sub{font-size:.87rem;color:var(--suave);margin-top:1px}
+.retraso{font-weight:700}
+.retraso.hoy{color:var(--marca)}.retraso.leve{color:#8A6A00}.retraso.atrasada{color:var(--alerta)}
+.buscar-acciones{display:flex;gap:6px;align-items:center}
+.btn.wa.solo-icono{padding:5px 8px}
+.btn.wa.solo-icono svg.ico{margin:0;fill:none;width:18px;height:18px}
+.lado-hoy .tramos-buscar .chip{font-size:.8rem;padding:5px 10px}
+.lado-hoy .buscar-lista{background:var(--tarjeta)}
+
+/* Pantallas medianas: "A quién buscar" pasa debajo */
+@media (max-width:1180px){
+  .hoja-hoy{grid-template-columns:minmax(0,1fr)}
+  .lado-hoy{border-left:0;border-top:1px solid var(--linea)}
+}
+/* Celular: la hora y el hilo más angostos; precio y botones bajo los datos */
+@media (max-width:700px){
+  .hoja-hoy{border-radius:18px;margin:0 -4px}
+  .jornada{padding:14px 10px 14px 4px}
+  .jornada-riel{--col-hora:52px;--col-punto:34px}
+  .jornada-cita{grid-template-columns:var(--col-hora) var(--col-punto) minmax(0,1fr);padding:12px 8px 12px 0}
+  .jornada-hora b{font-size:1rem}
+  .jornada-der{grid-column:3;justify-content:space-between;padding:8px 0 0;flex-wrap:wrap;gap:8px}
+  .jornada-nombre{font-size:1.1rem}
+  .lado-hoy{padding:18px 14px}
+  .hoy-resumen{font-size:1rem}
+}
+
+/* ---------- La jornada en Agenda y Clientes (nov. 2026) ---------- */
+/* Hoja blanca grande, como en Hoy */
+.tarjeta.hoja-vital{border-radius:24px;padding:20px 22px}
+/* Encabezados de tabla en minúscula normal (sin MAYÚSCULAS espaciadas) */
+th{text-transform:none;letter-spacing:0;font-size:.85rem;font-weight:700}
+/* Nombre de mascota con su ícono de perro o gato */
+.nombre-con-especie{display:inline-flex;align-items:center;gap:7px}
+.nombre-con-especie .enlace{text-decoration:none;font-family:Fredoka,Nunito,sans-serif;font-weight:600;font-size:1.02rem}
+.nombre-con-especie .enlace:hover{text-decoration:underline}
+
+/* Agenda: resumen en una frase y citas sobre el hilo */
+.resumen-agenda{display:block;background:none;padding:0;margin:4px 0 12px;font-size:1rem;color:var(--suave);border-radius:0}
+.resumen-agenda strong{color:var(--tinta);font-weight:700}
+.resumen-agenda .suave{font-size:inherit}
+.lista-citas.jornada-riel{gap:2px}
+.jornada-hora small{display:block;font-size:.72rem;color:var(--suave);margin-bottom:2px}
+.jornada-cita.cancelada .jornada-punto{background:var(--linea);border-color:var(--linea);color:var(--suave)}
+.x-punto{font:700 .8rem/1 Nunito,sans-serif}
+.jornada-cita.cancelada .jornada-hora,.jornada-cita.cancelada .jornada-nombre,.jornada-cita.cancelada .jornada-sub,
+.jornada-cita.cancelada .jornada-precio,.jornada-cita.cancelada .ico-especie{opacity:.55}
+.nota-cita.anulada{color:var(--suave);padding:0}
+.jornada-cita .auditoria{margin-top:4px}
+.canceladas-dia .jornada-cita{margin-bottom:0}
+.vacio-dia{margin-left:4px}
+
+/* Ficha de la mascota: encabezado con su ícono, nombre grande y estado del cliente */
+.ficha-cabeza{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;margin-bottom:6px}
+.ficha-especie{width:54px;height:54px;border-radius:50%;background:var(--tarjeta);color:var(--marca);display:grid;place-items:center;border:1px solid var(--linea)}
+.ficha-cabeza h2{font-size:1.6rem;margin:0;line-height:1.1}
+.ficha-sub{margin:4px 0 0;color:var(--suave)}
+.estado-cliente{font-size:.82rem;font-weight:700;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.estado-cliente.activo{background:#E3F3E9;color:var(--ok)}
+.estado-cliente.inactivo{background:var(--linea);color:var(--suave)}
+@media (prefers-color-scheme:dark){.estado-cliente.activo{background:rgba(111,207,151,.15)}}
+@media (max-width:560px){
+  .ficha-cabeza{grid-template-columns:auto minmax(0,1fr)}
+  .estado-cliente{grid-column:2;justify-self:start}
+}
+/* Tablas convertidas en tarjetas (celular): etiquetas en minúscula normal */
+@media (max-width:860px){table.interactiva td::before{text-transform:none;letter-spacing:0;font-size:.8rem}}

@@ -37,13 +37,23 @@ function haceCuanto(fechaHora) {
   return dias <= 0 ? "hoy" : dias === 1 ? "ayer" : `hace ${dias} días`;
 }
 
+// Estado de cada empresa: activa, en pausa (solo consulta) o finalizada (sin acceso).
+const ESTADOS_EMPRESA = {
+  activo: { texto: "Activa", clase: "ok", explica: "Todo normal." },
+  pausa: { texto: "En pausa", clase: "", explica: "Solo consulta: entran y ven su información, pero no pueden agendar, terminar, cancelar ni cambiar nada. Ven un aviso explicando por qué." },
+  finalizada: { texto: "Finalizada", clase: "gris", explica: "Sin acceso: al entrar ven que el servicio de su empresa está finalizado. No se borra ningún dato." },
+};
+const estadoDe = (n) => n.estado || (n.activo ? "activo" : "finalizada");
+const etiquetaEstado = (n) => { const e = ESTADOS_EMPRESA[estadoDe(n)]; return `<span class="etiqueta ${e.clase}">${e.texto}</span>`; };
+
 async function cargarNegocios() {
   const caja = $("#n-lista");
   if (!caja) return;
   try {
     try {
       [NEG, PLANES] = await Promise.all([
-        q(db.from("negocios").select("id,nombre,slug,activo,creado_en,plan_id").order("id")),
+        q(db.from("negocios").select("id,nombre,slug,activo,estado,creado_en,plan_id").order("id"))
+          .catch(() => q(db.from("negocios").select("id,nombre,slug,activo,creado_en,plan_id").order("id"))), // sin SQL v18
         q(db.from("planes").select("*").order("orden")),
       ]);
       USO = new Map((await q(db.rpc("uso_negocios"))).map((u) => [u.negocio_id, u]));
@@ -59,7 +69,8 @@ async function cargarNegocios() {
       PAGOS = []; // Base sin el SQL v14 (sin "próximo pago")
     }
     try {
-      INVITACIONES = await q(db.from("invitaciones").select("correo,rol,negocio_id,creado_en").order("creado_en", { ascending: false }));
+      INVITACIONES = await q(db.from("invitaciones").select("correo,rol,negocio_id,creado_en,telefono").order("creado_en", { ascending: false }))
+        .catch(() => q(db.from("invitaciones").select("correo,rol,negocio_id,creado_en").order("creado_en", { ascending: false }))); // sin v18
     } catch (error) {
       INVITACIONES = [];
     }
@@ -89,7 +100,11 @@ function pintarResumenDalu() {
   const mes = hoyISO().slice(0, 8) + "01";
   const recibido = PAGOS.filter((p) => p.fecha >= mes).reduce((suma, p) => suma + Number(p.valor || 0), 0);
   caja.innerHTML = `
-    <div class="stat"><b>${activas.length}</b>Empresas activas${NEG.length > activas.length ? ` <span class="suave">(${NEG.length - activas.length} pausada${NEG.length - activas.length === 1 ? "" : "s"})</span>` : ""}</div>
+    <div class="stat"><b>${NEG.filter((n) => estadoDe(n) === "activo").length}</b>Empresas activas${(() => {
+      const enPausa = NEG.filter((n) => estadoDe(n) === "pausa").length, fin = NEG.filter((n) => estadoDe(n) === "finalizada").length;
+      const partes = [enPausa ? `${enPausa} en pausa` : "", fin ? `${fin} finalizada${fin === 1 ? "" : "s"}` : ""].filter(Boolean);
+      return partes.length ? ` <span class="suave">(${partes.join(", ")})</span>` : "";
+    })()}</div>
     <div class="stat"><b>${esc(dinero(esperado))}</b>Ingreso mensual esperado</div>
     <div class="stat"><b class="${pendientes ? "texto-alerta" : ""}">${pendientes}</b>Renovaciones pendientes</div>
     <div class="stat"><b>${esc(dinero(recibido))}</b>Recibido este mes</div>`;
@@ -127,7 +142,7 @@ function pintarListaNegocios() {
       { titulo: "Renovación", valor: (n) => (ultimoPagoDe(n.id) || {}).proximo_pago || "9999", filtro: false },
       ...(PLANES.length ? [{ titulo: "Uso", valor: (n) => { const u = USO.get(n.id); return u ? u.usuarios + u.invitaciones : 0; }, filtro: false }] : []),
       { titulo: "Actividad", valor: (n) => { const u = USO.get(n.id); return u ? Number(u.servicios_mes || 0) : 0; }, filtro: false },
-      { titulo: "Estado", valor: (n) => (n.activo ? "Activa" : "Pausada"), filtro: "lista" },
+      { titulo: "Estado", valor: (n) => ESTADOS_EMPRESA[estadoDe(n)].texto, filtro: "lista" },
       { titulo: "", valor: () => "", filtro: false },
     ],
     fila: (n) => {
@@ -140,7 +155,7 @@ function pintarListaNegocios() {
         <td>${htmlProximoPago(n)}</td>
         ${PLANES.length ? `<td>${textoUso(n)}</td>` : ""}
         <td>${textoActividad(n)}</td>
-        <td>${n.activo ? '<span class="etiqueta ok">Activa</span>' : '<span class="etiqueta gris">Pausada</span>'}</td>
+        <td>${etiquetaEstado(n)}</td>
         <td><button type="button" class="btn chico" data-ficha-negocio="${n.id}">Ver ficha</button></td>
       </tr>`;
     },
@@ -180,12 +195,14 @@ async function pintarFichaNegocio(id) {
     <div class="ficha-cabeza">
       <div>
         <p class="sus-etiqueta">Ficha de la empresa</p>
-        <h2 class="ficha-nombre">${esc(n.nombre)} ${n.activo ? '<span class="etiqueta ok">Activa</span>' : '<span class="etiqueta gris">Pausada</span>'}</h2>
+        <h2 class="ficha-nombre">${esc(n.nombre)} ${etiquetaEstado(n)}</h2>
         <p class="suave"><a href="${esc(enlacePublico(n.slug))}" target="_blank" rel="noopener">${esc(enlacePublico(n.slug))}</a>
           · Cliente desde ${esc(fechaCorta(n.creado_en))}</p>
       </div>
       <div class="acciones-tabla">
-        <button type="button" class="btn alt chico" id="f-activo">${n.activo ? "Pausar" : "Activar"}</button>
+        <label class="estado-empresa">Estado
+          <select id="f-estado" aria-label="Estado de ${esc(n.nombre)}">${Object.entries(ESTADOS_EMPRESA).map(([clave, e]) =>
+            `<option value="${clave}"${clave === estadoDe(n) ? " selected" : ""}>${e.texto}${clave === "pausa" ? " (solo consulta)" : clave === "finalizada" ? " (sin acceso)" : ""}</option>`).join("")}</select></label>
         <button type="button" class="btn alt chico" id="f-cerrar" aria-label="Cerrar ficha">✕ Cerrar</button>
       </div>
     </div>
@@ -235,6 +252,7 @@ async function pintarFichaNegocio(id) {
           <button type="button" class="btn alt chico" data-reenviar="${esc(i.correo)}">Reenviar</button></li>`).join("")}</ul>` : ""}
       <form id="form-invitar-negocio" class="fila-form invitar-ficha">
         <div><label for="ni-correo">Invitar a alguien a ${esc(n.nombre)}</label><input id="ni-correo" type="email" required placeholder="correo@empresa.com"></div>
+        <div><label for="ni-telefono">Celular (WhatsApp)</label><input id="ni-telefono" type="tel" inputmode="numeric" placeholder="300 123 4567"></div>
         <div><label for="ni-rol">Rol</label><select id="ni-rol"><option value="administrador">Administrador</option><option value="empleado" selected>Colaborador</option></select></div>
         <button class="btn" type="submit">Invitar</button>
       </form>
@@ -256,7 +274,7 @@ async function pintarFichaNegocio(id) {
     </section>`;
 
   $("#f-cerrar").addEventListener("click", () => { cerrarFichaNegocio(); pintarListaNegocios(); });
-  $("#f-activo").addEventListener("click", () => cambiarActivoNegocio(n));
+  $("#f-estado").addEventListener("change", () => cambiarEstadoNegocio(n, $("#f-estado")));
   if ($("#f-plan")) $("#f-plan").addEventListener("change", () => cambiarPlanNegocio(n, $("#f-plan")));
   $("#form-invitar-negocio").addEventListener("submit", (e) => invitarANegocio(e, n));
   $$("[data-reenviar]", ficha).forEach((b) => b.addEventListener("click", () =>
@@ -285,6 +303,32 @@ async function cargarUsuariosFichaNegocio(n) {
     <tbody>${usuarios.map((x) => `<tr><td>${esc(x.nombre || "—")}</td><td>${esc(x.correo || "")}</td><td>${esc(ROLES[x.rol] || x.rol)}</td>
       <td>${esc(fechaCorta(x.creado_en))}</td><td>${"ultimo_ingreso" in x ? esc(haceCuanto(x.ultimo_ingreso)) : "—"}</td></tr>`).join("")}</tbody></table></div>`
     : '<p class="suave">Todavía nadie ha creado su cuenta.</p>';
+}
+
+async function cambiarEstadoNegocio(negocio, select) {
+  const nuevo = select.value, anterior = estadoDe(negocio);
+  if (nuevo === anterior) return;
+  const e = ESTADOS_EMPRESA[nuevo];
+  if (!(await confirmar({
+    titulo: `¿Cambiar ${negocio.nombre} a «${e.texto}»?`,
+    texto: e.explica + (nuevo === "activo" ? " Sus usuarios vuelven a trabajar normal." : ""),
+    boton: `Sí, ${e.texto.toLowerCase()}`,
+  }))) { select.value = anterior; return; }
+  try {
+    let filas;
+    try { filas = await q(db.from("negocios").update({ estado: nuevo }).eq("id", negocio.id).select("id")); }
+    catch (error) {
+      if (!/estado/i.test((error && error.message) || "")) throw error;
+      if (nuevo === "pausa") throw new Error("Para usar «En pausa» primero ejecuta en Supabase el SQL v18.");
+      filas = await q(db.from("negocios").update({ activo: nuevo === "activo" }).eq("id", negocio.id).select("id")); // sin v18
+    }
+    if (!filas.length) throw new Error("permission denied");
+    aviso(`${negocio.nombre} quedó ${e.texto.toLowerCase()}.`);
+    cargarNegocios();
+  } catch (error) {
+    select.value = anterior;
+    aviso(error && /SQL v18/.test(error.message) ? error.message : mensajeError(error), true);
+  }
 }
 
 async function cambiarActivoNegocio(negocio) {
@@ -401,12 +445,13 @@ async function invitarANegocio(evento, negocio) {
   boton.disabled = true;
   try {
     const correo = $("#ni-correo").value.trim().toLowerCase();
-    const resultado = await q(db.rpc("invitar_usuario", {
-      p_correo: correo, p_rol: $("#ni-rol").value, p_negocio_id: negocio.id,
-    }));
-    $("#ni-correo").value = "";
+    const telefono = $("#ni-telefono").value.replace(/\D/g, "");
+    const datos = { p_correo: correo, p_rol: $("#ni-rol").value, p_negocio_id: negocio.id };
+    if (telefono) datos.p_telefono = telefono;
+    const resultado = await q(db.rpc("invitar_usuario", datos));
+    $("#ni-correo").value = ""; $("#ni-telefono").value = "";
     if (resultado === "asignado") aviso(`${correo} ya tenía cuenta: quedó en ${negocio.nombre}.`);
-    else abrirEnvioInvitacion(correo, negocio, `Invitación lista para ${negocio.nombre}`);
+    else abrirEnvioInvitacion(correo, negocio, `Invitación lista para ${negocio.nombre}`, telefono);
     cargarNegocios();
   } catch (fallo) {
     error.textContent = mensajeError(fallo);

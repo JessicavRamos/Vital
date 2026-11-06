@@ -21,6 +21,76 @@ let textoBuscar = "";
 let cuantosBuscar = PASO_BUSCAR;
 const claveDescarte = (x) => `${x.mascota_id}|${x.grupo}|${x.ultima_fecha}`;
 
+/* ---------- La jornada: saludo, resumen y línea de tiempo ---------- */
+function saludoDelDia() {
+  const hora = Number(new Date().toLocaleString("en-GB", { timeZone: ZONA, hour: "2-digit", hourCycle: "h23" }));
+  const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
+  const nombre = primerNombre(nombreUsuario());
+  return nombre ? `${saludo}, ${nombre}` : saludo;
+}
+
+// precioCita(c) viene de agenda.js
+const cuenta = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+// Une partes como en una frase: "a", "a y b", "a, b y c".
+function enFrase(partes) {
+  return partes.length < 2 ? partes.join("") : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+}
+
+// Una frase con lo importante del día, en lugar de recuadros con cifras.
+function resumenDelDia(citas, serviciosMes) {
+  const fecha = fechaLarga().replace(",", "");
+  let texto = `Es ${esc(fecha)}. `;
+  if (!citas.length) {
+    texto += "No tienes citas para hoy.";
+  } else {
+    const hechas = citas.filter((c) => c.estado === "realizada").length;
+    const faltan = citas.length - hechas;
+    const partes = [];
+    if (hechas) partes.push(hechas === 1 ? "una ya terminó" : `${hechas} ya terminaron`);
+    if (faltan) partes.push(faltan === 1 ? "queda una por atender" : `quedan ${faltan} por atender`);
+    texto += `Tienes <strong>${cuenta(citas.length, "cita", "citas")}</strong>: ${enFrase(partes)}.`;
+    const porCobrar = citas.filter((c) => c.estado === "pendiente").reduce((suma, c) => suma + (Number(precioCita(c)) || 0), 0);
+    if (porCobrar) texto += ` Faltan <strong>${dinero(porCobrar)}</strong> por cobrar.`;
+  }
+  if (serviciosMes) texto += serviciosMes === 1 ? " En el mes va 1 servicio." : ` En el mes van ${serviciosMes} servicios.`;
+  return texto;
+}
+
+// Citas del día en una línea de tiempo. Todas tienen la misma altura (no se usa la duración).
+// La cita "actual" es la última pendiente cuya hora ya llegó: se resalta y su botón Terminar es el principal.
+function htmlJornada(citas) {
+  if (!citas.length) return '<p class="suave jornada-vacia">No tienes citas para hoy.</p>';
+  const ahora = Date.now();
+  const yaEmpezaron = citas.filter((c) => Date.parse(c.fecha_hora) <= ahora);
+  const pendientesQueLlegaron = yaEmpezaron.filter((c) => c.estado === "pendiente");
+  const actual = pendientesQueLlegaron.length ? pendientesQueLlegaron[pendientesQueLlegaron.length - 1] : null;
+
+  let html = "";
+  citas.forEach((c) => {
+    const [hora, ...ampm] = horaTexto(c.fecha_hora).split(" ");
+    const hecha = c.estado === "realizada";
+    const esActual = actual && c.id === actual.id;
+    const detalle = [c.servicio ?? "Sin servicio", c.guia ? `guía ${c.guia}` : ""].filter(Boolean).join(", ");
+    const acciones = hecha
+      ? `<button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`
+      : `<button class="btn chico${esActual ? "" : " alt"}" data-terminar="${c.id}">${esActual ? icono("check", { tam: 16 }) : ""}Terminar</button>
+         <button class="btn chico alt solo-icono" data-recordar="${c.id}" title="Recordar la cita por WhatsApp" aria-label="Recordar la cita de ${esc(c.mascota)} por WhatsApp">${icono("whatsapp", { tam: 17 })}</button>${botonMenu(c.id)}`;
+    html += `<div class="jornada-cita${hecha ? " hecha" : ""}${esActual ? " actual" : ""}">
+      <div class="jornada-hora" aria-label="${esc(horaTexto(c.fecha_hora))}"><b>${esc(hora)}</b><span>${esc(ampm.join(" "))}</span></div>
+      <div class="jornada-punto" aria-hidden="true">${hecha ? icono("check", { tam: 10 }) : ""}</div>
+      <div class="jornada-datos">
+        <div class="jornada-titulo">${iconoEspecie(c.especie)}<button class="enlace jornada-nombre" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
+          ${c.medicado ? '<span class="nota-cita medicado">Medicado</span>' : ""}
+          ${hecha ? '<span class="nota-cita terminada">Terminada</span>' : ""}</div>
+        <div class="jornada-sub">De ${esc(c.cliente)}. ${esc(detalle)}.</div>
+      </div>
+      <div class="jornada-der"><span class="jornada-precio">${dinero(precioCita(c))}</span><span class="jornada-acciones">${acciones}</span></div>
+    </div>`;
+  });
+  return html;
+}
+
 async function descartarPendiente(p) {
   try {
     const filas = await q(db.from("pendientes_descartados")
@@ -89,29 +159,8 @@ async function cargarHoy() {
   const pendientes = todosPendientes.filter((p) => !idDescarte.has(claveDescarte(p)));
   const descartados = todosPendientes.filter((p) => idDescarte.has(claveDescarte(p)));
 
-  const clientesPorBuscar = new Set(pendientes.map((p) => p.cliente_id)).size;
-  $("#h-stats").innerHTML = `
-    <div class="stat"><b>${citas.length}</b>Citas de hoy</div>
-    <div class="stat"><b>${clientesPorBuscar}</b>Clientes por buscar</div>
-    <div class="stat"><b>${serviciosMes}</b>Servicios este mes</div>`;
-
-  $("#h-citas").innerHTML = citas.length ? citas.map((c) => {
-    const [hora, ...ampm] = horaTexto(c.fecha_hora).split(" ");
-    return `<div class="item persona${c.estado === "realizada" ? " hecha" : ""}">
-      <div class="persona-hora" aria-label="${esc(horaTexto(c.fecha_hora))}"><b>${esc(hora)}</b><span>${esc(ampm.join(" "))}</span></div>
-      <div class="persona-datos">
-        <div class="persona-titulo">
-          <button class="enlace persona-nombre" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
-          ${c.estado === "realizada" ? `<span class="etiqueta ok">realizada</span>` : ""}
-        </div>
-        <div class="suave persona-sub">${esc(c.cliente)} · ${esc(c.servicio ?? "sin servicio")}${c.medicado ? " (medicado)" : ""} · ${dinero(c.estado === "realizada" ? c.precio_cobrado : (c.precio_acordado ?? c.precio))}</div>
-      </div>
-      <div class="persona-acciones">${c.estado === "pendiente"
-        ? `<button class="btn chico" data-terminar="${c.id}">Terminar</button>
-           <button class="btn chico alt" data-recordar="${c.id}" title="Enviar recordatorio de la cita por WhatsApp">Recordar</button>${botonMenu(c.id)}`
-        : `<button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`}</div>
-    </div>`;
-  }).join("") : '<p class="suave">No tienes citas para hoy.</p>';
+  $("#h-resumen").innerHTML = resumenDelDia(citas, serviciosMes);
+  $("#h-citas").innerHTML = htmlJornada(citas);
 
   $$("[data-terminar]", $("#h-citas")).forEach((b) => b.addEventListener("click", () =>
     abrirTerminarCita(citas.find((c) => c.id === Number(b.dataset.terminar)), cargarHoy)));
@@ -130,7 +179,7 @@ async function cargarHoy() {
   }
   $("#h-buscar-controles").innerHTML = pendientes.length ? `
     <div class="filtros tramos-buscar" role="group" aria-label="Cuánto llevan sin volver">${porTramo.map((t) =>
-      `<button type="button" class="chip" data-tramo="${t.id}" aria-pressed="${!textoBuscar && t.id === tramoBuscar}"${t.lista.length ? "" : " disabled"}>${t.nombre} <b>${t.lista.length}</b></button>`).join("")}</div>
+      `<button type="button" class="chip" data-tramo="${t.id}" aria-pressed="${!textoBuscar && t.id === tramoBuscar}"${t.lista.length ? "" : " disabled"}>${t.nombre} (${t.lista.length})</button>`).join("")}</div>
     <input type="search" id="h-buscar-texto" class="buscar-lista" placeholder="Buscar mascota o dueño en la lista" value="${esc(textoBuscar)}" aria-label="Buscar en A quién buscar">` : "";
 
   const pintarPendientes = () => {
@@ -146,16 +195,14 @@ async function cargarHoy() {
       const retraso = p.dias_de_retraso;
       // Urgencia: toca hoy (azul), hasta 30 días (amarillo), más de 30 días (rojo).
       const urgencia = retraso <= 0 ? "hoy" : retraso <= 30 ? "leve" : "atrasada";
-      return `<div class="item persona sin-avatar">
-        <div class="persona-datos">
-          <div class="persona-titulo">
-            <button class="enlace persona-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button>
-            <span class="etiqueta ${urgencia}">${retraso <= 0 ? "Toca hoy" : `Hace ${retraso} ${retraso === 1 ? "día" : "días"}`}</span>
-          </div>
-          <div class="suave persona-sub">${esc(p.cliente)} · ${esc(p.grupo)} · último&nbsp;${esc(fechaTexto(p.ultima_fecha))}</div>
+      const cuando = retraso <= 0 ? "le toca hoy" : `${cuenta(retraso, "día", "días")} tarde`;
+      return `<div class="buscar-item">
+        <div class="buscar-datos">
+          <div class="buscar-titulo">${iconoEspecie(p.especie, 17)}<button class="enlace buscar-nombre" data-ficha="${p.mascota_id}" title="Ver ficha e historial">${esc(p.mascota)}</button></div>
+          <div class="buscar-sub">De ${esc(p.cliente)}, ${esc(p.grupo.toLowerCase())}, <span class="retraso ${urgencia}">${cuando}</span>. Vino el ${esc(fechaTexto(p.ultima_fecha))}.</div>
         </div>
-        <div class="persona-acciones">
-          <button class="btn chico wa" data-whatsapp="${i}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.4 1.1 4.6 3 6.2L4 21l3.6-1.6c1.3.5 2.8.8 4.4.8 5.5 0 10-3.9 10-8.6S17.5 3 12 3z"/></svg>WhatsApp</button>
+        <div class="buscar-acciones">
+          <button class="btn chico wa solo-icono" data-whatsapp="${i}" title="Escribirle por WhatsApp" aria-label="Escribirle por WhatsApp a ${esc(p.cliente)}">${icono("whatsapp", { tam: 18 })}</button>
           <button class="btn chico alt" data-agendar="${i}">Agendar</button>
           <button class="btn chico alt solo-icono" data-descartar="${i}" title="Descartar: quitar de esta lista hasta su próximo servicio" aria-label="Descartar ${esc(p.mascota)}">✕</button>
         </div></div>`;
@@ -229,17 +276,23 @@ Esperamos verlos muy pronto y seguir compartiendo momentos especiales con ustede
 }
 
 PANTALLAS.hoy = {
-  html: () => `<h1>Hoy</h1>
-    <p class="suave">Lo que tienes que hacer y a quién escribirle. Haz clic en el nombre de una mascota para ver su ficha.</p>
+  html: () => `<header class="hoy-cabeza">
+      <h1 id="h-saludo">${esc(saludoDelDia())}</h1>
+      <p class="hoy-resumen" id="h-resumen">Es ${esc(fechaLarga().replace(",", ""))}.</p>
+    </header>
     <div id="h-renovacion"></div>
-    <div class="stats" id="h-stats"></div>
-    <div class="columnas hoy-columnas">
-      <div class="tarjeta"><h2>Citas de hoy</h2><div id="h-citas" class="lista-hoy"><p class="suave">Cargando…</p></div></div>
-      ${moduloActivo("recordatorios") ? `<div class="tarjeta"><h2>A quién buscar hoy <span class="suave" id="h-cuantos-buscar"></span></h2>
+    <div class="hoja-hoy${moduloActivo("recordatorios") ? "" : " sin-lado"}">
+      <section class="jornada" aria-labelledby="h-titulo-citas">
+        <h2 id="h-titulo-citas" class="oculto-visual">Citas de hoy</h2>
+        <div id="h-citas" class="jornada-riel"><p class="suave">Cargando…</p></div>
+      </section>
+      ${moduloActivo("recordatorios") ? `<section class="lado-hoy" aria-labelledby="h-titulo-buscar">
+        <h2 id="h-titulo-buscar">A quién buscar hoy <span class="suave" id="h-cuantos-buscar"></span></h2>
+        <p class="suave lado-ayuda">Clientes a los que ya les toca volver.</p>
         <div id="h-buscar-controles"></div>
-        <div id="h-pendientes" class="lista-hoy"><p class="suave">Cargando…</p></div>
+        <div id="h-pendientes" class="lista-buscar"><p class="suave">Cargando…</p></div>
         <div id="h-buscar-mas"></div>
-        <div id="h-descartados" class="descartados"></div></div>` : ""}
+        <div id="h-descartados" class="descartados"></div></section>` : ""}
     </div>`,
   despues: () => { avisoRenovacion(); return cargarHoy(); },
 };
@@ -256,11 +309,9 @@ async function avisoRenovacion() {
   if (!est.aviso) return;
   const clave = `dalu-vital-renovacion-${estado.negocio ? estado.negocio.id : 0}-${datos.proximo_pago}-${est.dias < 0 ? hoyISO() : ""}`;
   try { if (localStorage.getItem(clave)) return; } catch (error) { /* sin almacenamiento: se muestra */ }
-  const texto = est.dias > 0 ? `Tu plan ${esc(datos.plan || "")} se renueva el ${esc(fechaPago(datos.proximo_pago))}.`
-    : est.dias === 0 ? `Tu plan ${esc(datos.plan || "")} se renueva hoy.`
-    : `Tu renovación del plan ${esc(datos.plan || "")} está pendiente desde el ${esc(fechaPago(datos.proximo_pago))}.`;
-  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion" role="status">
-    <span>🔔 ${texto}</span>
+  const texto = esc(textoAvisoPago(datos.proximo_pago, datos.plan || ""));
+  caja.innerHTML = `<div class="aviso-fijo aviso-renovacion${est.dias < 0 ? " atrasada" : ""}" role="status">
+    <span>${texto}</span>
     <span class="acciones-tabla"><a class="btn chico" href="#/suscripcion">Ver cómo pagar</a>
     <button type="button" class="btn alt chico" id="h-renovacion-cerrar" aria-label="Cerrar aviso">✕</button></span></div>`;
   $("#h-renovacion-cerrar").addEventListener("click", () => {

@@ -1,68 +1,63 @@
 -- =====================================================================
 -- DALU Vital · Borrar las empresas de prueba "Demo" y "Kiros"
 -- Borra TODO lo de esas dos empresas: sedes, precios, catálogos, clientes,
--- citas, servicios, invitaciones, pagos, sus usuarios y las cuentas de
--- sus correos (jessicaramos@fymtech.com y kiroscolombia@gmail.com).
--- Pet Garden no se toca: si algo no cuadra, se detiene y no borra nada.
--- ¡No se puede deshacer!
+-- citas, servicios, invitaciones, pagos, sus usuarios y las cuentas de sus
+-- correos. Es un solo bloque: si algo no cuadra, se detiene y no borra nada.
+-- Pet Garden no se toca. ¡No se puede deshacer!
 -- =====================================================================
-begin;
-
-create temp table borrar on commit drop as
-  select id, nombre from public.negocios where slug in ('demo', 'kiros');
-
 do $$
+declare
+  v_ids bigint[];
+  v_correos text[];
+  t text;
+  r record;
+  n bigint;
 begin
-  if exists (select 1 from borrar where id = 1 or nombre ilike '%pet garden%') then
+  select array_agg(id) into v_ids from public.negocios where slug in ('demo', 'kiros');
+
+  if v_ids is null or array_length(v_ids, 1) <> 2 then
+    raise exception 'Alto: se esperaban 2 empresas (demo y kiros) y hay %.', coalesce(array_length(v_ids, 1), 0);
+  end if;
+  if 1 = any(v_ids) or exists (select 1 from public.negocios where id = any(v_ids) and nombre ilike '%pet garden%') then
     raise exception 'Alto: Pet Garden no se puede borrar.';
   end if;
-  if (select count(*) from borrar) <> 2 then
-    raise exception 'Alto: se esperaban 2 empresas (demo y kiros) y hay %.', (select count(*) from borrar);
-  end if;
-end $$;
 
--- Correos de sus usuarios e invitaciones (para borrar también sus cuentas)
-create temp table correos on commit drop as
-  select lower(correo) as correo from public.invitaciones where negocio_id in (select id from borrar)
-  union
-  select lower(correo) from public.perfiles where negocio_id in (select id from borrar) and correo is not null;
+  -- Correos de sus usuarios e invitaciones (para borrar también sus cuentas)
+  select array_agg(distinct c) into v_correos from (
+    select lower(correo) as c from public.invitaciones where negocio_id = any(v_ids)
+    union
+    select lower(correo) from public.perfiles where negocio_id = any(v_ids) and correo is not null
+  ) x;
 
-delete from public.usuarios_sedes where sede_id in (select id from public.sedes where negocio_id in (select id from borrar));
-delete from public.precios_sede where negocio_id in (select id from borrar);
+  delete from public.usuarios_sedes where sede_id in (select id from public.sedes where negocio_id = any(v_ids));
+  delete from public.precios_sede where negocio_id = any(v_ids);
 
-do $$
-declare t text;
-begin
   foreach t in array array['servicios_anulados', 'pendientes_descartados', 'servicios', 'citas', 'mascotas', 'clientes',
                            'razas', 'guias', 'tipos_servicio', 'grupos_recordatorio', 'videos', 'invitaciones', 'pagos'] loop
     if to_regclass('public.' || t) is not null then
-      execute format('delete from public.%I where negocio_id in (select id from borrar)', t);
+      execute format('delete from public.%I where negocio_id = any($1)', t) using v_ids;
     end if;
   end loop;
-end $$;
 
--- Usuarios: su perfil y su cuenta (solo si no pertenecen a otra empresa)
-delete from public.perfiles where negocio_id in (select id from borrar);
-delete from auth.users u
-where lower(u.email) in (select correo from correos)
-  and not exists (select 1 from public.perfiles p where p.id = u.id);
+  -- Usuarios: su perfil y su cuenta (solo si no pertenecen a otra empresa)
+  delete from public.perfiles where negocio_id = any(v_ids);
+  delete from auth.users u
+  where lower(u.email) = any(coalesce(v_correos, '{}'))
+    and not exists (select 1 from public.perfiles p where p.id = u.id);
 
-delete from public.sedes where negocio_id in (select id from borrar);
-delete from public.negocios where id in (select id from borrar);
+  delete from public.sedes where negocio_id = any(v_ids);
+  delete from public.negocios where id = any(v_ids);
 
--- Nada debe quedar apuntando a esas empresas (revisa todas las tablas con negocio_id)
-do $$
-declare r record; n bigint;
-begin
+  -- Nada debe quedar apuntando a esas empresas
   for r in select c.table_name from information_schema.columns c
-           join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name
-           where c.table_schema = 'public' and c.column_name = 'negocio_id' and t.table_type = 'BASE TABLE' loop
-    execute format('select count(*) from public.%I where negocio_id not in (select id from public.negocios)', r.table_name) into n;
-    if n > 0 then raise exception 'Alto: quedaron % filas sueltas en %.', n, r.table_name; end if;
+           join information_schema.tables tb on tb.table_schema = c.table_schema and tb.table_name = c.table_name
+           where c.table_schema = 'public' and c.column_name = 'negocio_id' and tb.table_type = 'BASE TABLE' loop
+    execute format('select count(*) from public.%I where negocio_id = any($1)', r.table_name) into n using v_ids;
+    if n > 0 then raise exception 'Alto: quedaron % filas en %.', n, r.table_name; end if;
   end loop;
-end $$;
 
-commit;
+  raise notice 'Listo: se borraron Demo y Kiros (% correos).', coalesce(array_length(v_correos, 1), 0);
+end $$;
 
 -- Comprobación: solo debe quedar Pet Garden y ninguna cuenta de esos correos
 select n.id, n.nombre, n.slug,

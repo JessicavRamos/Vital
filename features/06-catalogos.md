@@ -87,8 +87,8 @@ Característica: Catálogos
   # ---------- Servicios ----------
   Escenario: Servicios fijos no se pueden renombrar
     Dado que estoy en "Servicios y recordatorios"
-    Entonces veo el aviso "No cambies el nombre de Baño, Corte, Corte y baño"
-    Y los nombres "Baño", "Corte" y "Corte y baño" están deshabilitados
+    Entonces los nombres "Baño", "Corte", "Corte y baño" y "Uñas" están deshabilitados
+    # v19: se quitó el aviso de texto porque los nombres ya están bloqueados
 
   Escenario: Agregar un grupo de recordatorio
     Cuando agrego el grupo "Desparasitación" con 90 días

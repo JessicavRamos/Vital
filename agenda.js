@@ -215,9 +215,9 @@ const lunesDe = (fechaISO) => {
 };
 const tituloDia = (fechaISO) => {
   const hoy = hoyISO();
-  const extra = fechaISO === hoy ? "Hoy · " : fechaISO === sumarDias(hoy, 1) ? "Mañana · " : fechaISO === sumarDias(hoy, -1) ? "Ayer · " : "";
-  const t = diaTexto(fechaISO);
-  return extra + t.charAt(0).toUpperCase() + t.slice(1);
+  const extra = fechaISO === hoy ? "Hoy" : fechaISO === sumarDias(hoy, 1) ? "Mañana" : fechaISO === sumarDias(hoy, -1) ? "Ayer" : "";
+  const t = diaTexto(fechaISO).replace(",", "");
+  return extra ? `${extra}, ${t}` : t.charAt(0).toUpperCase() + t.slice(1);
 };
 
 // Quién canceló, cuándo y por qué (se lee de la tabla citas).
@@ -253,47 +253,54 @@ function opcionesCita(c, alGuardar) {
 
 function accionesCita(c) {
   if (c.estado === "pendiente") return `<button class="btn chico" data-terminar="${c.id}">Terminar</button>
-    <button class="btn chico alt" data-recordar="${c.id}" title="Enviar recordatorio de la cita por WhatsApp">Recordar</button>${botonMenu(c.id)}`;
+    <button class="btn chico alt solo-icono" data-recordar="${c.id}" title="Recordar la cita por WhatsApp" aria-label="Recordar la cita de ${esc(c.mascota)} por WhatsApp">${icono("whatsapp", { tam: 17 })}</button>${botonMenu(c.id)}`;
   if (c.estado === "realizada") return `<button class="btn chico alt" data-recoger="${c.id}" title="Avisar por WhatsApp que ya puede recogerlo">Avisar</button>${botonMenu(c.id)}`;
   return botonMenu(c.id);
 }
 
-// Una cita como renglón compacto: hora | mascota y dueño | servicio | precio | estado | acciones
+// Una cita con el estilo de "La jornada" (igual que en Hoy): hora, punto sobre el hilo,
+// perro o gato, mascota, dueño y servicio en una frase, precio y acciones.
 function htmlCita(c, conFecha = false) {
-  const clase = { pendiente: "", realizada: "ok", cancelada: "gris" }[c.estado] ?? "";
-  const precio = c.estado === "cancelada"
+  const hecha = c.estado === "realizada";
+  const cancelada = c.estado === "cancelada";
+  const precio = cancelada
     ? `<s>${dinero(c.precio_cobrado ?? c.precio_acordado ?? c.precio)}</s>`
     : dinero(precioCita(c));
   const [hora, ampm] = horaTexto(c.fecha_hora).split(/\s(?=[ap]\.)/);
-  return `<article class="cita estado-${esc(c.estado)}">
-    <div class="cita-hora">${conFecha ? `<small>${esc(fechaCorta(diaDe(c.fecha_hora)))}</small>` : ""}<strong>${esc(hora)}</strong><small>${esc(ampm ?? "")}</small></div>
-    <div class="cita-quien">
-      <button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
-      <div class="suave">${esc(c.cliente)}${c.telefono ? ` · ${esc(c.telefono)}` : ""}</div>
+  const telefono = c.telefono ? `, ${esc(c.telefono)}` : "";
+  const detalle = [c.servicio ?? "Sin servicio", c.guia ? `guía ${c.guia}` : ""].filter(Boolean).join(", ");
+  const punto = hecha ? icono("check", { tam: 10 }) : cancelada ? '<span class="x-punto">×</span>' : "";
+  return `<article class="jornada-cita estado-${esc(c.estado)}${hecha ? " hecha" : ""}${cancelada ? " cancelada" : ""}">
+    <div class="jornada-hora" aria-label="${esc(horaTexto(c.fecha_hora))}">${conFecha ? `<small>${esc(fechaCorta(diaDe(c.fecha_hora)))}</small>` : ""}<b>${esc(hora)}</b><span>${esc(ampm ?? "")}</span></div>
+    <div class="jornada-punto" aria-hidden="true">${punto}</div>
+    <div class="jornada-datos">
+      <div class="jornada-titulo">${iconoEspecie(c.especie)}<button class="enlace jornada-nombre" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button>
+        ${c.medicado ? '<span class="nota-cita medicado">Medicado</span>' : ""}
+        ${hecha ? '<span class="nota-cita terminada">Terminada</span>' : ""}${cancelada ? '<span class="nota-cita anulada">Cancelada</span>' : ""}</div>
+      <div class="jornada-sub">De ${esc(c.cliente)}${telefono}. ${esc(detalle)}.</div>
+      ${c.motivo ? `<div class="jornada-sub">${esc(c.motivo)}</div>` : ""}
+      ${cancelada ? htmlAuditoria(c.cancelada_por, c.cancelada_en, c.motivo_cancelacion) : ""}
     </div>
-    <div class="cita-servicio">${esc(c.servicio ?? "—")}${c.medicado ? ' <span class="etiqueta">medicado</span>' : ""}
-      ${c.guia ? `<div class="suave">guía ${esc(c.guia)}</div>` : ""}${c.motivo ? `<div class="suave">${esc(c.motivo)}</div>` : ""}</div>
-    <div class="cita-precio">${precio}</div>
-    <div class="cita-estado"><span class="etiqueta ${clase}">${esc(c.estado)}</span>
-      ${c.estado === "cancelada" ? htmlAuditoria(c.cancelada_por, c.cancelada_en, c.motivo_cancelacion) : ""}</div>
-    <div class="acciones-tabla">${accionesCita(c)}</div>
+    <div class="jornada-der"><span class="jornada-precio">${precio}</span><span class="jornada-acciones">${accionesCita(c)}</span></div>
   </article>`;
 }
 
-// Resumen del rango: cuántas citas hay en cada estado y cuánta plata.
+// Resumen del rango en una frase (como en Hoy), en lugar de una franja de cifras.
 function htmlResumenAgenda(citas) {
   const n = (e) => citas.filter((c) => c.estado === e).length;
   const cobrado = citas.filter((c) => c.estado === "realizada").reduce((s, c) => s + (Number(c.precio_cobrado) || 0), 0);
   const porCobrar = citas.filter((c) => c.estado === "pendiente").reduce((s, c) => s + (Number(c.precio_acordado ?? c.precio) || 0), 0);
-  const pl = (k, uno, varios) => `<b>${k}</b> ${k === 1 ? uno : varios}`;
-  return `<div class="resumen-agenda">
-    <span>${pl(citas.length - n("cancelada"), "cita", "citas")}</span>
-    <span>${pl(n("pendiente"), "pendiente", "pendientes")}</span>
-    <span>${pl(n("realizada"), "realizada", "realizadas")}</span>
-    ${n("cancelada") ? `<span class="suave">${pl(n("cancelada"), "cancelada", "canceladas")}</span>` : ""}
-    <span>Cobrado <b>${dinero(cobrado)}</b></span>
-    ${porCobrar ? `<span>Por cobrar <b>${dinero(porCobrar)}</b></span>` : ""}
-  </div>`;
+  const activas = citas.length - n("cancelada");
+  if (!citas.length) return "";
+  const partes = [];
+  if (n("pendiente")) partes.push(`${n("pendiente")} ${n("pendiente") === 1 ? "pendiente" : "pendientes"}`);
+  if (n("realizada")) partes.push(`${n("realizada")} ${n("realizada") === 1 ? "realizada" : "realizadas"}`);
+  const lista = partes.length < 2 ? partes.join("") : `${partes[0]} y ${partes[1]}`;
+  let texto = `<strong>${activas} ${activas === 1 ? "cita" : "citas"}</strong>${lista ? `: ${lista}` : ""}`;
+  if (n("cancelada")) texto += ` <span class="suave">(${n("cancelada")} ${n("cancelada") === 1 ? "cancelada" : "canceladas"})</span>`;
+  texto += `. Cobrado <strong>${dinero(cobrado)}</strong>`;
+  if (porCobrar) texto += `, por cobrar <strong>${dinero(porCobrar)}</strong>`;
+  return `<p class="resumen-agenda">${texto}.</p>`;
 }
 
 // Lista de un día: activas primero (por hora) y las canceladas recogidas al final.
@@ -343,7 +350,7 @@ async function cargarAgenda() {
       pintarCabecera(tituloDia(diaAgenda));
       const citas = await traerCitas(diaAgenda, sumarDias(diaAgenda, 1));
       if (!$("#lista-agenda")) return;
-      caja.innerHTML = htmlResumenAgenda(citas) + `<div class="lista-citas">${htmlListaDia(citas, diaAgenda)}</div>`;
+      caja.innerHTML = htmlResumenAgenda(citas) + `<div class="lista-citas jornada-riel">${htmlListaDia(citas, diaAgenda)}</div>`;
       conectarCitas(caja, citas);
     } else if (vistaAgenda === "semana") {
       const lunes = diaAgenda; // 7 días desde el día elegido (con "Hoy": hoy y los 6 siguientes)
@@ -358,7 +365,7 @@ async function cargarAgenda() {
         h += `<section class="dia-semana${dia === hoyISO() ? " es-hoy" : ""}">
           <h3><button type="button" class="enlace-dia" data-ir-dia="${dia}" title="Ver este día">${esc(tituloDia(dia))}</button>
             <span class="suave">${activas ? `${activas} ${activas === 1 ? "cita" : "citas"}` : "sin citas"}</span></h3>
-          <div class="lista-citas">${htmlListaDia(delDia, dia, false)}</div></section>`;
+          <div class="lista-citas jornada-riel">${htmlListaDia(delDia, dia, false)}</div></section>`;
       }
       caja.innerHTML = h;
       conectarCitas(caja, citas);
@@ -397,7 +404,7 @@ function filaCitaTabla(c) {
   const clase = { pendiente: "", realizada: "ok", cancelada: "gris" }[c.estado] ?? "";
   return `<tr${c.estado === "cancelada" ? ' class="cancelada"' : ""}>
     <td>${htmlFechaHora(c.fecha_hora)}</td>
-    <td><button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button></td>
+    <td><span class="nombre-con-especie">${iconoEspecie(c.especie, 16)}<button class="enlace" data-ficha="${c.mascota_id}" title="Ver ficha e historial">${esc(c.mascota)}</button></span></td>
     <td>${esc(c.cliente)}<div class="suave">${esc([c.telefono, c.telefono2].filter(Boolean).join(" / "))}</div></td>
     <td>${esc(c.servicio ?? "—")}${c.medicado ? ' <span class="etiqueta">medicado</span>' : ""}${c.guia ? `<div class="suave">guía ${esc(c.guia)}</div>` : ""}</td>
     <td class="num">${c.estado === "cancelada" ? `<s>${dinero(c.precio_cobrado ?? c.precio_acordado ?? c.precio)}</s>` : dinero(precioCita(c))}</td>
@@ -425,7 +432,7 @@ PANTALLAS.agenda = {
       <div class="segmentado" role="tablist" aria-label="Vista">${Object.entries(VISTAS_AGENDA).map(([clave, texto]) =>
         `<button type="button" role="tab" aria-selected="${clave === vistaAgenda}" data-vista="${clave}">${texto}</button>`).join("")}</div>
     </div>
-    <div class="tarjeta">
+    <div class="tarjeta hoja-vital">
       ${vistaAgenda === "buscar" ? `<p class="suave">Todas las citas. Filtra por fecha, mascota, dueño, servicio o estado, y ordena con los encabezados.</p>` : `
       <div class="navegador-fecha">
         <div class="nav-flechas">

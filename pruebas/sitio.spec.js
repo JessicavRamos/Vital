@@ -168,7 +168,7 @@ test.describe("Videos (oculto)", () => {
     await abrir(page, "hoy");
     await expect(page.locator("#menu-secciones")).not.toContainText("Videos");
     await page.goto("/index.html#/videos");
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
   });
 
   test("la entrada ya no tiene el enlace a videos", async ({ page }) => {
@@ -340,13 +340,13 @@ test.describe("Suscripción y pagos", () => {
     await expect(page.locator("#s-resumen")).toHaveCount(0);
   });
 
-  test("Hoy: aviso de renovación 3 días antes, solo al administrador, y se puede cerrar", async ({ page }) => {
+  test("Hoy: aviso de renovación 1 día antes, solo al administrador, y se puede cerrar", async ({ page }) => {
     await abrir(page, "hoy", { extra: "renuevapronto" });
-    await expect(page.locator("#h-renovacion")).toContainText("se renueva el");
+    await expect(page.locator("#h-renovacion")).toContainText("Mañana");
     await page.locator("#h-renovacion-cerrar").click();
     await expect(page.locator("#h-renovacion")).toBeEmpty();
     await page.reload();
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
   });
@@ -356,7 +356,7 @@ test.describe("Suscripción y pagos", () => {
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
     await page.goto("/index.html?empleado&renuevapronto#/hoy");
-    await expect(page.locator("h1")).toHaveText("Hoy");
+    await expect(page.locator("#h-saludo")).toBeVisible(); // la pantalla Hoy abre con el saludo
     await page.waitForTimeout(500);
     await expect(page.locator("#h-renovacion")).toBeEmpty();
   });
@@ -647,9 +647,11 @@ test.describe("Sedes y planes", () => {
     await expect(aviso(page)).toContainText("no está incluida en tu plan");
   });
 
-  test("empresa pausada: aviso y sin panel", async ({ page }) => {
+  test("empresa finalizada: sin panel, con su correo y la razón", async ({ page }) => {
     await abrir(page, "hoy", { extra: "pausado" });
-    await expect(page.locator("h1")).toHaveText("Tu empresa está pausada");
+    await expect(page.locator("h1")).toHaveText("Pet Garden ya no tiene acceso");
+    await expect(page.locator(".sin-acceso")).toContainText("Entraste como");
+    await expect(page.locator(".sin-acceso")).toContainText("finalizado");
     await expect(page.locator("#menu-secciones")).toHaveCount(0);
   });
 
@@ -796,3 +798,139 @@ test.describe("Arreglos de la ronda E2E (B02–B11)", () => {
     expect(medida.contenido).toBeLessThanOrEqual(medida.visible + 1);
   });
 });
+
+test.describe("v19 · Estados de empresa, avisos de pago e invitaciones", () => {
+  test("pausa: aviso para todos, sin Agendar ni Terminar, y la base no deja escribir", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "pausa" });
+    await expect(page.locator(".aviso-pausa")).toContainText("está en pausa");
+    await expect(page.locator(".lateral nav a", { hasText: "Agendar" })).toHaveCount(0);
+    await expect(page.locator("#h-citas [data-terminar]")).toBeHidden();
+    await page.goto("/index.html?empleado&pausa#/agenda");
+    await expect(page.locator(".aviso-pausa")).toContainText("está en pausa");
+  });
+
+  test("pausa: si intenta guardar algo ve el mensaje claro", async ({ page }) => {
+    await abrir(page, "catalogos", { extra: "pausa" });
+    const r = await page.evaluate(async () => { try { await q(db.from("guias").insert({ nombre: "X" })); return "sin error"; } catch (e) { return mensajeError(e); } });
+    expect(r).toContain("Tu empresa está en pausa");
+  });
+
+  for (const [extra, texto] of [["pagomanana", "Mañana"], ["pagohoy", "Hoy se renueva"], ["pagodia2", "hace 2 días"], ["pagodia4", "último día"], ["pagovencido", "vencida"]]) {
+    test(`aviso de pago (${extra})`, async ({ page }) => {
+      await abrir(page, "hoy", { extra });
+      await expect(page.locator("#h-renovacion")).toContainText(texto);
+    });
+  }
+
+  test("a 3 días de renovar todavía no hay aviso", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.waitForTimeout(400);
+    await expect(page.locator("#h-renovacion")).toBeEmpty();
+  });
+
+  test("DALU cambia el estado de una empresa desde la ficha", async ({ page }) => {
+    await abrir(page, "negocios", { extra: "dalu" });
+    await abrirFichaEmpresa(page, "Vet Norte");
+    await page.selectOption("#f-estado", "pausa");
+    await page.getByRole("button", { name: /Sí, en pausa/ }).click();
+    await expect(aviso(page)).toContainText("en pausa");
+  });
+
+  test("invitar con celular abre WhatsApp directo a ese número", async ({ page }) => {
+    await abrir(page, "usuarios");
+    await page.fill("#i-correo", "nueva@pet.co");
+    await page.fill("#i-telefono", "300 123 4567");
+    await page.locator("#form-invitar button[type=submit]").click();
+    const wa = page.locator(".envio-invitacion a.wa");
+    await expect(wa).toContainText("3001234567");
+    await expect(wa).toHaveAttribute("href", /wa\.me\/573001234567/);
+    await expect(page.locator(".mensaje-invitacion")).toContainText("#invitado=nueva%40pet.co");
+  });
+
+  test("el enlace de la invitación abre Crear cuenta con el correo escrito", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await page.goto("/index.html?sinsesion&invitacion#invitado=nueva%40pet.co");
+    await expect(page.locator("#cc-correo")).toHaveValue("nueva@pet.co");
+  });
+
+  test("enlace de correo reusado: mensaje que no habla solo de contraseña", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sinsesion" });
+    await page.goto("/index.html?sinsesion&enlace#error=access_denied&error_code=otp_expired&error_description=x");
+    await expect(page.locator("#error-login")).toContainText("Este enlace ya se usó");
+  });
+
+  test("Usuarios: el botón dice Cambiar sedes y deja marcar varias", async ({ page }) => {
+    await abrir(page, "usuarios", { extra: "dossedes" });
+    await page.getByRole("button", { name: "Cambiar sedes" }).first().click();
+    await expect(page.locator('input[name="eu-sede"]')).toHaveCount(2);
+  });
+});
+
+
+test.describe("Diseño La jornada (Hoy)", () => {
+  test("saludo, resumen del día en una frase y citas en la jornada", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator("#h-saludo")).toContainText(/Buen(os|as) (días|tardes|noches)/);
+    await expect(page.locator("#h-resumen")).toContainText("Tienes 2 citas");
+    await expect(page.locator("#h-citas .jornada-cita")).toHaveCount(2);
+  });
+
+  test("cada mascota muestra su ícono de perro o gato", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator('#h-citas .ico-especie[aria-label="perro"]').first()).toBeVisible();
+    await expect(page.locator('#h-pendientes .ico-especie[aria-label="gato"]')).toHaveCount(1);
+  });
+
+  test("el menú tiene íconos y marca la sección actual", async ({ page }) => {
+    await abrir(page, "hoy");
+    await expect(page.locator('#menu-secciones a[aria-current="page"] svg')).toHaveCount(1);
+    await expect(page.locator("#menu-secciones a svg").first()).toBeVisible();
+  });
+
+  test("Agenda: citas con ícono de especie y resumen en una frase", async ({ page }) => {
+    await abrir(page, "agenda");
+    await expect(page.locator('#lista-agenda .ico-especie[aria-label="perro"]').first()).toBeVisible();
+    await expect(page.locator("#lista-agenda .resumen-agenda")).toContainText("2 citas: 1 pendiente y 1 realizada");
+    await expect(page.locator("#agenda-titulo")).toContainText("Hoy, ");
+  });
+
+  test("Clientes: la tabla y la ficha muestran perro o gato", async ({ page }) => {
+    await abrir(page, "clientes");
+    await expect(page.locator('#c-lista .ico-especie[aria-label="gato"]')).toHaveCount(1);
+    await page.locator("#c-lista button.enlace", { hasText: "Luna" }).click();
+    await expect(page.locator('#c-ficha .ficha-cabeza .ico-especie[aria-label="perro"]')).toBeVisible();
+    await expect(page.locator("#c-ficha .estado-cliente")).toHaveText("Cliente activo");
+  });
+});
+
+test.describe("Restablecer contraseña", () => {
+  test("enlace de recuperación: guardar la contraseña nueva", async ({ page }) => {
+    await abrir(page, "hoy");
+    await page.goto("/index.html?rec#access_token=abc&type=recovery");
+    await page.fill("#nueva-clave", "nueva123"); await page.fill("#nueva-clave2", "nueva123");
+    await page.locator("#form-clave button[type=submit]").click();
+    await expect(aviso(page)).toContainText("contraseña quedó actualizada");
+  });
+
+  test("si la sesión del enlace se perdió: mensaje claro y pedir otro enlace", async ({ page }) => {
+    await abrir(page, "hoy", { extra: "sesionperdida" });
+    await page.goto("/index.html?sesionperdida&rec#access_token=abc&type=recovery");
+    await page.fill("#nueva-clave", "nueva123"); await page.fill("#nueva-clave2", "nueva123");
+    await page.locator("#form-clave button[type=submit]").click();
+    await expect(page.locator("#error-clave")).toContainText("ya no está activo");
+    await expect(page.locator("#error-clave")).not.toContainText("Auth session");
+    await page.locator("#pedir-otro-enlace").click();
+    await expect(page.locator("#form-olvide")).toBeVisible();
+  });
+
+  test("errores de Supabase en inglés salen en español y sin detalle técnico", async ({ page }) => {
+    await abrir(page, "hoy");
+    const r = await page.evaluate(() => [
+      "Auth session missing!", "Error sending recovery email", "Token has expired or is invalid",
+      "Password should contain at least one character of each: abc", "Algo raro que no conocemos",
+    ].map((m) => mensajeError({ message: m })));
+    for (const t of r) { expect(t).not.toMatch(/Detalle técnico|missing|sending|expired|should contain|raro/i); }
+    expect(r[4]).toContain("avísale a DALU");
+  });
+});
+

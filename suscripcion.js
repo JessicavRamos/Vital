@@ -55,9 +55,8 @@ async function cargarSuscripcion() {
       <div><span>Tu plan se renueva el</span><b id="s-proximo">${esc(fechaPago(datos && datos.proximo_pago))}</b>
         ${precio ? `<small id="s-valor">Valor: ${esc(dinero(precio))}</small>` : ""}</div>
     </div>
-    ${est.clase === "atrasada"
-      ? `<p class="aviso-fijo">Tu renovación está pendiente desde el ${esc(fechaPago(datos.proximo_pago))}. Renueva para seguir usando ${esc(NOMBRE_PRODUCTO)} sin interrupciones.</p>`
-      : est.aviso && est.dias < 0 ? `<p class="aviso-fijo">Tu renovación quedó pendiente. Si ya pagaste, avísanos y la registramos.</p>` : ""}
+    ${est.aviso ? `<p class="aviso-fijo${est.dias < 0 ? " atrasada" : ""}" id="s-aviso-pago">${esc(textoAvisoPago(datos.proximo_pago, nombrePlan || ""))}
+      ${est.dias < 0 ? " Si ya pagaste, avísanos y la registraremos." : ""}</p>` : ""}
     <div class="sus-acciones">
       <a class="btn" href="#s-pagar" id="s-ir-pagar">Cómo pagar</a>
       <a class="btn alt" target="_blank" rel="noopener" id="s-ya-pague" href="${esc(enlaceDalu(mensajeYaPague()))}">Ya pagué, avisar a DALU</a>
@@ -88,7 +87,7 @@ async function cargarSuscripcion() {
   $("#s-pagar").innerHTML = `<h2>Cómo pagar</h2>
     ${medios.length ? `<ul class="medios-pago">${medios.map((m) => `<li><span><strong>${esc(m.nombre)}</strong> ${esc(m.numero)}</span>
       <button type="button" class="btn alt chico" data-copiar="${esc(String(m.numero).replace(/\s/g, ""))}">Copiar número</button></li>`).join("")}</ul>` : ""}
-    <p class="suave">${precio ? `Valor de tu plan: <strong>${esc(dinero(precio))}</strong> al mes. ` : ""}Cuando pagues, envíanos el comprobante por WhatsApp y lo registramos.</p>
+    <p class="suave">${precio ? `Valor de tu plan: <strong>${esc(dinero(precio))}</strong> al mes. ` : ""}Cuando pagues, envíanos el comprobante por WhatsApp y lo registraremos.</p>
     <a class="btn" target="_blank" rel="noopener" href="${esc(enlaceDalu(mensajeYaPague()))}">Enviar comprobante por WhatsApp</a>`;
   $$("[data-copiar]", $("#s-pagar")).forEach((b) => b.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(b.dataset.copiar); aviso("Número copiado."); }

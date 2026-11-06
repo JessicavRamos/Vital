@@ -16,6 +16,35 @@ const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&
 // Siempre se escapa el texto que viene de la base antes de mostrarlo.
 const esc = (texto) => String(texto ?? "").replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
+/* ---------- Íconos (línea, mismo grosor en toda la app) ---------- */
+// Se dibujan con el color del texto (currentColor). Para agregar uno: el contenido de un SVG de 24×24.
+const ICONOS = {
+  hoy: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  agendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M12 13v5M9.5 15.5h5"/>',
+  agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M7.5 14h3M13.5 14h3M7.5 17.5h3"/>',
+  clientes: '<circle cx="6.5" cy="10" r="1.8"/><circle cx="10" cy="6.3" r="1.8"/><circle cx="14" cy="6.3" r="1.8"/><circle cx="17.5" cy="10" r="1.8"/><path d="M8 17.2c0-2.8 1.8-4.7 4-4.7s4 1.9 4 4.7c0 1.4-1.1 2.3-2.4 2l-1.6-.4-1.6.4C9.1 19.5 8 18.6 8 17.2z"/>',
+  reportes: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
+  catalogos: '<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+  sedes: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+  usuarios: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>',
+  suscripcion: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/>',
+  negocios: '<path d="M4 21V5.5L12 3v18M12 8.5l8 2.5v10M3 21h18M7.5 8.5v.01M7.5 12v.01M7.5 15.5v.01M15.5 14v.01M15.5 17.5v.01"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  whatsapp: '<path d="M4 20l1.3-3.9A8 8 0 1 1 12 20a8 8 0 0 1-4-1.1L4 20z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8c-.9-.4-1.6-1.1-2-2l.8-1-1-2L9 9.5z"/>',
+  // Mascotas: perro y gato de frente (Hoy, y donde se quiera mostrar la especie)
+  perro: '<path d="M4.2 14.5V9.6C4.2 5.9 7.6 3.5 12 3.5s7.8 2.4 7.8 6.1v4.9"/><path d="M7.6 8.8v6.1c0 2.8 2 4.6 4.4 4.6s4.4-1.8 4.4-4.6V8.8"/><circle cx="10.1" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="13.9" cy="12" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.2" rx="1.25" ry=".85" fill="currentColor" stroke="none"/>',
+  gato: '<path d="M5 5.2l3.4 3.1a8.6 8.6 0 0 1 7.2 0L19 5.2v8.2c0 3.9-3.1 6.6-7 6.6s-7-2.7-7-6.6z"/><circle cx="9.6" cy="12.6" r=".8" fill="currentColor" stroke="none"/><circle cx="14.4" cy="12.6" r=".8" fill="currentColor" stroke="none"/><ellipse cx="12" cy="15.3" rx="1.05" ry=".7" fill="currentColor" stroke="none"/>',
+};
+function icono(nombre, { tam = 20, clase = "ico", titulo = "" } = {}) {
+  const dibujo = ICONOS[nombre];
+  if (!dibujo) return "";
+  const accesible = titulo ? `role="img" aria-label="${esc(titulo)}"` : 'aria-hidden="true"';
+  return `<svg class="${clase}" width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${accesible}>${dibujo}</svg>`;
+}
+// Perro o gato según la especie de la mascota. Si la vista aún no trae la especie, no muestra nada.
+const iconoEspecie = (especie, tam = 18) =>
+  especie === "perro" || especie === "gato" ? icono(especie, { tam, clase: "ico ico-especie", titulo: especie }) : "";
+
 const dinero = (n) =>
   n === null || n === undefined || n === "" ? "—" : "$" + Number(n).toLocaleString("es-CO");
 
@@ -171,7 +200,7 @@ function mensajeError(error) {
   if (/failed to fetch|networkerror|load failed/i.test(texto))
     return "No hay conexión con la base de datos. Revisa tu internet y los datos de config.js.";
   if (/email not confirmed/i.test(texto))
-    return "Tu correo aún no está confirmado. Confírmalo en Supabase (Authentication > Users).";
+    return "Aún no has confirmado tu correo. Busca el correo de confirmación que te enviamos (revisa también Spam o Promociones), toca el enlace y vuelve a entrar.";
   if (/jwt expired/i.test(texto)) return "Tu sesión venció. Vuelve a iniciar sesión.";
   if (/permission denied|row-level security/i.test(texto))
     return "No tienes permiso para hacer esto. Inicia sesión de nuevo.";
@@ -183,8 +212,24 @@ function mensajeError(error) {
     return "Ese correo no tiene invitación. Pide al administrador de tu negocio que te invite y vuelve a intentar.";
   if (/user already registered/i.test(texto)) return "Ese correo ya tiene cuenta. Inicia sesión o usa «¿Olvidaste tu contraseña?».";
   if (/negocios_slug_key|duplicate key.*slug/i.test(texto)) return "Ya existe un negocio con esa dirección corta. Usa otra.";
-  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite)/.test(texto)) return texto;
-  return `No se pudo completar. Detalle técnico: ${texto}`;
+  if (/^(Debes iniciar sesión|Escribe el motivo|Tu usuario no tiene un negocio|Solo el administrador puede invitar|Solo DALU|Ese correo|Escribe un correo válido|Rol no válido|Ese dato pertenece a otro negocio|El servicio no existe|La cita no existe|Una cita realizada no se puede reabrir|Elige el servicio|Debe quedar al menos un administrador|Ese teléfono ya pertenece|El segundo teléfono|El teléfono es obligatorio|La fecha de la visita|No tienes acceso a esa sede|Tu plan permite|Tu empresa está en pausa|Escribe un celular válido)/.test(texto)) return texto;
+  // Errores de inicio de sesión y contraseñas (Supabase responde en inglés)
+  if (/auth session missing|session.not.found|invalid refresh token|refresh token not found/i.test(texto))
+    return "Tu sesión se cerró antes de terminar. Si estabas cambiando tu contraseña, pide un enlace nuevo en «¿Olvidaste tu contraseña?»; si no, vuelve a iniciar sesión.";
+  if (/token has expired or is invalid|otp_expired|email link is invalid|link is invalid or has expired/i.test(texto))
+    return "Este enlace ya se usó o venció. Pide uno nuevo en «¿Olvidaste tu contraseña?».";
+  if (/error sending .*email|smtp|email address not authorized/i.test(texto))
+    return "No pudimos enviar el correo en este momento. Espera unos minutos e intenta de nuevo; si sigue pasando, avísale a DALU.";
+  if (/password should contain/i.test(texto)) return "La contraseña debe combinar letras minúsculas, mayúsculas y números.";
+  if (/weak|pwned|known to be/i.test(texto) && /password/i.test(texto)) return "Esa contraseña es muy fácil de adivinar. Usa otra.";
+  if (/unable to validate email|invalid format|email address .* is invalid/i.test(texto)) return "Escribe un correo válido.";
+  if (/reauthenticat/i.test(texto)) return "Por seguridad, vuelve a iniciar sesión y cambia la contraseña de nuevo.";
+  if (/signups? not allowed|signup is disabled/i.test(texto)) return "En este momento no se pueden crear cuentas. Avísale a DALU.";
+  if (/user not found/i.test(texto)) return "No encontramos una cuenta con ese correo.";
+  // Cualquier otro error: mensaje en español para la persona; el detalle queda en la consola del navegador
+  // (F12 → Consola) y en window.__ultimoError, para soporte.
+  try { console.warn("[DALU Vital] Error sin traducir:", texto); window.__ultimoError = texto; } catch (e) { /* nada */ }
+  return "No se pudo completar. Intenta de nuevo en un momento; si sigue pasando, avísale a DALU.";
 }
 
 function mostrarError(caja, error) {
@@ -197,18 +242,29 @@ const configurado =
 
 // ¿Se abrió la página desde el enlace del correo "recuperar contraseña"?
 // Se revisa ANTES de crear el cliente de Supabase, que es quien lee y limpia ese enlace.
+// También el de "confirmar tu correo": al confirmarlo se entra directo con un aviso de bienvenida.
+// Los enlaces sirven una sola vez: si se vuelve a abrir, Supabase responde con un error y aquí se
+// explica sin suponer que era de contraseña.
 const RECUPERACION = (() => {
   const h = location.hash + "&" + location.search;
   if (/type=recovery/.test(h)) return { modo: "nueva" };
+  if (/type=(signup|invite|email)\b/.test(h) && /access_token=/.test(h)) return { modo: "confirmado" };
   if (/error_code=|error_description=/.test(h)) {
     return {
       modo: "error",
       texto: /otp_expired|expired/i.test(h)
-        ? "El enlace para cambiar la contraseña venció o ya se usó. Pide uno nuevo."
-        : "El enlace para cambiar la contraseña no es válido. Pide uno nuevo.",
+        ? "Este enlace ya se usó o venció. Si ya confirmaste tu correo, entra con tu correo y contraseña. Si querías cambiar tu contraseña, pide un enlace nuevo en «¿Olvidaste tu contraseña?»."
+        : "Este enlace no es válido. Entra con tu correo y contraseña o pide un enlace nuevo en «¿Olvidaste tu contraseña?».",
     };
   }
   return null;
+})();
+
+// Enlace de invitación: vital.dalu.pro/petgarden#invitado=correo → abre «Crear tu cuenta» con el correo escrito.
+const INVITADO = (() => {
+  const m = location.hash.match(/^#invitado=([^&]+)/);
+  if (!m) return null;
+  try { return decodeURIComponent(m[1]); } catch (error) { return null; }
 })();
 
 const db = configurado && typeof supabase !== "undefined"
@@ -366,15 +422,32 @@ const diasHasta = (f) => {
 };
 // Estado de la suscripción según la fecha de renovación (próximo pago).
 // Amable: amarillo cerca de la fecha y en los días de gracia; rojo solo después.
-const DIAS_GRACIA = 5;
+// Días de gracia después de la fecha de renovación. Pasados esos días, DALU decide (a mano) si pausa la empresa.
+const DIAS_GRACIA = 4;
 function estadoPago(proximo) {
   if (!proximo) return { texto: "Sin pagos registrados", clase: "gris" };
   const dias = diasHasta(proximo);
   if (dias < -DIAS_GRACIA) return { texto: "Renovación vencida", clase: "atrasada", dias, aviso: true };
   if (dias < 0) return { texto: "Renovación pendiente", clase: "", dias, aviso: true };
   if (dias === 0) return { texto: "Se renueva hoy", clase: "", dias, aviso: true };
-  if (dias <= DIAS_GRACIA) return { texto: `Se renueva en ${dias} ${dias === 1 ? "día" : "días"}`, clase: "", dias, aviso: dias <= 3 };
+  if (dias === 1) return { texto: "Se renueva mañana", clase: "", dias, aviso: true };
+  if (dias <= 5) return { texto: `Se renueva en ${dias} días`, clase: "", dias };
   return { texto: "Al día", clase: "ok", dias };
+}
+// Mensaje para la empresa según cuántos días faltan o pasaron (Hoy y Suscripción).
+function textoAvisoPago(proximo, plan = "") {
+  const est = estadoPago(proximo);
+  if (!est.aviso) return "";
+  const elPlan = plan ? `tu plan ${plan}` : "tu plan";
+  const limite = fechaPago(sumarDias(String(proximo).slice(0, 10), DIAS_GRACIA));
+  if (est.dias === 1) return `🔔 Mañana, ${fechaPago(proximo)}, se renueva ${elPlan}. Paga a tiempo para seguir usando ${NOMBRE_PRODUCTO} sin interrupciones.`;
+  if (est.dias === 0) return `🔔 Hoy se renueva ${elPlan}. Cuando pagues, envíanos el comprobante por WhatsApp y lo registraremos.`;
+  if (est.dias === -DIAS_GRACIA) return `⚠️ Hoy es el último día para pagar tu renovación. Desde mañana tu empresa puede pasar a pausa: podrán consultar, pero no agendar ni hacer cambios.`;
+  if (est.dias < 0 && est.dias > -DIAS_GRACIA) {
+    const n = -est.dias;
+    return `⚠️ Tu renovación está pendiente desde el ${fechaPago(proximo)} (hace ${n} ${n === 1 ? "día" : "días"}). Tienes hasta el ${limite} para pagar; después tu empresa puede pasar a pausa (solo consulta).`;
+  }
+  return `⛔ Tu renovación está vencida desde el ${fechaPago(proximo)}. Tu empresa puede pasar a pausa (solo consulta) en cualquier momento. Paga y envíanos el comprobante para evitarlo.`;
 }
 
 /* ---------- Planes y contacto con DALU (marketing) ---------- */
@@ -799,7 +872,7 @@ function cerrarDialogo(id = "dialogo") {
 
 /* ---------- Estado, logo, usuario, menú y pantallas ---------- */
 const estado = { rol: null, sinRoles: false, sesion: null, usuarioId: null, busqueda: "", agendarPrefill: null,
-  logoUrl: null, recuperacion: RECUPERACION, negocio: null, esDalu: false,
+  logoUrl: null, recuperacion: RECUPERACION, invitado: INVITADO, enPausa: false, negocio: null, esDalu: false,
   plan: null, sedes: [], sedesMias: [], sede: null, conSedes: false };
 
 /* ---------- Sedes y plan ---------- */
@@ -856,9 +929,9 @@ function refrescarSelectorSede() {
 }
 function htmlSelectorSede() {
   if (!estado.conSedes || !estado.sede) return "";
-  if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">📍 ${esc(estado.sede.nombre)}</span>`;
-  return `<label class="sede-actual">📍 <span class="oculto-visual">Sede</span>
-    <select id="sede-actual" aria-label="Sede en la que estás trabajando">${estado.sedesMias.map((s) =>
+  if (estado.sedesMias.length < 2) return `<span class="sede-actual" title="Sede">${icono("sedes", { tam: 17 })}${esc(estado.sede.nombre)}</span>`;
+  return `<label class="sede-actual">${icono("sedes", { tam: 17 })}<span class="oculto-visual">Sede</span>
+    <select id="sede-actual" aria-label="Sede en la que estás trabajando" title="Sede en la que estás trabajando ahora. Las sedes de cada colaborador se asignan en Usuarios → Cambiar sedes.">${estado.sedesMias.map((s) =>
       `<option value="${s.id}"${s.id === estado.sede.id ? " selected" : ""}>${esc(s.nombre)}</option>`).join("")}</select></label>`;
 }
 
@@ -938,7 +1011,7 @@ async function cargarLogo() {
 }
 const htmlLogo = (clase) => estado.logoUrl
   ? `<img class="${clase}" src="${esc(estado.logoUrl)}" alt="Logo de ${esc(nombreNegocio())}">`
-  : `<span class="${clase} sin-logo" aria-hidden="true">🐾</span>`;
+  : `<span class="${clase} sin-logo" aria-hidden="true">${icono("clientes", { tam: 24 })}</span>`;
 
 function nombreUsuario() {
   const u = estado.sesion && estado.sesion.user;
@@ -988,15 +1061,23 @@ const MENU = [
 
 /* ---------- Roles: administrador y empleado ---------- */
 const esAdmin = () => estado.rol === "administrador";
-const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu) && moduloActivo(m.modulo);
+const puedeVer = (m) => (!m.soloAdmin || esAdmin()) && (!m.soloDalu || estado.esDalu) && moduloActivo(m.modulo)
+  && !(m.clave === "agendar" && estado.enPausa && !estado.esDalu); // en pausa no se agenda
 
 // Lee el rol de la persona que inició sesión (tabla "perfiles").
 async function cargarRol() {
   estado.plan = null;
   if (!estado.sesion) { estado.rol = null; estado.esDalu = false; return; }
   try {
-    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,planes(*))")
+    estado.enPausa = false;
+    estado.empresaFinalizada = null;
+    let { data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,estado,planes(*))")
       .eq("id", estado.sesion.user.id).maybeSingle();
+    if (error && /estado/i.test(error.message || "")) {
+      // Base sin el SQL v18 (sin estado de la empresa)
+      ({ data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug,planes(*))")
+        .eq("id", estado.sesion.user.id).maybeSingle());
+    }
     if (error && /plan/i.test(error.message || "")) {
       // Base sin planes (antes del SQL v13)
       ({ data, error } = await db.from("perfiles").select("rol,negocio_id,negocios(id,nombre,slug)")
@@ -1008,10 +1089,14 @@ async function cargarRol() {
       if (!error) estado.negocio = negocioLegado();
     } else if (!error) {
       const negocio = data && data.negocios ? data.negocios : null;
-      // Tiene empresa pero no se ve: DALU la pausó.
+      // Tiene empresa pero no se ve: DALU la finalizó (sin acceso).
       estado.negocioPausado = !!(data && data.negocio_id && !negocio);
+      if (estado.negocioPausado) {
+        try { const r = await db.rpc("mi_empresa_estado"); estado.empresaFinalizada = (r.data && r.data[0]) || null; } catch (e) { /* base sin v18 */ }
+      }
       estado.plan = negocio && negocio.planes ? negocio.planes : null;
-      estado.negocio = negocio ? { id: negocio.id, nombre: negocio.nombre, slug: negocio.slug } : null;
+      estado.negocio = negocio ? { id: negocio.id, nombre: negocio.nombre, slug: negocio.slug, estado: negocio.estado || "activo" } : null;
+      estado.enPausa = !!negocio && negocio.estado === "pausa";
       recordarNegocio(estado.negocio);
     }
     if (error) throw error;
@@ -1107,6 +1192,22 @@ function htmlNuevaClave() {
   </main>`;
 }
 
+// El enlace para cambiar la contraseña ya no tiene sesión: se explica y se ofrece pedir otro.
+function enlaceRecuperacionInactivo(caja) {
+  caja.innerHTML = `Tu enlace para cambiar la contraseña ya no está activo (pudo vencer, o se cerró la sesión en otra pestaña).
+    <button type="button" class="enlace" id="pedir-otro-enlace">Pedir un enlace nuevo</button>`;
+  const boton = $("#form-clave button[type=submit]");
+  if (boton) { boton.disabled = true; boton.textContent = "Guardar contraseña"; }
+  $("#pedir-otro-enlace").addEventListener("click", async () => {
+    // Se limpia la sesión aquí mismo (así el aviso de "salió" no vuelve a dibujar y cierra la ventana).
+    estado.recuperacion = null; estado.sesion = null; estado.usuarioId = null;
+    try { await db.auth.signOut(); } catch (e) { /* ya no había sesión */ }
+    history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    pintar();
+    pedirRecuperacion();
+  });
+}
+
 function montarNuevaClave() {
   const formulario = $("#form-clave");
   $("#ver-clave").addEventListener("change", (e) => {
@@ -1127,8 +1228,15 @@ function montarNuevaClave() {
     boton.disabled = true;
     boton.textContent = "Guardando…";
     try {
+      // La sesión que abre el enlace del correo pudo cerrarse (otra pestaña cerró sesión, pasó mucho tiempo
+      // o se abrió en otro navegador). Se revisa antes de guardar para explicarlo bien.
+      const { data: actual } = await db.auth.getSession();
+      if (!actual || !actual.session) { enlaceRecuperacionInactivo(caja); return; }
       const { error } = await db.auth.updateUser({ password: clave });
-      if (error) throw error;
+      if (error) {
+        if (/auth session missing|session.not.found|refresh token/i.test(error.message || "")) { enlaceRecuperacionInactivo(caja); return; }
+        throw error;
+      }
       estado.recuperacion = null;
       history.replaceState(null, "", location.pathname + location.search + "#/hoy");
       pintar();
@@ -1184,14 +1292,15 @@ function pedirRecuperacion() {
 }
 
 // Crear cuenta: solo funciona si el administrador del negocio (o DALU) invitó ese correo.
-function pedirCrearCuenta() {
+function pedirCrearCuenta(correoInicial = "") {
+  if (typeof correoInicial !== "string") correoInicial = "";
   abrirDialogo(`<form id="form-cuenta">
     <h2>Crear tu cuenta</h2>
-    <p class="suave">Usa el mismo correo con el que te invitaron. Te llegará un correo para confirmarlo.</p>
+    <p class="suave">${correoInicial ? "Tu correo ya está escrito: solo pon tu nombre y crea tu contraseña." : "Usa el mismo correo con el que te invitaron."}</p>
     <label for="cc-nombre">Tu nombre</label>
     <input id="cc-nombre" maxlength="60" autocomplete="name" required>
     <label for="cc-correo">Correo</label>
-    <input id="cc-correo" type="email" autocomplete="username" required>
+    <input id="cc-correo" type="email" autocomplete="username" required value="${esc(correoInicial)}">
     <label for="cc-clave">Contraseña (mínimo 6 caracteres)</label>
     <input id="cc-clave" type="password" autocomplete="new-password" minlength="6" required>
     <p id="cc-error" class="error" role="alert"></p>
@@ -1214,6 +1323,7 @@ function pedirCrearCuenta() {
       if (error) throw error;
       cerrarDialogo();
       if (!data.session) aviso("¡Listo! Revisa tu correo y confirma la cuenta para poder entrar.");
+      else setTimeout(() => aviso(`¡Listo! Tu cuenta quedó creada. Te damos la bienvenida a ${nombreNegocio()}.`), 1500);
     } catch (error) {
       $("#cc-error").textContent = mensajeError(error);
       boton.disabled = false;
@@ -1225,12 +1335,21 @@ function pedirCrearCuenta() {
 
 // Inició sesión pero su usuario no está en ningún negocio (y no es de DALU).
 function htmlSinNegocio() {
-  if (estado.negocioPausado) return `<main class="login"><div class="tarjeta">
-    <h1>Tu empresa está pausada</h1>
-    <p>El acceso de tu empresa a ${esc(NOMBRE_PRODUCTO)} está pausado por el momento. Tus datos están guardados y no se perdió nada.
-    Comunícate con DALU para reactivarlo.</p>
-    <button id="salir" class="btn">Cerrar sesión</button>
+  if (estado.negocioPausado) {
+    const empresa = estado.empresaFinalizada && estado.empresaFinalizada.nombre ? estado.empresaFinalizada.nombre : "Tu empresa";
+    const correo = estado.sesion.user.email || "";
+    return `<main class="login"><div class="tarjeta sin-acceso">
+    <h1>${esc(empresa)} ya no tiene acceso</h1>
+    <p>Entraste como <strong>${esc(correo)}</strong>.</p>
+    <p>El servicio de <strong>${esc(empresa)}</strong> en ${esc(NOMBRE_PRODUCTO)} está <strong>finalizado</strong>, por eso no puedes ver ni registrar información.
+    Los datos de la empresa no se borraron.</p>
+    <p class="suave">Si crees que es un error o tu empresa quiere volver, comunícate con DALU.</p>
+    <div class="acciones">
+      <a class="btn" target="_blank" rel="noopener" href="${esc(enlaceDalu(`Hola, soy ${correo} de ${empresa}. Nuestro acceso a ${NOMBRE_PRODUCTO} aparece finalizado.`))}">Escribir a DALU</a>
+      <button id="salir" class="btn alt">Cerrar sesión</button>
+    </div>
   </div></main>`;
+  }
   return `<main class="login"><div class="tarjeta">
     <h1>Tu usuario aún no tiene negocio</h1>
     <p>Iniciaste sesión como <strong>${esc(estado.sesion.user.email || "")}</strong>, pero todavía no estás en ningún negocio.
@@ -1249,7 +1368,7 @@ function htmlPublico() {
 
 function htmlPanel(clave) {
   const enlaces = MENU.filter(puedeVer).map((m) =>
-    `<a href="#/${m.clave}"${m.clave === clave ? ' aria-current="page"' : ""}>${esc(m.titulo)}</a>`).join("");
+    `<a href="#/${m.clave}"${m.clave === clave ? ' aria-current="page"' : ""}>${icono(m.clave)}<span>${esc(m.titulo)}</span></a>`).join("");
   const nombre = nombreUsuario();
   return `<div class="app">
     <aside class="lateral">
@@ -1260,7 +1379,7 @@ function htmlPanel(clave) {
       </div>
       <nav aria-label="Secciones" id="menu-secciones">${enlaces}</nav>
       <div class="pie">
-        <button id="perfil" class="usuario" title="Cambiar mi nombre">${nombre ? "👤 " + esc(nombre) : "👤 Escribe tu nombre"}
+        <button id="perfil" class="usuario" title="Cambiar mi nombre">${icono("usuarios", { tam: 18 })}<span class="usuario-nombre">${nombre ? esc(nombre) : "Escribe tu nombre"}</span>
           <span class="rol-usuario">${esc(esAdmin() ? "Administrador" : "Colaborador")}</span></button>
         <button id="salir" class="btn alt">Cerrar sesión</button>
         <p class="firma-producto">${esc(NOMBRE_PRODUCTO)}</p>
@@ -1272,6 +1391,7 @@ function htmlPanel(clave) {
         ${htmlSelectorSede()}
         <span class="suave">${esc(fechaLarga())}</span>
       </div>
+      ${htmlAvisoPausa()}
       <section id="pantalla" tabindex="-1"></section>
     </div>
   </div>`;
@@ -1320,9 +1440,23 @@ function montarLogin() {
     estado.recuperacion = null;
   }
   $("#correo").focus();
+  // Llegó con el enlace de su invitación: se abre de una vez «Crear tu cuenta».
+  if (estado.invitado) { const correo = estado.invitado; estado.invitado = null; pedirCrearCuenta(correo); }
+}
+
+// Empresa en pausa: todos (administrador y colaboradores) ven qué pasa. Solo pueden consultar.
+function htmlAvisoPausa() {
+  if (!estado.enPausa || estado.esDalu) return "";
+  const empresa = nombreNegocio();
+  return `<div class="aviso-pausa" role="status">
+    <p><strong>⏸ ${esc(empresa)} está en pausa.</strong> Puedes consultar tu información (agenda, clientes e historial),
+    pero no puedes agendar, terminar ni cancelar citas, ni hacer cambios. Para reactivarla, comunícate con DALU.</p>
+    <a class="btn chico" target="_blank" rel="noopener" href="${esc(enlaceDalu(`Hola, somos ${empresa}. Nuestra cuenta de ${NOMBRE_PRODUCTO} está en pausa y queremos reactivarla.`))}">Escribir a DALU</a>
+  </div>`;
 }
 
 function montarPanel() {
+  document.body.classList.toggle("solo-lectura", !!estado.enPausa && !estado.esDalu);
   $("#salir").addEventListener("click", async () => {
     await db.auth.signOut();
     location.hash = "#/hoy";
@@ -1437,21 +1571,24 @@ function avisarOtroNegocio() {
 
 /* ---------- Invitaciones: mensaje para enviar por WhatsApp o correo ---------- */
 function mensajeInvitacion(correo, negocio) {
-  const enlace = negocio && negocio.slug ? enlacePublico(negocio.slug) : location.origin + "/";
+  const base = negocio && negocio.slug ? enlacePublico(negocio.slug) : location.origin + "/";
+  const enlace = `${base}#invitado=${encodeURIComponent(correo)}`;
   return `¡Hola! Te invité a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}.
-1. Entra a ${enlace}
-2. Toca «¿Te invitaron? Crea tu cuenta».
-3. Usa este correo: ${correo}`;
+1. Abre este enlace: ${enlace}
+2. Escribe tu nombre y crea tu contraseña (tu correo ya aparece escrito).
+3. ¡Listo! Entras de una vez.
+Tu correo para entrar es: ${correo}`;
 }
-function abrirEnvioInvitacion(correo, negocio, titulo = "Envía la invitación") {
+function abrirEnvioInvitacion(correo, negocio, titulo = "Envía la invitación", telefono = "") {
   const texto = mensajeInvitacion(correo, negocio);
+  const tel = String(telefono || "").replace(/\D/g, "");
   const asunto = `Invitación a ${negocio ? negocio.nombre : NOMBRE_PRODUCTO} en ${NOMBRE_PRODUCTO}`;
   abrirDialogo(`<div>
     <h2>${esc(titulo)}</h2>
     <p class="suave">El sistema no envía correos solo: compártele este mensaje a <strong>${esc(correo)}</strong>.</p>
     <pre class="mensaje-invitacion">${esc(texto)}</pre>
     <div class="acciones envio-invitacion">
-      <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}">Enviar por WhatsApp</a>
+      <a class="btn wa" target="_blank" rel="noopener" href="${esc(tel ? enlaceWhatsApp(tel, texto) : `https://wa.me/?text=${encodeURIComponent(texto)}`)}">${tel ? `Enviar por WhatsApp al ${esc(tel)}` : "Enviar por WhatsApp (elige el contacto)"}</a>
       <a class="btn alt" href="mailto:${encodeURIComponent(correo)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}">Enviar por correo</a>
       <button type="button" class="btn alt" id="ei-copiar">Copiar mensaje</button>
       <button type="button" class="btn alt" id="ei-cerrar">Listo</button>
@@ -1518,7 +1655,8 @@ async function iniciar() {
       aviso(mensajeError(error), true);
     }
     // Se limpia el enlace del correo de la barra de direcciones (ya lo leyó Supabase).
-    if (RECUPERACION) history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    if (RECUPERACION || INVITADO) history.replaceState(null, "", location.pathname + location.search + "#/hoy");
+    if (estado.sesion && RECUPERACION && RECUPERACION.modo === "error") estado.recuperacion = null; // ya tiene sesión: nada que avisar
     db.auth.onAuthStateChange((evento, sesion) => {
       const nuevoId = sesion ? sesion.user.id : null;
       estado.sesion = sesion;
@@ -1537,6 +1675,9 @@ async function iniciar() {
   }
   window.addEventListener("hashchange", pintar);
   pintar();
+  if (RECUPERACION && RECUPERACION.modo === "confirmado" && estado.sesion) {
+    setTimeout(() => aviso(`¡Listo! Tu correo quedó confirmado. Te damos la bienvenida a ${nombreNegocio()}.`), 300);
+  }
   setInterval(revisarVersionNueva, 5 * 60 * 1000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) revisarVersionNueva(); });
 }

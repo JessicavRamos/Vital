@@ -49,7 +49,7 @@ async function cargarUsuarios() {
           ${Object.entries(ROLES).map(([clave, texto]) => `<option value="${clave}"${clave === u.rol ? " selected" : ""}>${texto}</option>`).join("")}
         </select></td>
         ${estado.conSedes ? `<td>${esc(textoSedes(u))}${u.rol !== "administrador" && estado.sedes.length > 1
-          ? ` <button type="button" class="btn alt chico" data-sedes="${esc(u.id)}">Cambiar</button>` : ""}</td>` : ""}
+          ? ` <button type="button" class="btn alt chico" data-sedes="${esc(u.id)}" title="Marcar una o varias sedes">Cambiar sedes</button>` : ""}</td>` : ""}
         <td>${esc(u.creado_en ? fechaCorta(diaDe(u.creado_en)) : "—")}</td>
       </tr>`,
       alPintar: (tbody) => {
@@ -124,21 +124,27 @@ async function cargarInvitaciones() {
   const caja = $("#u-invitaciones");
   if (!caja || estado.sinRoles) return;
   try {
-    let consulta = db.from("invitaciones").select("correo,rol,creado_en").order("creado_en", { ascending: false });
-    if (estado.negocio && estado.negocio.id) consulta = consulta.eq("negocio_id", estado.negocio.id);
-    const filas = await q(consulta);
+    const consultar = (campos) => {
+      let consulta = db.from("invitaciones").select(campos).order("creado_en", { ascending: false });
+      if (estado.negocio && estado.negocio.id) consulta = consulta.eq("negocio_id", estado.negocio.id);
+      return q(consulta);
+    };
+    let filas;
+    try { filas = await consultar("correo,rol,creado_en,telefono"); }
+    catch (error) { filas = await consultar("correo,rol,creado_en"); } // base sin el SQL v18
     if (!$("#u-invitaciones")) return;
     pintarUsoUsuarios(undefined, filas.length);
     caja.innerHTML = filas.length
       ? `<ul class="lista-invitaciones">${filas.map((i) => `<li>
-          <span><strong>${esc(i.correo)}</strong> · ${esc(ROLES[i.rol] || i.rol)}</span>
+          <span><strong>${esc(i.correo)}</strong> · ${esc(ROLES[i.rol] || i.rol)}${i.telefono ? ` · <span class="suave">${esc(i.telefono)}</span>` : ""}</span>
           <span class="acciones-invitacion">
             <button type="button" class="btn alt chico" data-reenviar="${esc(i.correo)}">Reenviar</button>
             <button type="button" class="btn alt chico" data-quitar="${esc(i.correo)}">Quitar</button></span></li>`).join("")}</ul>`
       : '<p class="suave">No hay invitaciones pendientes.</p>';
     $$("[data-quitar]", caja).forEach((b) => b.addEventListener("click", () => quitarInvitacion(b.dataset.quitar)));
     $$("[data-reenviar]", caja).forEach((b) => b.addEventListener("click", () =>
-      abrirEnvioInvitacion(b.dataset.reenviar, estado.negocio, "Reenviar la invitación")));
+      abrirEnvioInvitacion(b.dataset.reenviar, estado.negocio, "Reenviar la invitación",
+        (filas.find((i) => i.correo === b.dataset.reenviar) || {}).telefono || "")));
   } catch (error) {
     // Base sin el SQL v11: todavía no hay invitaciones.
     caja.innerHTML = `<p class="suave">${esc(mensajeError(error))}</p>`;
@@ -153,7 +159,9 @@ async function invitarUsuario(evento) {
   boton.disabled = true;
   try {
     const correo = $("#i-correo").value.trim().toLowerCase();
+    const telefono = $("#i-telefono") ? $("#i-telefono").value.replace(/\D/g, "") : "";
     const datos = { p_correo: correo, p_rol: $("#i-rol").value };
+    if (telefono) datos.p_telefono = telefono;
     if (estado.conSedes && $("#i-sedes")) {
       const sedes = sedesMarcadas($("#i-sedes"), "i");
       if (datos.p_rol === "empleado" && !sedes.length) { error.textContent = "Marca al menos una sede."; boton.disabled = false; return; }
@@ -162,7 +170,7 @@ async function invitarUsuario(evento) {
     const resultado = await q(db.rpc("invitar_usuario", datos));
     evento.target.reset();
     if (resultado === "asignado") aviso(`${correo} ya tenía cuenta: quedó agregado a ${nombreNegocio()}.`);
-    else abrirEnvioInvitacion(correo, estado.negocio, "Invitación lista: envíasela");
+    else abrirEnvioInvitacion(correo, estado.negocio, "Invitación lista: envíasela", telefono);
     cargarUsuarios();
   } catch (fallo) {
     error.textContent = mensajeError(fallo);
@@ -240,12 +248,14 @@ PANTALLAS.usuarios = {
           <form id="form-invitar" class="fila-form">
             <div><label for="i-correo">Correo</label>
               <input id="i-correo" type="email" autocomplete="off" required></div>
+            <div><label for="i-telefono">Celular (WhatsApp)</label>
+              <input id="i-telefono" type="tel" inputmode="numeric" autocomplete="off" placeholder="300 123 4567"></div>
             <div><label for="i-rol">Rol</label>
               <select id="i-rol">${Object.entries(ROLES).map(([clave, texto]) => `<option value="${clave}"${clave === "empleado" ? " selected" : ""}>${texto}</option>`).join("")}</select></div>
+            ${estado.conSedes && estado.sedes.filter((x) => x.activo).length > 1 ? `<fieldset id="i-sedes" class="casillas"><legend>Sedes (puedes marcar varias)</legend>
+              ${htmlCasillasSedes("i", estado.sede ? [estado.sede.id] : [])}</fieldset>` : ""}
             <button class="btn" type="submit">Invitar</button>
           </form>
-          ${estado.conSedes && estado.sedes.filter((x) => x.activo).length > 1 ? `<fieldset id="i-sedes" class="casillas"><legend>Sedes</legend>
-            ${htmlCasillasSedes("i", estado.sede ? [estado.sede.id] : [])}</fieldset>` : ""}
           <p id="i-error" class="error" role="alert"></p>
           <p id="u-uso" class="suave"></p>
           <p id="u-lleno" class="aviso-fijo" hidden>Llegaste al máximo de usuarios de tu plan. Para agregar más, cambia de plan con DALU.</p>
@@ -259,9 +269,10 @@ PANTALLAS.usuarios = {
         <p><button type="button" class="btn alt chico" id="ver-roles">Ver qué puede hacer cada rol</button></p>
         <h2>Agregar un usuario</h2>
         <ol class="pasos">
-          <li>Escribe su correo en <strong>Invitar a alguien</strong> y elige el rol.</li>
-          <li>Envíale el mensaje por WhatsApp o correo (aparece al invitar; con <strong>Reenviar</strong> lo vuelves a mandar).</li>
-          <li>La persona entra con tu enlace, toca <strong>«¿Te invitaron? Crea tu cuenta»</strong> y aparece aquí con el rol que elegiste.</li>
+          <li>Escribe su correo y su celular en <strong>Invitar a alguien</strong>, elige el rol y sus sedes.</li>
+          <li>Envíale la invitación: por WhatsApp le llega directo a su celular (o por correo). Con <strong>Reenviar</strong> la vuelves a mandar.</li>
+          <li>La persona abre el enlace, escribe su nombre, crea su contraseña y entra de una vez. Aparece aquí con el rol y las sedes que elegiste.</li>
+          <li>Para cambiar las sedes de un colaborador después: columna Sedes → <strong>Cambiar sedes</strong> (puedes marcar varias).</li>
         </ol>
         <p class="suave">Solo se pueden crear cuentas con invitación. Para quitarle el acceso a alguien,
         escríbele a DALU. Su historial (citas, servicios, cancelaciones) se conserva.</p>
